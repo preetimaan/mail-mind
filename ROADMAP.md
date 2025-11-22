@@ -127,7 +127,33 @@
 
 ### Medium Priority
 
-#### 4. Export Functionality
+#### 4. UI/UX Enhancements
+**Status**: Not Started  
+**Priority**: Medium  
+**Description**: Improve visual design and user experience.
+
+**Tasks**:
+- [ ] Add loading spinner for in-progress analysis
+- [ ] Improve overall UI design (modern, clean interface)
+- [ ] Better visual feedback for missing/empty data
+- [ ] Enhanced category chart UI for missing categories
+- [ ] Responsive design improvements
+- [ ] Dark mode support (optional)
+
+#### 5. Yearly Frequency Analysis
+**Status**: Not Started  
+**Priority**: Medium  
+**Description**: Add yearly frequency summary with data availability indicators.
+
+**Tasks**:
+- [ ] Yearly aggregation endpoint (`/api/insights/frequency/yearly`)
+- [ ] Year-over-year comparison chart
+- [ ] Visual indicators for missing data periods
+- [ ] Year selector component
+- [ ] Data completeness indicators (show gaps in data)
+- [ ] Summary statistics per year
+
+#### 6. Export Functionality
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Allow users to export insights and data.
@@ -139,7 +165,7 @@
 - [ ] Date range selection for exports
 - [ ] Export button in dashboard
 
-#### 5. Email Filtering & Search
+#### 7. Email Filtering & Search
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Filter and search through analyzed emails.
@@ -152,7 +178,7 @@
 - [ ] Filter UI component
 - [ ] Search results display
 
-#### 6. Advanced Analytics
+#### 8. Advanced Analytics
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Deeper insights and trend analysis.
@@ -257,6 +283,8 @@
 | Account Management UI | High | Medium | High | Not Started |
 | OAuth Callback | High | Low | High | Not Started |
 | Error Handling | High | Medium | High | Not Started |
+| UI/UX Enhancements | Medium | Medium | Medium | Not Started |
+| Yearly Frequency Analysis | Medium | Medium | Medium | Not Started |
 | Export Functionality | Medium | Low | Medium | Not Started |
 | Email Filtering | Medium | Medium | Medium | Not Started |
 | Advanced Analytics | Medium | High | Medium | Not Started |
@@ -273,6 +301,8 @@
 2. ⏳ Implement account management UI
 3. ⏳ Add OAuth callback handler
 4. ⏳ Improve error handling
+5. ⏳ Add loading spinner and UI improvements
+6. ⏳ Implement yearly frequency analysis
 
 ---
 
