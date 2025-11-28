@@ -81,6 +81,27 @@ export default function Dashboard() {
     }
   }
 
+  const handleLogout = () => {
+    // Clear localStorage
+    localStorage.removeItem('mailmind_username')
+    
+    // Reset all state
+    setUsername('')
+    setUsernameInput('')
+    setAccounts([])
+    setSelectedAccount(null)
+    setSummary(null)
+    setSenderInsights(null)
+    setCategoryInsights(null)
+    setFrequencyInsights(null)
+    setYearlyFrequencyInsights(null)
+    setAnalysisRuns([])
+    setError(null)
+    setSuccess(null)
+    setLoading(false)
+    setShowAddAccountModal(false)
+  }
+
   useEffect(() => {
     if (username) {
       loadAccounts()
@@ -259,8 +280,24 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <header className="dashboard-header">
-        <h1>Mail Mind</h1>
-        <p>Email Analysis and Classifier Tool</p>
+        <div className="header-content">
+          <div>
+            <h1>Mail Mind</h1>
+            <p>Email Analysis and Classifier Tool</p>
+          </div>
+          {username && (
+            <div className="user-info">
+              <span className="current-user">Logged in as: <strong>{username}</strong></span>
+              <button 
+                onClick={handleLogout} 
+                className="logout-button"
+                title="Log out"
+              >
+                Log Out
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <div className="container">
