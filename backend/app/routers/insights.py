@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, extract
 from typing import Optional
 from datetime import datetime
 from collections import Counter
@@ -237,6 +237,101 @@ async def get_frequency_insights(
         'peak_hour': max(hourly_counts.items(), key=lambda x: x[1])[0] if hourly_counts else None,
         'hourly_distribution': dict(hourly_counts),
         'weekday_distribution': ordered_weekday_dist
+    }
+
+@router.get("/frequency/yearly")
+async def get_yearly_frequency_insights(
+    username: str,
+    account_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get yearly frequency patterns and year-over-year comparison"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Get emails with dates
+    emails = db.query(EmailMetadata.date_received).filter(
+        EmailMetadata.account_id == account_id
+    ).all()
+    
+    if not emails:
+        return {
+            'years': [],
+            'yearly_totals': {},
+            'yearly_averages': {},
+            'year_over_year': []
+        }
+    
+    dates = [e[0] for e in emails if e[0]]
+    
+    # Group by year
+    yearly_counts = Counter(d.year for d in dates)
+    yearly_dates = {}
+    for d in dates:
+        year = d.year
+        if year not in yearly_dates:
+            yearly_dates[year] = []
+        yearly_dates[year].append(d)
+    
+    # Calculate yearly statistics
+    yearly_stats = {}
+    for year, year_dates in yearly_dates.items():
+        unique_days = len(set(d.date() for d in year_dates))
+        total_emails = len(year_dates)
+        daily_avg = total_emails / max(unique_days, 1)
+        
+        # Monthly distribution
+        monthly_counts = Counter(d.month for d in year_dates)
+        monthly_dist = {month: monthly_counts.get(month, 0) for month in range(1, 13)}
+        
+        # Peak month
+        peak_month = max(monthly_counts.items(), key=lambda x: x[1])[0] if monthly_counts else None
+        
+        yearly_stats[year] = {
+            'total_emails': total_emails,
+            'unique_days': unique_days,
+            'daily_average': round(daily_avg, 2),
+            'monthly_distribution': monthly_dist,
+            'peak_month': peak_month,
+            'months_with_data': len([m for m in monthly_dist.values() if m > 0])
+        }
+    
+    # Year-over-year comparison
+    years = sorted(yearly_counts.keys())
+    year_over_year = []
+    for i, year in enumerate(years):
+        prev_year = years[i - 1] if i > 0 else None
+        change = None
+        change_percent = None
+        if prev_year and prev_year in yearly_stats:
+            current_total = yearly_stats[year]['total_emails']
+            prev_total = yearly_stats[prev_year]['total_emails']
+            change = current_total - prev_total
+            change_percent = round((change / prev_total * 100), 2) if prev_total > 0 else None
+        
+        year_over_year.append({
+            'year': year,
+            'total_emails': yearly_stats[year]['total_emails'],
+            'daily_average': yearly_stats[year]['daily_average'],
+            'change_from_previous': change,
+            'change_percent': change_percent
+        })
+    
+    return {
+        'years': years,
+        'yearly_totals': {year: stats['total_emails'] for year, stats in yearly_stats.items()},
+        'yearly_averages': {year: stats['daily_average'] for year, stats in yearly_stats.items()},
+        'yearly_stats': yearly_stats,
+        'year_over_year': year_over_year
     }
 
 @router.get("/processed-ranges")

@@ -6,8 +6,11 @@ import StatsGrid from '../components/StatsGrid'
 import SenderChart from '../components/SenderChart'
 import CategoryChart from '../components/CategoryChart'
 import FrequencyChart from '../components/FrequencyChart'
+import YearlyFrequencyChart from '../components/YearlyFrequencyChart'
 import ProcessedRanges from '../components/ProcessedRanges'
 import AddAccountModal from '../components/AddAccountModal'
+import LoadingSpinner from '../components/LoadingSpinner'
+import EmptyState from '../components/EmptyState'
 import './Dashboard.css'
 
 export default function Dashboard() {
@@ -20,6 +23,7 @@ export default function Dashboard() {
   const [senderInsights, setSenderInsights] = useState<SenderInsights | null>(null)
   const [categoryInsights, setCategoryInsights] = useState<CategoryInsights | null>(null)
   const [frequencyInsights, setFrequencyInsights] = useState<FrequencyInsights | null>(null)
+  const [yearlyFrequencyInsights, setYearlyFrequencyInsights] = useState<any>(null)
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -169,15 +173,21 @@ export default function Dashboard() {
     if (!selectedAccount) return
     
     try {
-      const [senders, categories, frequency] = await Promise.all([
+      const [senders, categories, frequency, yearlyFrequency] = await Promise.all([
         api.get(`/api/insights/senders?username=${username}&account_id=${selectedAccount}`),
         api.get(`/api/insights/categories?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/frequency?username=${username}&account_id=${selectedAccount}`)
+        api.get(`/api/insights/frequency?username=${username}&account_id=${selectedAccount}`),
+        api.get(`/api/insights/frequency/yearly?username=${username}&account_id=${selectedAccount}`).catch(() => ({ data: null }))
       ])
       
       setSenderInsights(senders.data)
       setCategoryInsights(categories.data)
       setFrequencyInsights(frequency.data)
+      if (yearlyFrequency && yearlyFrequency.data && yearlyFrequency.data.years && yearlyFrequency.data.years.length > 0) {
+        setYearlyFrequencyInsights(yearlyFrequency.data)
+      } else {
+        setYearlyFrequencyInsights(null)
+      }
     } catch (err: any) {
       console.error('Failed to load insights:', err)
     }
@@ -305,6 +315,11 @@ export default function Dashboard() {
               <>
                 <div className="card">
                   <h2>Batch Analysis</h2>
+                  {loading && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <LoadingSpinner message="Processing emails..." size="small" />
+                    </div>
+                  )}
                   <DateRangePicker
                     onAnalyze={handleAnalyze}
                     loading={loading}
@@ -317,7 +332,7 @@ export default function Dashboard() {
                   accountId={selectedAccount}
                 />
 
-                {analysisRuns.length > 0 && (
+                {analysisRuns.length > 0 ? (
                   <div className="card">
                     <h2>Recent Analysis Runs</h2>
                     <div className="runs-list">
@@ -339,28 +354,78 @@ export default function Dashboard() {
                       ))}
                     </div>
                   </div>
-                )}
-
-                {senderInsights && (
+                ) : (
                   <div className="card">
-                    <h2>Top Senders</h2>
-                    <SenderChart insights={senderInsights} />
+                    <h2>Recent Analysis Runs</h2>
+                    <EmptyState
+                      title="No analysis runs yet"
+                      message="Start your first analysis to see results here."
+                      icon="🔍"
+                    />
                   </div>
                 )}
 
-                {categoryInsights && (
-                  <div className="card">
-                    <h2>Email Categories</h2>
-                    <CategoryChart insights={categoryInsights} />
-                  </div>
-                )}
+                {senderInsights ? (
+                  senderInsights.total_emails > 0 ? (
+                    <div className="card">
+                      <h2>Top Senders</h2>
+                      <SenderChart insights={senderInsights} />
+                    </div>
+                  ) : (
+                    <div className="card">
+                      <h2>Top Senders</h2>
+                      <EmptyState
+                        title="No email data yet"
+                        message="Run an analysis to see your top senders and email patterns."
+                        icon="📧"
+                      />
+                    </div>
+                  )
+                ) : null}
 
-                {frequencyInsights && (
-                  <div className="card">
-                    <h2>Email Frequency</h2>
-                    <FrequencyChart insights={frequencyInsights} />
-                  </div>
-                )}
+                {categoryInsights ? (
+                  categoryInsights.total > 0 ? (
+                    <div className="card">
+                      <h2>Email Categories</h2>
+                      <CategoryChart insights={categoryInsights} />
+                    </div>
+                  ) : (
+                    <div className="card">
+                      <h2>Email Categories</h2>
+                      <EmptyState
+                        title="No categories yet"
+                        message="Analyze your emails to see how they're categorized."
+                        icon="📊"
+                      />
+                    </div>
+                  )
+                ) : null}
+
+                {frequencyInsights ? (
+                  frequencyInsights.total_emails > 0 ? (
+                    <>
+                      <div className="card">
+                        <h2>Email Frequency</h2>
+                        <FrequencyChart insights={frequencyInsights} />
+                      </div>
+                      {yearlyFrequencyInsights && yearlyFrequencyInsights.years && yearlyFrequencyInsights.years.length > 0 && (
+                        <div className="card">
+                          <h2>Yearly Frequency Analysis</h2>
+                          <YearlyFrequencyChart insights={yearlyFrequencyInsights} />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="card">
+                      <h2>Email Frequency</h2>
+                      <EmptyState
+                        title="No frequency data yet"
+                        message="Run an analysis to see your email frequency patterns."
+                        icon="⏰"
+                      />
+                    </div>
+                  )
+                ) : null}
               </>
             )}
           </>

@@ -120,6 +120,27 @@ export interface FrequencyInsights {
   weekday_distribution: Record<string, number>
 }
 
+export interface YearlyFrequencyInsights {
+  years: number[]
+  yearly_totals: Record<number, number>
+  yearly_averages: Record<number, number>
+  yearly_stats: Record<number, {
+    total_emails: number
+    unique_days: number
+    daily_average: number
+    monthly_distribution: Record<number, number>
+    peak_month: number | null
+    months_with_data: number
+  }>
+  year_over_year: Array<{
+    year: number
+    total_emails: number
+    daily_average: number
+    change_from_previous: number | null
+    change_percent: number | null
+  }>
+}
+
 export interface OAuthAuthorizeResponse {
   authorization_url: string
   state: string
