@@ -1,11 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
 
 from app.database import init_db
-from app.routers import emails, analysis, insights
+from app.routers import emails, analysis, insights, oauth
+from app.exceptions import MailMindException
 
 load_dotenv()
 
@@ -34,10 +36,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global exception handler for structured errors
+@app.exception_handler(MailMindException)
+async def mailmind_exception_handler(request: Request, exc: MailMindException):
+    """Handle MailMind exceptions with structured error format"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.error_code or "UNKNOWN_ERROR",
+                "message": exc.detail,
+                "metadata": exc.metadata
+            }
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle unexpected exceptions"""
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "An unexpected error occurred",
+                "metadata": {}
+            }
+        }
+)
+
 # Routers
 app.include_router(emails.router, prefix="/api/emails", tags=["emails"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(insights.router, prefix="/api/insights", tags=["insights"])
+app.include_router(oauth.router, prefix="/api/oauth", tags=["oauth"])
 
 @app.get("/")
 async def root():

@@ -7,11 +7,13 @@ import SenderChart from '../components/SenderChart'
 import CategoryChart from '../components/CategoryChart'
 import FrequencyChart from '../components/FrequencyChart'
 import ProcessedRanges from '../components/ProcessedRanges'
+import AddAccountModal from '../components/AddAccountModal'
 import './Dashboard.css'
 
 export default function Dashboard() {
   const [usernameInput, setUsernameInput] = useState('')
   const [username, setUsername] = useState('') // Submitted username
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false)
   const [accounts, setAccounts] = useState<EmailAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState<number | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -23,6 +25,40 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Load username from localStorage on mount
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('mailmind_username')
+    if (savedUsername) {
+      setUsernameInput(savedUsername)
+      setUsername(savedUsername)
+    }
+  }, [])
+
+  // Handle OAuth callbacks from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const oauthSuccess = params.get('oauth_success')
+    const oauthError = params.get('oauth_error')
+    const oauthUsername = params.get('username')
+
+    if (oauthSuccess === '1' && oauthUsername) {
+      setSuccess('Gmail account added successfully!')
+      setUsername(oauthUsername)
+      setUsernameInput(oauthUsername)
+      localStorage.setItem('mailmind_username', oauthUsername)
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+      // Reload accounts
+      setTimeout(() => {
+        loadAccounts()
+      }, 500)
+    } else if (oauthError) {
+      setError(decodeURIComponent(oauthError))
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
+
   const handleUsernameSubmit = () => {
     const trimmed = usernameInput.trim()
     if (trimmed) {
@@ -30,6 +66,8 @@ export default function Dashboard() {
       setSelectedAccount(null) // Reset selected account when username changes
       setError(null)
       setSuccess(null)
+      // Save to localStorage
+      localStorage.setItem('mailmind_username', trimmed)
     }
   }
 
@@ -54,6 +92,11 @@ export default function Dashboard() {
   }, [username, selectedAccount])
 
   const loadAccounts = async () => {
+    if (!username) {
+      console.log('loadAccounts: No username, skipping')
+      return
+    }
+    
     try {
       setError(null) // Clear any previous errors
       console.log(`Loading accounts for username: ${username}`)
@@ -68,10 +111,36 @@ export default function Dashboard() {
       // Don't show error if it's just "no accounts" - that's normal for new users
       if (err.response?.status === 404) {
         setError(null) // 404 is fine - just means no accounts yet
+        setAccounts([]) // Ensure accounts is empty array
       } else {
-        const errorMessage = err.response?.data?.detail || err.message || 'Failed to load accounts'
+        const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to load accounts'
         setError(`Failed to load accounts: ${errorMessage}`)
       }
+    }
+  }
+
+  const handleAccountAdded = () => {
+    loadAccounts()
+    setSuccess('Account added successfully!')
+  }
+
+  const handleDeleteAccount = async (accountId: number) => {
+    if (!username) return
+    
+    if (!window.confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      await api.delete(`/api/emails/accounts/${accountId}?username=${username}`)
+      setSuccess('Account deleted successfully')
+      loadAccounts()
+      if (selectedAccount === accountId) {
+        setSelectedAccount(null)
+      }
+    } catch (err: any) {
+      const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to delete account'
+      setError(`Failed to delete account: ${errorMessage}`)
     }
   }
 
@@ -172,7 +241,8 @@ export default function Dashboard() {
       }, 2000)
     } catch (err: any) {
       setLoading(false)
-      setError(err.response?.data?.detail || 'Failed to start analysis')
+      const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to start analysis'
+      setError(errorMessage)
     }
   }
 
@@ -216,6 +286,15 @@ export default function Dashboard() {
               accounts={accounts}
               selectedAccount={selectedAccount}
               onSelect={setSelectedAccount}
+              onAddAccount={() => setShowAddAccountModal(true)}
+              onDeleteAccount={handleDeleteAccount}
+            />
+
+            <AddAccountModal
+              isOpen={showAddAccountModal}
+              onClose={() => setShowAddAccountModal(false)}
+              username={username}
+              onAccountAdded={handleAccountAdded}
             />
 
             {summary && (

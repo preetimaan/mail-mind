@@ -11,6 +11,43 @@ export const api = axios.create({
   timeout: 30000, // 30 second timeout
 })
 
+// Response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle structured error responses
+    if (error.response?.data?.error) {
+      const errorData = error.response.data.error
+      error.userMessage = errorData.message || error.message
+      error.errorCode = errorData.code
+      error.metadata = errorData.metadata || {}
+    } else {
+      // Fallback for non-structured errors
+      error.userMessage = error.response?.data?.detail || error.message || 'An unexpected error occurred'
+      error.errorCode = 'UNKNOWN_ERROR'
+      error.metadata = {}
+    }
+    
+    // Handle specific error codes
+    if (error.response?.status === 429) {
+      const retryAfter = error.metadata?.retry_after
+      if (retryAfter) {
+        error.userMessage = `Rate limit exceeded. Please try again in ${retryAfter} seconds.`
+      } else {
+        error.userMessage = 'Rate limit exceeded. Please try again later.'
+      }
+    } else if (error.response?.status === 502) {
+      error.userMessage = 'Unable to connect to email service. Please check your credentials and try again.'
+    } else if (error.code === 'ECONNABORTED') {
+      error.userMessage = 'Request timed out. Please try again.'
+    } else if (!error.response) {
+      error.userMessage = 'Unable to connect to server. Please check your connection.'
+    }
+    
+    return Promise.reject(error)
+  }
+)
+
 export interface EmailAccount {
   id: number
   provider: string
@@ -81,5 +118,15 @@ export interface FrequencyInsights {
   peak_hour: number | null
   hourly_distribution: Record<number, number>
   weekday_distribution: Record<string, number>
+}
+
+export interface OAuthAuthorizeResponse {
+  authorization_url: string
+  state: string
+}
+
+export interface TestConnectionResponse {
+  success: boolean
+  message: string
 }
 
