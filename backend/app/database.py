@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, JSON, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, JSON, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -45,14 +45,19 @@ class EmailMetadata(Base):
     __tablename__ = "email_metadata"
     
     id = Column(Integer, primary_key=True, index=True)
-    account_id = Column(Integer, ForeignKey("email_accounts.id"), nullable=False)
-    message_id = Column(String, unique=True, index=True, nullable=False)
+    account_id = Column(Integer, ForeignKey("email_accounts.id"), nullable=False, index=True)
+    message_id = Column(String, nullable=False, index=True)
     sender_email = Column(String, index=True, nullable=False)
     sender_name = Column(String)
     subject = Column(String, index=True)
     date_received = Column(DateTime, index=True, nullable=False)
     date_analyzed = Column(DateTime, default=datetime.utcnow)
     encrypted_metadata = Column(Text)  # Additional encrypted metadata if needed
+    
+    # Composite unique constraint: message_id must be unique per account
+    __table_args__ = (
+        UniqueConstraint('account_id', 'message_id', name='uq_email_account_message'),
+    )
     
     account = relationship("EmailAccount", back_populates="emails")
     analysis_results = relationship("AnalysisResult", back_populates="email", cascade="all, delete-orphan")

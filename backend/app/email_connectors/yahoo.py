@@ -43,8 +43,12 @@ class YahooConnector:
         max_results: int = 5000
     ) -> List[Dict]:
         """
-        Fetch emails within date range
+        Fetch emails within date range using IMAP UID (stable identifier)
         Returns list of email metadata dicts
+        
+        Uses UID instead of sequence numbers because:
+        - UIDs are stable and don't change when emails are deleted
+        - Prevents duplicate email issues when re-analyzing date ranges
         """
         self._connect()
         
@@ -56,21 +60,25 @@ class YahooConnector:
             end_str = end_date.strftime("%d-%b-%Y")
             search_query = f'(SINCE {start_str} BEFORE {end_str})'
             
-            # Search for emails
-            status, message_ids = self.imap.search(None, search_query)
+            # Use UID search instead of regular search for stable identifiers
+            status, message_uids = self.imap.uid('SEARCH', None, search_query)
             
             if status != 'OK':
-                raise Exception(f"IMAP search failed: {status}")
+                raise Exception(f"IMAP UID search failed: {status}")
             
-            email_ids = message_ids[0].split()
+            if not message_uids[0]:
+                return []
+            
+            email_uids = message_uids[0].split()
             emails = []
             
             # Limit results
-            email_ids = email_ids[:max_results] if len(email_ids) > max_results else email_ids
+            email_uids = email_uids[:max_results] if len(email_uids) > max_results else email_uids
             
-            for email_id in email_ids:
+            for email_uid in email_uids:
                 try:
-                    status, msg_data = self.imap.fetch(email_id, '(RFC822)')
+                    # Use UID fetch instead of regular fetch
+                    status, msg_data = self.imap.uid('FETCH', email_uid, '(RFC822)')
                     
                     if status != 'OK':
                         continue
@@ -82,6 +90,9 @@ class YahooConnector:
                     subject = self._decode_header(msg.get('Subject', ''))
                     from_header = msg.get('From', '')
                     date_str = msg.get('Date', '')
+                    
+                    # Try to get Message-ID header as additional identifier (more stable)
+                    message_id_header = msg.get('Message-ID', '')
                     
                     # Parse date
                     try:
@@ -97,8 +108,21 @@ class YahooConnector:
                     sender_email = self._extract_email(from_header)
                     sender_name = self._extract_name(from_header)
                     
+                    # Use UID as message_id (stable identifier)
+                    # Prefer Message-ID header if available, otherwise use UID
+                    uid_str = email_uid.decode() if isinstance(email_uid, bytes) else str(email_uid)
+                    if message_id_header:
+                        # Use Message-ID header if available (most stable)
+                        # Format: yahoo_uid_<uid>_msgid_<message_id>
+                        # This ensures uniqueness even if Message-ID is missing angle brackets
+                        msg_id_clean = message_id_header.strip('<>')
+                        message_id = f"yahoo_uid_{uid_str}_msgid_{msg_id_clean}"
+                    else:
+                        # Fallback to UID with prefix to distinguish from old sequence numbers
+                        message_id = f"yahoo_uid_{uid_str}"
+                    
                     emails.append({
-                        'message_id': email_id.decode() if isinstance(email_id, bytes) else str(email_id),
+                        'message_id': message_id,
                         'sender_email': sender_email,
                         'sender_name': sender_name,
                         'subject': subject,
@@ -108,7 +132,8 @@ class YahooConnector:
                     })
                     
                 except Exception as e:
-                    print(f"Error processing email {email_id}: {e}")
+                    uid_str = email_uid.decode() if isinstance(email_uid, bytes) else str(email_uid)
+                    print(f"Error processing email UID {uid_str}: {e}")
                     continue
             
             return emails

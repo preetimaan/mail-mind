@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from typing import Dict, List
 import json
@@ -89,7 +90,29 @@ class AnalysisService:
                 self.db.add(email_meta)
                 stored_emails.append(email_meta)
             
-            self.db.commit()
+            # Commit with error handling for race conditions
+            try:
+                self.db.commit()
+            except IntegrityError as e:
+                # Handle race condition: another process may have inserted the same email
+                logger.warning(f"IntegrityError during email commit (likely race condition): {e}")
+                print(f"[PRINT] IntegrityError during email commit (likely race condition): {e}")
+                self.db.rollback()
+                
+                # Re-fetch existing emails that may have been inserted by another process
+                stored_emails = []
+                for email_data in emails:
+                    existing = self.db.query(EmailMetadata).filter(
+                        EmailMetadata.message_id == email_data['message_id'],
+                        EmailMetadata.account_id == self.account_id
+                    ).first()
+                    
+                    if existing:
+                        stored_emails.append(existing)
+                    else:
+                        # Try to insert again (shouldn't happen, but handle gracefully)
+                        logger.warning(f"Email {email_data['message_id']} not found after rollback, skipping")
+                        print(f"[PRINT] Email {email_data['message_id']} not found after rollback, skipping")
             
             # Refresh to get IDs
             for email_meta in stored_emails:
