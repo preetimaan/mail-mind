@@ -102,6 +102,7 @@
 - [x] Fixed `analysis_run_id` null constraint bug
 - [x] Fixed timezone handling in date tracking (normalize to UTC)
 - [x] Improved gap detection to find all unprocessed date ranges
+- [x] Fixed duplicate email handling (composite unique constraint, IntegrityError handling, Yahoo UID support)
 
 ---
 
@@ -126,19 +127,18 @@
 - [ ] Account reconnection for expired tokens
 
 #### 1a. Improve Duplicate Email Handling
-**Status**: Needs Improvement  
+**Status**: ✅ Completed  
 **Priority**: Medium-High  
-**Description**: Current duplicate handling has issues that could cause data integrity problems.
+**Description**: Fixed duplicate email handling issues to prevent data integrity problems.
 
-**Current Issues**:
-- Global unique constraint on `message_id` works for Gmail but problematic for Yahoo (IMAP sequence numbers aren't globally unique)
-- No error handling for `IntegrityError` if duplicates slip through (race conditions)
-- Yahoo uses IMAP sequence numbers which can change if emails are deleted
+**Completed Fixes**:
+- ✅ Changed `message_id` unique constraint to composite unique on `(account_id, message_id)`
+- ✅ Added error handling for `IntegrityError` in email storage to gracefully handle race conditions
+- ✅ Updated Yahoo connector to use IMAP UID (stable identifier) instead of sequence numbers
+- ✅ Yahoo now uses Message-ID header when available for maximum stability
+- ✅ Created migration script to update existing databases
 
-**Tasks**:
-- [ ] Change `message_id` unique constraint to composite unique on `(account_id, message_id)` 
-- [ ] Add error handling for `IntegrityError` in email storage to gracefully handle race conditions
-- [ ] For Yahoo, use more stable identifier (IMAP UID or Message-ID header) instead of sequence number
+**Remaining Tasks**:
 - [ ] Add tests for duplicate email scenarios (same email in overlapping date ranges, race conditions)
 
 ### Medium Priority
@@ -275,7 +275,7 @@
 2. **No progress tracking** - Analysis runs don't show progress percentage during processing
 3. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
 4. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
-5. **Duplicate email handling** - Global unique constraint on `message_id` problematic for Yahoo accounts (IMAP sequence numbers aren't globally unique). No error handling for race conditions.
+5. **Duplicate email handling** - ✅ Fixed (composite unique constraint, IntegrityError handling, Yahoo UID support)
 
 ---
 
@@ -286,7 +286,7 @@
 | Account Management UI | High | Medium | High | ✅ Completed |
 | OAuth Callback | High | Low | High | ✅ Completed |
 | Error Handling | High | Medium | High | ✅ Completed |
-| Duplicate Email Handling | Medium-High | Low | High | Needs Improvement |
+| Duplicate Email Handling | Medium-High | Low | High | ✅ Completed |
 | Yearly Frequency Analysis | Medium | Medium | Medium | ✅ Completed |
 | Gap Detection & Visualization | Medium | Medium | Medium | ✅ Completed |
 | UI/UX Enhancements | Medium | Medium | Medium | Partially Complete |
