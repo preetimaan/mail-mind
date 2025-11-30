@@ -2,12 +2,16 @@ import spacy
 from typing import List, Dict, Tuple
 from collections import Counter, defaultdict
 from datetime import datetime
+from dateutil import tz
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import DBSCAN
 import re
 import sys
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class NLPAnalyzer:
     """NLP-based email analysis and clustering"""
@@ -87,10 +91,7 @@ class NLPAnalyzer:
             'categories': categories,
             'total_emails': len(emails),
             'unique_senders': len(set(senders)),
-            'date_range': {
-                'start': min(dates).isoformat() if dates else None,
-                'end': max(dates).isoformat() if dates else None
-            }
+            'date_range': self._get_date_range(dates)
         }
     
     def _analyze_sender_patterns(self, emails: List[Dict]) -> Dict:
@@ -266,4 +267,29 @@ class NLPAnalyzer:
                 categories['other'] += 1
         
         return categories
+    
+    def _get_date_range(self, dates: List) -> Dict:
+        """Get date range from list of dates, handling timezone-aware and naive datetimes"""
+        if not dates:
+            return {'start': None, 'end': None}
+        
+        # Filter out None values and normalize all dates to UTC naive datetimes for comparison
+        normalized_dates = []
+        for date in dates:
+            if date is None:
+                continue
+            # If timezone-aware, convert to UTC and make naive
+            if date.tzinfo is not None:
+                normalized = date.astimezone(tz.UTC).replace(tzinfo=None)
+            else:
+                normalized = date
+            normalized_dates.append(normalized)
+        
+        if not normalized_dates:
+            return {'start': None, 'end': None}
+        
+        return {
+            'start': min(normalized_dates).isoformat(),
+            'end': max(normalized_dates).isoformat()
+        }
 
