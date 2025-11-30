@@ -105,15 +105,27 @@ async def process_batch_analysis(
         credentials_json = enc_manager.decrypt(account.encrypted_credentials)
         
         # Initialize connector
-        if account.provider == 'gmail':
-            connector = GmailConnector(credentials_json)
-        elif account.provider == 'yahoo':
-            creds = json.loads(credentials_json)
-            connector = YahooConnector(creds['email'], creds['password'])
-        else:
-            analysis_run.status = "failed"
-            db.commit()
-            return
+        try:
+            if account.provider == 'gmail':
+                connector = GmailConnector(credentials_json)
+            elif account.provider == 'yahoo':
+                creds = json.loads(credentials_json)
+                connector = YahooConnector(creds['email'], creds['password'])
+            else:
+                analysis_run.status = "failed"
+                db.commit()
+                return
+        except ValueError as e:
+            # Token expired/revoked error from GmailConnector
+            error_msg = str(e)
+            if 'expired or revoked' in error_msg or 'invalid_grant' in error_msg:
+                # Mark account as inactive
+                account.is_active = False
+                analysis_run.status = "failed"
+                db.commit()
+                print(f"Account {account.email} marked as inactive due to expired/revoked token")
+                return
+            raise
         
         # Use analysis service
         service = AnalysisService(db, user_id, account_id)
@@ -131,6 +143,26 @@ async def process_batch_analysis(
         analysis_run.completed_at = datetime.utcnow()
         db.commit()
         
+    except ValueError as e:
+        # Handle token expiration/revocation errors
+        error_msg = str(e)
+        if 'expired or revoked' in error_msg or 'invalid_grant' in error_msg:
+            try:
+                account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
+                if account:
+                    account.is_active = False
+                analysis_run = db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
+                if analysis_run:
+                    analysis_run.status = "failed"
+                    analysis_run.completed_at = datetime.utcnow()
+                db.commit()
+                print(f"Account {account.email if account else 'unknown'} marked as inactive due to expired/revoked token")
+            except Exception as update_error:
+                print(f"Failed to update account/run status: {update_error}")
+                db.rollback()
+        else:
+            # Re-raise if it's a different ValueError
+            raise
     except Exception as e:
         print(f"Analysis error: {e}")
         import traceback

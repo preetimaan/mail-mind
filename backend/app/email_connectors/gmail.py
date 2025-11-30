@@ -2,6 +2,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 import base64
 import json
 from datetime import datetime, timedelta
@@ -25,7 +26,17 @@ class GmailConnector:
     def _refresh_if_needed(self):
         """Refresh credentials if expired"""
         if self.credentials and self.credentials.expired and self.credentials.refresh_token:
-            self.credentials.refresh(Request())
+            try:
+                self.credentials.refresh(Request())
+            except RefreshError as e:
+                # Token has been revoked or expired permanently
+                error_msg = str(e)
+                if 'invalid_grant' in error_msg or 'Token has been expired or revoked' in error_msg:
+                    raise ValueError(
+                        "Gmail OAuth token has been expired or revoked. "
+                        "Please reconnect your Gmail account through the account management interface."
+                    ) from e
+                raise
     
     def fetch_emails_by_date_range(
         self, 

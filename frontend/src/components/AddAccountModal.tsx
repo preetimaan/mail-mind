@@ -7,18 +7,45 @@ interface AddAccountModalProps {
   onClose: () => void
   username: string
   onAccountAdded: () => void
+  reconnectAccount?: {
+    email: string
+    provider: string
+  }
 }
 
-export default function AddAccountModal({ isOpen, onClose, username, onAccountAdded }: AddAccountModalProps) {
-  const [activeTab, setActiveTab] = useState<'gmail' | 'yahoo'>('gmail')
-  const [gmailEmail, setGmailEmail] = useState('')
-  const [yahooEmail, setYahooEmail] = useState('')
+export default function AddAccountModal({ isOpen, onClose, username, onAccountAdded, reconnectAccount }: AddAccountModalProps) {
+  const [activeTab, setActiveTab] = useState<'gmail' | 'yahoo'>(reconnectAccount?.provider === 'yahoo' ? 'yahoo' : 'gmail')
+  const [gmailEmail, setGmailEmail] = useState(reconnectAccount?.provider === 'gmail' ? reconnectAccount.email : '')
+  const [yahooEmail, setYahooEmail] = useState(reconnectAccount?.provider === 'yahoo' ? reconnectAccount.email : '')
   const [yahooPassword, setYahooPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
 
-  if (!isOpen) return null
+  // Reset form when modal opens/closes
+  if (!isOpen) {
+    // Reset when closing
+    if (gmailEmail || yahooEmail) {
+      setTimeout(() => {
+        setGmailEmail('')
+        setYahooEmail('')
+        setYahooPassword('')
+        setError(null)
+      }, 300)
+    }
+    return null
+  }
+
+  // Pre-fill when reconnecting
+  if (reconnectAccount && !gmailEmail && !yahooEmail) {
+    if (reconnectAccount.provider === 'gmail') {
+      setGmailEmail(reconnectAccount.email)
+      setActiveTab('gmail')
+    } else if (reconnectAccount.provider === 'yahoo') {
+      setYahooEmail(reconnectAccount.email)
+      setActiveTab('yahoo')
+    }
+  }
 
   const handleGmailConnect = async () => {
     if (!gmailEmail.trim()) {
@@ -156,9 +183,18 @@ export default function AddAccountModal({ isOpen, onClose, username, onAccountAd
 
         {activeTab === 'gmail' && (
           <div className="modal-body">
-            <p className="help-text">
-              Connect your Gmail account using OAuth. You'll be redirected to Google to authorize access.
-            </p>
+            {reconnectAccount?.provider === 'gmail' ? (
+              <div style={{ padding: '1rem', background: '#fff3cd', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #ffc107' }}>
+                <strong>⚠️ Reconnecting Account</strong>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                  Your Gmail token has expired or been revoked. Please reconnect to continue using this account.
+                </p>
+              </div>
+            ) : (
+              <p className="help-text">
+                Connect your Gmail account using OAuth. You'll be redirected to Google to authorize access.
+              </p>
+            )}
             <div className="form-group">
               <label>Gmail Address</label>
               <input
@@ -184,9 +220,18 @@ export default function AddAccountModal({ isOpen, onClose, username, onAccountAd
 
         {activeTab === 'yahoo' && (
           <div className="modal-body">
-            <p className="help-text">
-              Add your Yahoo account using an app-specific password. You'll need to generate one from your Yahoo Account Security settings.
-            </p>
+            {reconnectAccount?.provider === 'yahoo' ? (
+              <div style={{ padding: '1rem', background: '#fff3cd', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #ffc107' }}>
+                <strong>⚠️ Reconnecting Account</strong>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                  Your Yahoo account credentials are invalid. Please update your app password to continue.
+                </p>
+              </div>
+            ) : (
+              <p className="help-text">
+                Add your Yahoo account using an app-specific password. You'll need to generate one from your Yahoo Account Security settings.
+              </p>
+            )}
             <div className="form-group">
               <label>Yahoo Email Address</label>
               <input

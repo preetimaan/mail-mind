@@ -6,6 +6,7 @@ interface AccountSelectorProps {
   onSelect: (accountId: number) => void
   onAddAccount: () => void
   onDeleteAccount?: (accountId: number) => void
+  onReconnectAccount?: (accountId: number, email: string, provider: string) => void
 }
 
 export default function AccountSelector({ 
@@ -13,7 +14,8 @@ export default function AccountSelector({
   selectedAccount, 
   onSelect, 
   onAddAccount,
-  onDeleteAccount 
+  onDeleteAccount,
+  onReconnectAccount
 }: AccountSelectorProps) {
   if (accounts.length === 0) {
     return (
@@ -79,36 +81,67 @@ export default function AccountSelector({
           >
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
-                {account.email} ({account.provider})
+                {account.email} ({account.provider}){!account.is_active ? ' - ⚠️ Needs Reconnection' : ''}
               </option>
             ))}
           </select>
-          {onDeleteAccount && selectedAccount && (
-            <button
-              onClick={() => {
-                if (window.confirm(`Are you sure you want to delete ${accounts.find(a => a.id === selectedAccount)?.email}? This action cannot be undone.`)) {
-                  onDeleteAccount(selectedAccount)
-                }
-              }}
-              className="btn btn-secondary"
-              style={{ 
-                padding: '0.75rem 1.5rem',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                whiteSpace: 'nowrap',
-                minWidth: '100px'
-              }}
-              title="Delete selected account"
-              type="button"
-            >
-              🗑️ Delete
-            </button>
-          )}
+          {selectedAccount && (() => {
+            const account = accounts.find(a => a.id === selectedAccount)
+            if (!account) return null
+            
+            return (
+              <>
+                {!account.is_active && onReconnectAccount && (
+                  <button
+                    onClick={() => onReconnectAccount(account.id, account.email, account.provider)}
+                    className="btn btn-primary"
+                    style={{ 
+                      padding: '0.75rem 1.5rem',
+                      fontSize: '0.9rem',
+                      fontWeight: '500',
+                      whiteSpace: 'nowrap',
+                      minWidth: '120px'
+                    }}
+                    title="Reconnect this account (token expired)"
+                    type="button"
+                  >
+                    🔄 Reconnect
+                  </button>
+                )}
+                {onDeleteAccount && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete ${account.email}? This action cannot be undone.`)) {
+                        onDeleteAccount(selectedAccount)
+                      }
+                    }}
+                    className="btn btn-secondary"
+                    style={{ 
+                      padding: '0.75rem 1.5rem',
+                      fontSize: '0.9rem',
+                      fontWeight: '500',
+                      whiteSpace: 'nowrap',
+                      minWidth: '100px'
+                    }}
+                    title="Delete selected account"
+                    type="button"
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
+              </>
+            )
+          })()}
         </div>
       </div>
       {accounts.length > 0 && (
         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eee', fontSize: '0.9rem', color: '#666' }}>
           <strong>{accounts.length}</strong> account{accounts.length !== 1 ? 's' : ''} configured
+          {accounts.some(a => !a.is_active) && (
+            <span style={{ marginLeft: '1rem', color: '#dc3545', fontWeight: '500' }}>
+              ⚠️ {accounts.filter(a => !a.is_active).length} account{accounts.filter(a => !a.is_active).length !== 1 ? 's' : ''} need reconnection
+            </span>
+          )}
         </div>
       )}
     </div>

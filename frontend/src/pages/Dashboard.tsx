@@ -261,7 +261,14 @@ export default function Dashboard() {
               loadSummary()
               loadAnalysisRuns()
             } else {
-              setError('Analysis failed')
+              // Check if account is now inactive (token expired)
+              loadAccounts() // Reload to check account status
+              const account = accounts.find(a => a.id === selectedAccount)
+              if (account && !account.is_active) {
+                setError('Analysis failed: Gmail token expired or revoked. Please reconnect your account using the "Reconnect" button.')
+              } else {
+                setError('Analysis failed. Please check your account credentials and try again.')
+              }
             }
           }
         } catch (err) {
@@ -335,6 +342,12 @@ export default function Dashboard() {
               onSelect={setSelectedAccount}
               onAddAccount={() => setShowAddAccountModal(true)}
               onDeleteAccount={handleDeleteAccount}
+              onReconnectAccount={(accountId, email, provider) => {
+                // Select the account first, then open modal
+                setSelectedAccount(accountId)
+                setShowAddAccountModal(true)
+                // The modal will handle reconnection when same email/provider is used
+              }}
             />
 
             <AddAccountModal
@@ -342,6 +355,10 @@ export default function Dashboard() {
               onClose={() => setShowAddAccountModal(false)}
               username={username}
               onAccountAdded={handleAccountAdded}
+              reconnectAccount={selectedAccount && accounts.find(a => a.id === selectedAccount && !a.is_active) ? {
+                email: accounts.find(a => a.id === selectedAccount)!.email,
+                provider: accounts.find(a => a.id === selectedAccount)!.provider
+              } : undefined}
             />
 
             {summary && (
