@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import os
+import logging
 from dotenv import load_dotenv
 
 from app.database import init_db
@@ -10,6 +11,18 @@ from app.routers import emails, analysis, insights, oauth
 from app.exceptions import MailMindException
 
 load_dotenv()
+
+# Configure logging - ensure it works with uvicorn
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True  # Force reconfiguration
+)
+logger = logging.getLogger(__name__)
+logger.info("=== Mail Mind API Starting ===")
+logger.info("Logging configured successfully")
+print("[PRINT] === Mail Mind API Starting ===")
+print("[PRINT] Logging configured successfully")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -32,6 +32,23 @@ async def start_batch_analysis(
     db: Session = Depends(get_db)
 ):
     """Start batch analysis for a date range"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info("=" * 50)
+    logger.info("BATCH ANALYSIS REQUEST RECEIVED")
+    logger.info(f"Username: {request.username}")
+    logger.info(f"Account ID: {request.account_id}")
+    logger.info(f"Start Date: {request.start_date}")
+    logger.info(f"End Date: {request.end_date}")
+    logger.info("=" * 50)
+    # Also use print as backup - this should always show
+    print("=" * 50)
+    print("[PRINT] BATCH ANALYSIS REQUEST RECEIVED")
+    print(f"[PRINT] Username: {request.username}, Account ID: {request.account_id}")
+    print(f"[PRINT] Date range: {request.start_date} to {request.end_date}")
+    print("=" * 50)
+    
     # Verify user and account
     user = db.query(User).filter(User.username == request.username).first()
     if not user:
@@ -58,6 +75,8 @@ async def start_batch_analysis(
     db.refresh(analysis_run)
     
     # Start background analysis
+    logger.info(f"Adding background task for run_id={analysis_run.id}")
+    print(f"[PRINT] Adding background task for run_id={analysis_run.id}")  # Also use print as backup
     background_tasks.add_task(
         process_batch_analysis,
         analysis_run.id,
@@ -66,6 +85,8 @@ async def start_batch_analysis(
         request.start_date,
         request.end_date
     )
+    logger.info(f"Background task added, returning response")
+    print(f"[PRINT] Background task added, returning response")
     
     return AnalysisResponse(
         run_id=analysis_run.id,
@@ -81,8 +102,13 @@ async def process_batch_analysis(
     end_date: datetime
 ):
     """Background task to process batch analysis"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     from app.database import SessionLocal
     
+    logger.info(f"Starting batch analysis: run_id={run_id}, account_id={account_id}, start={start_date}, end={end_date}")
+    print(f"[PRINT] Starting batch analysis: run_id={run_id}, account_id={account_id}")
     db = SessionLocal()
     try:
         # Update status
@@ -129,12 +155,14 @@ async def process_batch_analysis(
         
         # Use analysis service
         service = AnalysisService(db, user_id, account_id)
+        logger.info(f"Calling analyze_date_range for run_id={analysis_run.id}")
         result = service.analyze_date_range(
             connector,
             start_date,
             end_date,
             run_id=analysis_run.id
         )
+        logger.info(f"Analysis completed: {result}")
         
         # Update analysis run - refresh to get latest state
         db.refresh(analysis_run)
@@ -142,10 +170,14 @@ async def process_batch_analysis(
         analysis_run.emails_processed = result['emails_processed']
         analysis_run.completed_at = datetime.utcnow()
         db.commit()
+        logger.info(f"Analysis run {analysis_run.id} marked as completed")
         
     except ValueError as e:
         # Handle token expiration/revocation errors
         error_msg = str(e)
+        logger.error(f"ValueError during analysis: {error_msg}")
+        print(f"[PRINT] ValueError during analysis: {error_msg}")
+        
         if 'expired or revoked' in error_msg or 'invalid_grant' in error_msg:
             try:
                 account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
@@ -226,15 +258,23 @@ async def list_analysis_runs(
     db: Session = Depends(get_db)
 ):
     """List analysis runs for a user"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     user = db.query(User).filter(User.username == username).first()
     if not user:
+        logger.warning(f"User {username} not found when listing analysis runs")
         return []
     
     query = db.query(AnalysisRun).filter(AnalysisRun.user_id == user.id)
     if account_id:
         query = query.filter(AnalysisRun.account_id == account_id)
+        logger.info(f"Filtering analysis runs for user {username}, account_id {account_id}")
+    else:
+        logger.info(f"Listing all analysis runs for user {username} (no account filter)")
     
     runs = query.order_by(AnalysisRun.created_at.desc()).limit(50).all()
+    logger.info(f"Found {len(runs)} analysis runs for user {username}")
     
     return [
         {

@@ -1,7 +1,10 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
+import logging
 from app.database import ProcessedDateRange
+
+logger = logging.getLogger(__name__)
 
 class DateTracker:
     """Tracks processed date ranges to avoid re-analyzing emails"""
@@ -82,6 +85,7 @@ class DateTracker:
             self.db.add(new_range)
         else:
             # No overlap, create new range
+            logger.info(f"Creating new range: {start_date} to {end_date}, emails: {emails_count}")
             new_range = ProcessedDateRange(
                 account_id=self.account_id,
                 start_date=start_date,
@@ -90,7 +94,17 @@ class DateTracker:
             )
             self.db.add(new_range)
         
-        self.db.commit()
+        try:
+            self.db.commit()
+            logger.info(f"Successfully committed ProcessedDateRange to database")
+            print(f"[PRINT] Successfully committed ProcessedDateRange to database")
+        except Exception as e:
+            logger.error(f"ERROR committing ProcessedDateRange: {e}", exc_info=True)
+            print(f"[PRINT] ERROR committing ProcessedDateRange: {e}")
+            import traceback
+            traceback.print_exc()
+            self.db.rollback()
+            raise
     
     def get_processed_ranges(self) -> List[ProcessedDateRange]:
         """Get all processed date ranges for this account"""

@@ -2,11 +2,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Dict, List
 import json
+import logging
 
 from app.database import EmailMetadata, AnalysisResult, AnalysisRun
 from app.encryption import EncryptionManager
 from app.nlp_analyzer import NLPAnalyzer
 from app.date_tracker import DateTracker
+
+logger = logging.getLogger(__name__)
 
 class AnalysisService:
     """Service for batch email analysis"""
@@ -34,7 +37,12 @@ class AnalysisService:
         # Get unprocessed date ranges
         unprocessed_ranges = self.date_tracker.get_unprocessed_ranges(start_date, end_date)
         
+        logger.info(f"Found {len(unprocessed_ranges)} unprocessed ranges to analyze")
+        print(f"[PRINT] Found {len(unprocessed_ranges)} unprocessed ranges to analyze")
+        
         if not unprocessed_ranges:
+            logger.info("All dates in range already processed")
+            print("[PRINT] All dates in range already processed")
             return {
                 'emails_processed': 0,
                 'message': 'All dates in range already processed'
@@ -44,10 +52,16 @@ class AnalysisService:
         
         # Process each unprocessed range
         for range_start, range_end in unprocessed_ranges:
+            logger.info(f"Processing range: {range_start} to {range_end}")
+            print(f"[PRINT] Processing range: {range_start} to {range_end}")
             # Fetch emails
             emails = connector.fetch_emails_by_date_range(range_start, range_end)
+            logger.info(f"Fetched {len(emails)} emails for this range")
+            print(f"[PRINT] Fetched {len(emails)} emails for this range")
             
             if not emails:
+                logger.info(f"No emails in range {range_start} to {range_end}, skipping")
+                print(f"[PRINT] No emails in range, skipping")
                 continue
             
             # Store email metadata
@@ -121,7 +135,18 @@ class AnalysisService:
             total_emails += len(emails)
             
             # Mark range as processed
-            self.date_tracker.mark_range_processed(range_start, range_end, len(emails))
+            try:
+                logger.info(f"Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
+                print(f"[PRINT] Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
+                self.date_tracker.mark_range_processed(range_start, range_end, len(emails))
+                logger.info(f"Successfully marked range as processed")
+                print(f"[PRINT] Successfully marked range as processed")
+            except Exception as e:
+                logger.error(f"ERROR: Failed to mark range as processed: {e}", exc_info=True)
+                print(f"[PRINT] ERROR: Failed to mark range as processed: {e}")
+                import traceback
+                traceback.print_exc()
+                # Don't fail the whole analysis if marking fails, but log it
         
         return {
             'emails_processed': total_emails,
