@@ -1,14 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface DateRangePickerProps {
   onAnalyze: (startDate: Date, endDate: Date) => void
   loading: boolean
   disabled: boolean
+  initialStartDate?: Date
+  initialEndDate?: Date
 }
 
-export default function DateRangePicker({ onAnalyze, loading, disabled }: DateRangePickerProps) {
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+export default function DateRangePicker({ onAnalyze, loading, disabled, initialStartDate, initialEndDate }: DateRangePickerProps) {
+  const formatDateForInput = (date: Date) => {
+    return date.toISOString().split('T')[0]
+  }
+  
+  const [startDate, setStartDate] = useState(initialStartDate ? formatDateForInput(initialStartDate) : '')
+  const [endDate, setEndDate] = useState(initialEndDate ? formatDateForInput(initialEndDate) : '')
+  
+  // Update when initial dates change
+  useEffect(() => {
+    if (initialStartDate) {
+      setStartDate(formatDateForInput(initialStartDate))
+    }
+    if (initialEndDate) {
+      setEndDate(formatDateForInput(initialEndDate))
+    }
+  }, [initialStartDate, initialEndDate])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
