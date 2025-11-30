@@ -76,11 +76,18 @@ async def list_email_accounts(
     db: Session = Depends(get_db)
 ):
     """List all email accounts for a user"""
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        return []
-    
-    return db.query(EmailAccount).filter(EmailAccount.user_id == user.id).all()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            return []
+        
+        accounts = db.query(EmailAccount).filter(EmailAccount.user_id == user.id).all()
+        return accounts
+    except Exception as e:
+        print(f"Error listing accounts for user {username}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to load accounts: {str(e)}")
 
 @router.delete("/accounts/{account_id}")
 async def delete_email_account(

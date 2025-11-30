@@ -54,16 +54,20 @@ async def mailmind_exception_handler(request: Request, exc: MailMindException):
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions"""
+    import traceback
+    error_trace = traceback.format_exc()
+    print(f"Unhandled exception: {exc}")
+    print(error_trace)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": {
                 "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred",
+                "message": f"An unexpected error occurred: {str(exc)}",
                 "metadata": {}
             }
         }
-)
+    )
 
 # Routers
 app.include_router(emails.router, prefix="/api/emails", tags=["emails"])
