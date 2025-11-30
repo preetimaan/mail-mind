@@ -367,3 +367,48 @@ async def get_processed_ranges(
         for r in ranges
     ]
 
+@router.get("/processed-ranges/gaps")
+async def get_processed_range_gaps(
+    username: str,
+    account_id: int,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    db: Session = Depends(get_db)
+):
+    """Get unprocessed date range gaps for an account"""
+    from app.date_tracker import DateTracker
+    
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Use account creation date as default start, or today as default end
+    from datetime import datetime, timedelta
+    if not start_date:
+        # Default to 2 years ago or account creation, whichever is more recent
+        account_created = account.created_at if hasattr(account, 'created_at') else datetime.utcnow() - timedelta(days=730)
+        start_date = max(account_created, datetime.utcnow() - timedelta(days=730))
+    if not end_date:
+        end_date = datetime.utcnow()
+    
+    # Get gaps using DateTracker
+    date_tracker = DateTracker(db, account_id)
+    gaps = date_tracker.get_unprocessed_ranges(start_date, end_date)
+    
+    return [
+        {
+            'start_date': gap_start.isoformat(),
+            'end_date': gap_end.isoformat(),
+            'days': (gap_end - gap_start).days + 1
+        }
+        for gap_start, gap_end in gaps
+    ]
+
