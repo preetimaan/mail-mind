@@ -47,29 +47,41 @@
   - [x] `POST /api/analysis/batch` - Start batch analysis
   - [x] `GET /api/analysis/runs` - List analysis runs
   - [x] `GET /api/analysis/runs/{id}` - Get run status
+  - [x] `POST /api/analysis/runs/{id}/retry` - Retry failed analysis runs
+- [x] OAuth
+  - [x] `GET /api/oauth/authorize` - Generate OAuth authorization URL
+  - [x] `GET /api/oauth/callback` - Handle OAuth callback and store credentials (✅ Implemented - required for Gmail account setup)
 - [x] Insights
   - [x] `GET /api/insights/summary` - Overall summary
   - [x] `GET /api/insights/senders` - Top senders and patterns
   - [x] `GET /api/insights/categories` - Category distribution
   - [x] `GET /api/insights/frequency` - Frequency patterns
+  - [x] `GET /api/insights/frequency/yearly` - Yearly frequency analysis
   - [x] `GET /api/insights/processed-ranges` - Processed date ranges
+  - [x] `GET /api/insights/processed-ranges/gaps` - Detect unprocessed date gaps
 
 ### Frontend
 - [x] React + TypeScript setup with Vite
 - [x] Dashboard page
-  - [x] Username input
+  - [x] Username input (with localStorage persistence)
   - [x] Account selector component
-  - [x] Date range picker
+  - [x] Date range picker (with gap pre-filling support)
   - [x] Analysis trigger with loading states
+  - [x] Account management UI (AddAccountModal)
+  - [x] OAuth callback handling
+  - [x] Failed run grouping and retry functionality
 - [x] Visualization components
   - [x] Stats grid (summary statistics)
   - [x] Sender chart (top senders with percentages)
   - [x] Category chart (category distribution)
   - [x] Frequency chart (hourly/weekly patterns)
-  - [x] Processed ranges display
+  - [x] Yearly frequency chart (year-over-year analysis)
+  - [x] Processed ranges display with gap detection
+  - [x] Processed ranges chart (monthly coverage visualization)
 - [x] Real-time status updates
   - [x] Polling for analysis completion
   - [x] Error and success message display
+  - [x] User-friendly error messages for failed runs
 - [x] API client with TypeScript types
 
 ### Documentation
@@ -77,8 +89,19 @@
 - [x] QUICKSTART.md guide
 - [x] API documentation (via FastAPI Swagger UI)
 
+### Error Handling & Observability
+- [x] Comprehensive logging infrastructure throughout backend
+- [x] User-friendly error message storage and display
+- [x] Error categorization (token_expired, connection_error, auth_error)
+- [x] Retry functionality for failed analysis runs
+- [x] Failed run grouping in UI (collapsible sections)
+- [x] Graceful handling of expired/revoked OAuth tokens
+- [x] Utility script to mark stuck runs as failed
+
 ### Bug Fixes
 - [x] Fixed `analysis_run_id` null constraint bug
+- [x] Fixed timezone handling in date tracking (normalize to UTC)
+- [x] Improved gap detection to find all unprocessed date ranges
 
 ---
 
@@ -86,74 +109,54 @@
 
 ### High Priority
 
-#### 1. Email Account Management UI
-**Status**: Not Started  
-**Priority**: High  
-**Description**: Currently accounts must be added via API/curl. Need a user-friendly interface.
+#### 1. Enhanced Account Management
+**Status**: Partially Complete  
+**Priority**: Medium  
+**Description**: Account management UI exists, but could be enhanced with additional features.
 
 **Tasks**:
-- [ ] Add account form component (provider selection, email input, credentials)
-- [ ] Gmail OAuth flow UI (redirect handling)
-- [ ] Yahoo credentials form (email + app password)
+- [x] Add account form component (provider selection, email input, credentials)
+- [x] Gmail OAuth flow UI (redirect handling)
+- [x] Gmail OAuth callback handler (`/api/oauth/callback` endpoint)
+- [x] Yahoo credentials form (email + app password)
 - [ ] Account list with edit/delete actions
-- [ ] Credential validation before saving
-- [ ] Error handling for invalid credentials
+- [x] Credential validation before saving
+- [x] Error handling for invalid credentials
+- [ ] Connection testing button
+- [ ] Account reconnection for expired tokens
 
-#### 2. Gmail OAuth Callback Handler
-**Status**: Not Started  
-**Priority**: High  
-**Description**: Implement OAuth redirect endpoint for Gmail authentication.
-
-**Tasks**:
-- [ ] Create `/api/oauth/callback` endpoint
-- [ ] Handle OAuth state verification
-- [ ] Exchange authorization code for tokens
-- [ ] Store encrypted credentials
-- [ ] Redirect to frontend with success/error
-- [ ] Handle token refresh on expiration
-
-#### 3. Enhanced Error Handling
-**Status**: Not Started  
+#### 1a. Improve Duplicate Email Handling
+**Status**: Needs Improvement  
 **Priority**: Medium-High  
-**Description**: Better error messages and recovery mechanisms.
+**Description**: Current duplicate handling has issues that could cause data integrity problems.
+
+**Current Issues**:
+- Global unique constraint on `message_id` works for Gmail but problematic for Yahoo (IMAP sequence numbers aren't globally unique)
+- No error handling for `IntegrityError` if duplicates slip through (race conditions)
+- Yahoo uses IMAP sequence numbers which can change if emails are deleted
 
 **Tasks**:
-- [ ] Structured error responses from API
-- [ ] User-friendly error messages in frontend
-- [ ] Retry logic for failed API calls
-- [ ] Connection timeout handling
-- [ ] Rate limiting awareness (Gmail API limits)
-- [ ] Graceful degradation when services unavailable
+- [ ] Change `message_id` unique constraint to composite unique on `(account_id, message_id)` 
+- [ ] Add error handling for `IntegrityError` in email storage to gracefully handle race conditions
+- [ ] For Yahoo, use more stable identifier (IMAP UID or Message-ID header) instead of sequence number
+- [ ] Add tests for duplicate email scenarios (same email in overlapping date ranges, race conditions)
 
 ### Medium Priority
 
-#### 4. UI/UX Enhancements
-**Status**: Not Started  
+#### 2. UI/UX Enhancements
+**Status**: Partially Complete  
 **Priority**: Medium  
 **Description**: Improve visual design and user experience.
 
 **Tasks**:
-- [ ] Add loading spinner for in-progress analysis
-- [ ] Improve overall UI design (modern, clean interface)
-- [ ] Better visual feedback for missing/empty data
+- [x] Add loading spinner for in-progress analysis
+- [x] Improve overall UI design (modern, clean interface)
+- [x] Better visual feedback for missing/empty data
 - [ ] Enhanced category chart UI for missing categories
 - [ ] Responsive design improvements
 - [ ] Dark mode support (optional)
 
-#### 5. Yearly Frequency Analysis
-**Status**: Not Started  
-**Priority**: Medium  
-**Description**: Add yearly frequency summary with data availability indicators.
-
-**Tasks**:
-- [ ] Yearly aggregation endpoint (`/api/insights/frequency/yearly`)
-- [ ] Year-over-year comparison chart
-- [ ] Visual indicators for missing data periods
-- [ ] Year selector component
-- [ ] Data completeness indicators (show gaps in data)
-- [ ] Summary statistics per year
-
-#### 6. Export Functionality
+#### 3. Export Functionality
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Allow users to export insights and data.
@@ -165,7 +168,7 @@
 - [ ] Date range selection for exports
 - [ ] Export button in dashboard
 
-#### 7. Email Filtering & Search
+#### 4. Email Filtering & Search
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Filter and search through analyzed emails.
@@ -178,7 +181,7 @@
 - [ ] Filter UI component
 - [ ] Search results display
 
-#### 8. Advanced Analytics
+#### 5. Advanced Analytics
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Deeper insights and trend analysis.
@@ -193,7 +196,7 @@
 
 ### Low Priority / Future Enhancements
 
-#### 7. Multi-Account Comparison
+#### 6. Multi-Account Comparison
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Compare insights across multiple email accounts.
@@ -203,7 +206,7 @@
 - [ ] Aggregate statistics across accounts
 - [ ] Account-specific insights toggle
 
-#### 8. Email Content Analysis
+#### 7. Email Content Analysis
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Analyze email body content (requires full email access).
@@ -215,7 +218,7 @@
 - [ ] Attachment detection
 - [ ] Link extraction
 
-#### 9. Notifications & Alerts
+#### 8. Notifications & Alerts
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Notify users about email patterns.
@@ -226,7 +229,7 @@
 - [ ] Category change alerts
 - [ ] Email digest summaries
 
-#### 10. Performance Optimizations
+#### 9. Performance Optimizations
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Optimize for large-scale email processing.
@@ -238,7 +241,7 @@
 - [ ] Async email fetching improvements
 - [ ] Memory optimization for large batches
 
-#### 11. Testing
+#### 10. Testing
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Add comprehensive test coverage.
@@ -251,7 +254,7 @@
 - [ ] E2E tests for analysis flow
 - [ ] Mock email connectors for testing
 
-#### 12. Deployment & DevOps
+#### 11. Deployment & DevOps
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Production deployment setup.
@@ -270,9 +273,9 @@
 
 1. **Analysis Run ID Bug** - ✅ Fixed
 2. **No progress tracking** - Analysis runs don't show progress percentage during processing
-3. **No retry mechanism** - Failed analysis runs require manual restart
-4. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
-5. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
+3. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
+4. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
+5. **Duplicate email handling** - Global unique constraint on `message_id` problematic for Yahoo accounts (IMAP sequence numbers aren't globally unique). No error handling for race conditions.
 
 ---
 
@@ -280,11 +283,13 @@
 
 | Feature | Priority | Effort | Impact | Status |
 |---------|----------|--------|--------|--------|
-| Account Management UI | High | Medium | High | Not Started |
-| OAuth Callback | High | Low | High | Not Started |
-| Error Handling | High | Medium | High | Not Started |
-| UI/UX Enhancements | Medium | Medium | Medium | Not Started |
-| Yearly Frequency Analysis | Medium | Medium | Medium | Not Started |
+| Account Management UI | High | Medium | High | ✅ Completed |
+| OAuth Callback | High | Low | High | ✅ Completed |
+| Error Handling | High | Medium | High | ✅ Completed |
+| Duplicate Email Handling | Medium-High | Low | High | Needs Improvement |
+| Yearly Frequency Analysis | Medium | Medium | Medium | ✅ Completed |
+| Gap Detection & Visualization | Medium | Medium | Medium | ✅ Completed |
+| UI/UX Enhancements | Medium | Medium | Medium | Partially Complete |
 | Export Functionality | Medium | Low | Medium | Not Started |
 | Email Filtering | Medium | Medium | Medium | Not Started |
 | Advanced Analytics | Medium | High | Medium | Not Started |
@@ -298,11 +303,20 @@
 ## 🎯 Current Sprint Goals
 
 1. ✅ Fix analysis_run_id bug
-2. ⏳ Implement account management UI
-3. ⏳ Add OAuth callback handler
-4. ⏳ Improve error handling
-5. ⏳ Add loading spinner and UI improvements
-6. ⏳ Implement yearly frequency analysis
+2. ✅ Implement account management UI
+3. ✅ Add OAuth callback handler
+4. ✅ Improve error handling (error messages, retry, grouping)
+5. ✅ Add loading spinner and UI improvements
+6. ✅ Implement yearly frequency analysis
+7. ✅ Add gap detection and visualization
+8. ✅ Add comprehensive logging
+9. ✅ Fix timezone handling in date tracking
+
+**Next Sprint Focus:**
+- Enhanced account management (edit/delete, connection testing)
+- Export functionality
+- Email filtering & search
+- Testing infrastructure
 
 ---
 
@@ -420,11 +434,14 @@
 1. ✅ Remember username in browser
 2. ✅ Add account UI (at least for Yahoo)
 3. ✅ OAuth callback endpoint for Gmail
+4. ✅ Better error messages
+5. ✅ Retry functionality for failed runs
 
 **Should Have (P1):**
 1. Account list with edit/delete
 2. Connection testing
-3. Better error messages
+3. Export functionality
+4. Email filtering & search
 
 **Nice to Have (P2):**
 1. Onboarding wizard
