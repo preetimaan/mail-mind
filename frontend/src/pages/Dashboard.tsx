@@ -272,12 +272,16 @@ export default function Dashboard() {
                 const account = updatedAccounts.find((a: EmailAccount) => a.id === selectedAccount)
                 if (account && !account.is_active) {
                   setAccounts(updatedAccounts)
-                  setError('Analysis failed: Gmail token expired or revoked. Please reconnect your account using the "Reconnect" button.')
+                  setError('Analysis failed: Your email account credentials have expired or been revoked. Please reconnect your account using the "Reconnect" button, then try again.')
                 } else {
-                  setError('Analysis failed. Please check your account credentials and try again.')
+                  // Use error message from run if available, otherwise show generic message
+                  const errorMsg = run.error_message || 'Analysis failed. Possible causes: Expired credentials, network issues, or email service unavailable. Check your account status and try again, or use the "Retry" button.'
+                  setError(errorMsg)
                 }
               } catch {
-                setError('Analysis failed. Please check your account credentials and try again.')
+                // Use error message from run if available
+                const errorMsg = run.error_message || 'Analysis failed. Please check your account credentials and try again.'
+                setError(errorMsg)
               }
             }
           }

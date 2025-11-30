@@ -72,6 +72,7 @@ export interface AnalysisRun {
   end_date: string
   created_at: string
   completed_at: string | null
+  error_message?: string | null
 }
 
 export interface Summary {

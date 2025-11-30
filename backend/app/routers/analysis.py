@@ -187,18 +187,34 @@ async def process_batch_analysis(
                 if analysis_run:
                     analysis_run.status = "failed"
                     analysis_run.completed_at = datetime.utcnow()
+                    if hasattr(analysis_run, 'error_message'):
+                        analysis_run.error_message = "Email account credentials expired or revoked. Please reconnect your account."
                 db.commit()
-                print(f"Account {account.email if account else 'unknown'} marked as inactive due to expired/revoked token")
+                logger.info(f"Account {account.email if account else 'unknown'} marked as inactive due to expired/revoked token")
+                print(f"[PRINT] Account {account.email if account else 'unknown'} marked as inactive due to expired/revoked token")
             except Exception as update_error:
-                print(f"Failed to update account/run status: {update_error}")
+                logger.error(f"Failed to update account/run status: {update_error}")
+                print(f"[PRINT] Failed to update account/run status: {update_error}")
                 db.rollback()
         else:
             # Re-raise if it's a different ValueError
             raise
     except Exception as e:
-        print(f"Analysis error: {e}")
+        error_msg = str(e)
+        logger.error(f"Analysis error: {error_msg}", exc_info=True)
+        print(f"[PRINT] Analysis error: {error_msg}")
         import traceback
         traceback.print_exc()
+        
+        # Check for specific error types
+        error_type = "unknown"
+        if "expired" in error_msg.lower() or "revoked" in error_msg.lower() or "invalid_grant" in error_msg.lower():
+            error_type = "token_expired"
+        elif "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            error_type = "connection_error"
+        elif "credentials" in error_msg.lower() or "authentication" in error_msg.lower():
+            error_type = "auth_error"
+        
         # Rollback any pending transaction
         try:
             db.rollback()
@@ -212,9 +228,28 @@ async def process_batch_analysis(
             if analysis_run:
                 analysis_run.status = "failed"
                 analysis_run.completed_at = datetime.utcnow()
+                
+                # Store user-friendly error message
+                if error_type == "token_expired":
+                    analysis_run.error_message = "Email account credentials expired or revoked. Please reconnect your account."
+                    account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
+                    if account:
+                        account.is_active = False
+                        logger.info(f"Marking account {account.email} as inactive due to error")
+                        print(f"[PRINT] Marking account {account.email} as inactive due to error")
+                elif error_type == "connection_error":
+                    analysis_run.error_message = "Connection error: Unable to connect to email service. Please check your network connection and try again."
+                elif error_type == "auth_error":
+                    analysis_run.error_message = "Authentication error: Invalid credentials. Please check your account settings."
+                else:
+                    # Store a sanitized version of the error (first 200 chars to avoid huge messages)
+                    sanitized_error = error_msg[:200] if len(error_msg) > 200 else error_msg
+                    analysis_run.error_message = f"Analysis failed: {sanitized_error}"
+                
                 db.commit()
         except Exception as update_error:
-            print(f"Failed to update analysis run status: {update_error}")
+            logger.error(f"Failed to update analysis run status: {update_error}")
+            print(f"[PRINT] Failed to update analysis run status: {update_error}")
             db.rollback()
     finally:
         try:
@@ -248,7 +283,8 @@ async def get_analysis_run(
         "start_date": analysis_run.start_date.isoformat(),
         "end_date": analysis_run.end_date.isoformat(),
         "created_at": analysis_run.created_at.isoformat(),
-        "completed_at": analysis_run.completed_at.isoformat() if analysis_run.completed_at else None
+        "completed_at": analysis_run.completed_at.isoformat() if analysis_run.completed_at else None,
+        "error_message": getattr(analysis_run, 'error_message', None)
     }
 
 @router.get("/runs")
