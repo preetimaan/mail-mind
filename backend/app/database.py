@@ -69,6 +69,7 @@ class AnalysisRun(Base):
     emails_processed = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
+    error_message = Column(Text, nullable=True)  # Store error details for failed runs
     
     user = relationship("User", back_populates="analysis_runs")
 
