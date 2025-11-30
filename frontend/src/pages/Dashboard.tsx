@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [processedRangesRefresh, setProcessedRangesRefresh] = useState(0)
+  const [expandedFailedGroups, setExpandedFailedGroups] = useState<Set<number>>(new Set())
   const [selectedGapStart, setSelectedGapStart] = useState<Date | undefined>()
   const [selectedGapEnd, setSelectedGapEnd] = useState<Date | undefined>()
 
@@ -418,38 +419,154 @@ export default function Dashboard() {
                   }}
                 />
 
-                {analysisRuns.length > 0 ? (
-                  <div className="card">
-                    <h2>Recent Analysis Runs</h2>
+                <div className="card">
+                  <h2>Recent Analysis Runs</h2>
+                  {analysisRuns.length > 0 ? (
                     <div className="runs-list">
-                      {analysisRuns.slice(0, 5).map((run) => (
-                        <div key={run.id} className="run-item">
-                          <div>
-                            <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
-                            {new Date(run.end_date).toLocaleDateString()}
-                          </div>
-                          <div className="run-status">
-                            <span className={`status-badge status-${run.status}`}>
-                              {run.status}
-                            </span>
-                            {run.emails_processed > 0 && (
-                              <span>{run.emails_processed} emails</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                      {(() => {
+                        // Group consecutive failed runs
+                        const runs = analysisRuns // Show all runs, not just first 5
+                        const grouped: Array<{ type: 'single' | 'failed-group', runs: AnalysisRun[], groupIndex?: number }> = []
+                        let currentFailedGroup: AnalysisRun[] = []
+                        let groupIndex = 0
+                        
+                        for (let i = 0; i < runs.length; i++) {
+                          const run = runs[i]
+                          if (run.status === 'failed') {
+                            currentFailedGroup.push(run)
+                          } else {
+                            // If we have a failed group, add it first
+                            if (currentFailedGroup.length > 0) {
+                              if (currentFailedGroup.length > 1) {
+                                grouped.push({ type: 'failed-group', runs: currentFailedGroup, groupIndex: groupIndex++ })
+                              } else {
+                                grouped.push({ type: 'single', runs: currentFailedGroup })
+                              }
+                              currentFailedGroup = []
+                            }
+                            grouped.push({ type: 'single', runs: [run] })
+                          }
+                        }
+                        
+                        // Add any remaining failed group
+                        if (currentFailedGroup.length > 0) {
+                          if (currentFailedGroup.length > 1) {
+                            grouped.push({ type: 'failed-group', runs: currentFailedGroup, groupIndex: groupIndex++ })
+                          } else {
+                            grouped.push({ type: 'single', runs: currentFailedGroup })
+                          }
+                        }
+                        
+                        return grouped.map((group) => {
+                          if (group.type === 'failed-group' && group.groupIndex !== undefined) {
+                            const isExpanded = expandedFailedGroups.has(group.groupIndex)
+                            const firstRun = group.runs[0]
+                            const lastRun = group.runs[group.runs.length - 1]
+                            
+                            return (
+                              <div key={`group-${group.groupIndex}`}>
+                                <div 
+                                  className="run-item" 
+                                  style={{ 
+                                    cursor: 'pointer',
+                                    backgroundColor: '#fff5f5',
+                                    border: '1px solid #f8d7da'
+                                  }}
+                                  onClick={() => {
+                                    const newSet = new Set(expandedFailedGroups)
+                                    if (isExpanded) {
+                                      newSet.delete(group.groupIndex!)
+                                    } else {
+                                      newSet.add(group.groupIndex!)
+                                    }
+                                    setExpandedFailedGroups(newSet)
+                                  }}
+                                >
+                                  <div>
+                                    <strong>
+                                      {group.runs.length} consecutive failed {group.runs.length === 1 ? 'run' : 'runs'}
+                                    </strong>
+                                    <div style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: '#666' }}>
+                                      {new Date(firstRun.start_date).toLocaleDateString()} - {new Date(lastRun.end_date).toLocaleDateString()}
+                                    </div>
+                                    {!isExpanded && firstRun.error_message && (
+                                      <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
+                                        {firstRun.error_message}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="run-status">
+                                    <span className="status-badge status-failed">
+                                      {group.runs.length} failed
+                                    </span>
+                                    <span style={{ fontSize: '0.9rem', color: '#666' }}>
+                                      {isExpanded ? '▼' : '▶'}
+                                    </span>
+                                  </div>
+                                </div>
+                                {isExpanded && (
+                                  <div style={{ marginLeft: '1rem', marginTop: '0.5rem', borderLeft: '2px solid #f8d7da', paddingLeft: '1rem' }}>
+                                    {group.runs.map((run) => (
+                                      <div key={run.id} className="run-item" style={{ marginBottom: '0.5rem' }}>
+                                        <div>
+                                          <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
+                                          {new Date(run.end_date).toLocaleDateString()}
+                                          {run.error_message && (
+                                            <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
+                                              {run.error_message}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="run-status">
+                                          <span className="status-badge status-failed">
+                                            failed
+                                          </span>
+                                          {run.emails_processed > 0 && (
+                                            <span>{run.emails_processed} emails</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          } else {
+                            // Single run (non-failed or single failed)
+                            const run = group.runs[0]
+                            return (
+                              <div key={run.id} className="run-item">
+                                <div>
+                                  <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
+                                  {new Date(run.end_date).toLocaleDateString()}
+                                  {run.status === 'failed' && run.error_message && (
+                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
+                                      {run.error_message}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="run-status">
+                                  <span className={`status-badge status-${run.status}`}>
+                                    {run.status}
+                                  </span>
+                                  {run.emails_processed > 0 && (
+                                    <span>{run.emails_processed} emails</span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          }
+                        })
+                      })()}
                     </div>
-                  </div>
-                ) : (
-                  <div className="card">
-                    <h2>Recent Analysis Runs</h2>
+                  ) : (
                     <EmptyState
                       title="No analysis runs yet"
                       message="Start your first analysis to see results here."
                       icon="🔍"
                     />
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {senderInsights ? (
                   senderInsights.total_emails > 0 ? (
