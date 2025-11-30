@@ -262,11 +262,18 @@ export default function Dashboard() {
               loadAnalysisRuns()
             } else {
               // Check if account is now inactive (token expired)
-              loadAccounts() // Reload to check account status
-              const account = accounts.find(a => a.id === selectedAccount)
-              if (account && !account.is_active) {
-                setError('Analysis failed: Gmail token expired or revoked. Please reconnect your account using the "Reconnect" button.')
-              } else {
+              // Reload accounts to get latest status
+              try {
+                const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`)
+                const updatedAccounts = accountsResponse.data || []
+                const account = updatedAccounts.find((a: EmailAccount) => a.id === selectedAccount)
+                if (account && !account.is_active) {
+                  setAccounts(updatedAccounts)
+                  setError('Analysis failed: Gmail token expired or revoked. Please reconnect your account using the "Reconnect" button.')
+                } else {
+                  setError('Analysis failed. Please check your account credentials and try again.')
+                }
+              } catch {
                 setError('Analysis failed. Please check your account credentials and try again.')
               }
             }
