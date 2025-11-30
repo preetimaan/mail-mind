@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { format } from 'date-fns'
 
 interface DateRangePickerProps {
   onAnalyze: (startDate: Date, endDate: Date) => void
@@ -32,7 +31,7 @@ export default function DateRangePicker({ onAnalyze, loading, disabled }: DateRa
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
-        <div className="form-group">
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="label">Start Date</label>
           <input
             type="date"
@@ -43,7 +42,7 @@ export default function DateRangePicker({ onAnalyze, loading, disabled }: DateRa
             required
           />
         </div>
-        <div className="form-group">
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="label">End Date</label>
           <input
             type="date"
@@ -58,6 +57,7 @@ export default function DateRangePicker({ onAnalyze, loading, disabled }: DateRa
           type="submit"
           className="button"
           disabled={disabled || loading || !startDate || !endDate}
+          style={{ marginBottom: 0 }}
         >
           {loading ? 'Analyzing...' : 'Analyze'}
         </button>

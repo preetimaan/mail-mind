@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [processedRangesRefresh, setProcessedRangesRefresh] = useState(0)
 
   // Load username from localStorage on mount
   useEffect(() => {
@@ -260,6 +261,8 @@ export default function Dashboard() {
               loadInsights()
               loadSummary()
               loadAnalysisRuns()
+              // Trigger ProcessedRanges refresh
+              setProcessedRangesRefresh(prev => prev + 1)
             } else {
               // Check if account is now inactive (token expired)
               // Reload accounts to get latest status
@@ -374,7 +377,7 @@ export default function Dashboard() {
 
             {selectedAccount && (
               <>
-                <div className="card">
+                <div className="card" style={{ marginTop: '2rem' }}>
                   <h2>Batch Analysis</h2>
                   {loading && (
                     <div style={{ marginBottom: '1rem' }}>
@@ -391,6 +394,7 @@ export default function Dashboard() {
                 <ProcessedRanges
                   username={username}
                   accountId={selectedAccount}
+                  refreshTrigger={processedRangesRefresh}
                 />
 
                 {analysisRuns.length > 0 ? (
