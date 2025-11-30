@@ -219,13 +219,83 @@ export default function Dashboard() {
   }
 
   const loadAnalysisRuns = async () => {
-    if (!selectedAccount) return
+    if (!selectedAccount) {
+      setAnalysisRuns([])
+      return
+    }
     
     try {
       const response = await api.get(`/api/analysis/runs?username=${username}&account_id=${selectedAccount}`)
       setAnalysisRuns(response.data)
     } catch (err: any) {
       console.error('Failed to load analysis runs:', err)
+    }
+  }
+
+  const handleRetryAnalysis = async (runId: number) => {
+    if (!username) {
+      setError('Please enter a username')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await api.post(`/api/analysis/runs/${runId}/retry?username=${username}`)
+      setSuccess(`Analysis retry started! Run ID: ${response.data.run_id}`)
+      
+      // Refresh runs list to show the new run
+      loadAnalysisRuns()
+      
+      // Poll for completion
+      const newRunId = response.data.run_id
+      const pollInterval = setInterval(async () => {
+        try {
+          const runResponse = await api.get(`/api/analysis/runs/${newRunId}?username=${username}`)
+          const run = runResponse.data
+          
+          if (run.status === 'completed' || run.status === 'failed') {
+            clearInterval(pollInterval)
+            setLoading(false)
+            if (run.status === 'completed') {
+              setSuccess(`Analysis completed! Processed ${run.emails_processed} emails.`)
+              loadInsights()
+              loadSummary()
+              loadAnalysisRuns()
+              setProcessedRangesRefresh(prev => prev + 1)
+            } else {
+              // Check if account is now inactive (token expired)
+              try {
+                const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`)
+                const updatedAccounts = accountsResponse.data || []
+                const account = updatedAccounts.find((a: EmailAccount) => a.id === selectedAccount)
+                if (account && !account.is_active) {
+                  setAccounts(updatedAccounts)
+                  setError('Analysis failed: Your email account credentials have expired or been revoked. Please reconnect your account using the "Reconnect" button, then try again.')
+                } else {
+                  // Use error message from run if available, otherwise show generic message
+                  const errorMsg = run.error_message || 'Analysis failed. Possible causes: Expired credentials, network issues, or email service unavailable. Check your account status and try again, or use the "Retry" button.'
+                  setError(errorMsg)
+                }
+              } catch {
+                // Use error message from run if available
+                const errorMsg = run.error_message || 'Analysis failed. Please check your account credentials and try again.'
+                setError(errorMsg)
+              }
+            }
+          }
+        } catch (err) {
+          clearInterval(pollInterval)
+          setLoading(false)
+          setError('Failed to check analysis status')
+        }
+      }, 2000)
+    } catch (err: any) {
+      setLoading(false)
+      const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to retry analysis'
+      setError(errorMessage)
     }
   }
 
@@ -524,6 +594,21 @@ export default function Dashboard() {
                                           {run.emails_processed > 0 && (
                                             <span>{run.emails_processed} emails</span>
                                           )}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleRetryAnalysis(run.id)
+                                            }}
+                                            className="button"
+                                            style={{ 
+                                              marginLeft: '1rem',
+                                              padding: '0.5rem 1rem',
+                                              fontSize: '0.9rem'
+                                            }}
+                                            disabled={loading}
+                                          >
+                                            Retry
+                                          </button>
                                         </div>
                                       </div>
                                     ))}
@@ -551,6 +636,20 @@ export default function Dashboard() {
                                   </span>
                                   {run.emails_processed > 0 && (
                                     <span>{run.emails_processed} emails</span>
+                                  )}
+                                  {run.status === 'failed' && (
+                                    <button
+                                      onClick={() => handleRetryAnalysis(run.id)}
+                                      className="button"
+                                      style={{ 
+                                        marginLeft: '1rem',
+                                        padding: '0.5rem 1rem',
+                                        fontSize: '0.9rem'
+                                      }}
+                                      disabled={loading}
+                                    >
+                                      Retry
+                                    </button>
                                   )}
                                 </div>
                               </div>

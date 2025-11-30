@@ -326,3 +326,77 @@ async def list_analysis_runs(
         for run in runs
     ]
 
+@router.post("/runs/{run_id}/retry", response_model=AnalysisResponse)
+async def retry_analysis_run(
+    run_id: int,
+    username: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """Retry a failed analysis run with the same parameters"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Verify user
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get the original failed run
+    original_run = db.query(AnalysisRun).filter(
+        AnalysisRun.id == run_id,
+        AnalysisRun.user_id == user.id
+    ).first()
+    
+    if not original_run:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+    
+    # Only allow retry for failed runs
+    if original_run.status != "failed":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot retry analysis run with status '{original_run.status}'. Only failed runs can be retried."
+        )
+    
+    # Verify account still exists and is accessible
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == original_run.account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    logger.info(f"Retrying analysis run {run_id} for user {username}")
+    print(f"[PRINT] Retrying analysis run {run_id} for user {username}")
+    
+    # Create new analysis run with same parameters
+    new_run = AnalysisRun(
+        user_id=user.id,
+        account_id=original_run.account_id,
+        start_date=original_run.start_date,
+        end_date=original_run.end_date,
+        status="pending"
+    )
+    db.add(new_run)
+    db.commit()
+    db.refresh(new_run)
+    
+    # Start background analysis
+    logger.info(f"Adding background task for retry run_id={new_run.id}")
+    print(f"[PRINT] Adding background task for retry run_id={new_run.id}")
+    background_tasks.add_task(
+        process_batch_analysis,
+        new_run.id,
+        user.id,
+        account.id,
+        original_run.start_date,
+        original_run.end_date
+    )
+    
+    return AnalysisResponse(
+        run_id=new_run.id,
+        status="pending",
+        message="Analysis retry started in background"
+    )
+
