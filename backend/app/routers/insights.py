@@ -393,9 +393,22 @@ async def get_processed_range_gaps(
     # Use account creation date as default start, or today as default end
     from datetime import datetime, timedelta
     if not start_date:
-        # Default to 2 years ago or account creation, whichever is more recent
-        account_created = account.created_at if hasattr(account, 'created_at') else datetime.utcnow() - timedelta(days=730)
-        start_date = max(account_created, datetime.utcnow() - timedelta(days=730))
+        # Default to the earliest processed range start, or account creation, or 5 years ago
+        # This ensures we find all gaps, including those before account creation
+        earliest_processed = db.query(ProcessedDateRange).filter(
+            ProcessedDateRange.account_id == account_id
+        ).order_by(ProcessedDateRange.start_date).first()
+        
+        if earliest_processed:
+            # Start from the beginning of the earliest processed range
+            start_date = earliest_processed.start_date
+        elif hasattr(account, 'created_at') and account.created_at:
+            account_created = account.created_at
+            # Go back a bit before account creation to catch any gaps
+            start_date = account_created - timedelta(days=30)
+        else:
+            # No creation date, default to 5 years ago
+            start_date = datetime.utcnow() - timedelta(days=1825)
     if not end_date:
         end_date = datetime.utcnow()
     
