@@ -29,6 +29,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [processedRangesRefresh, setProcessedRangesRefresh] = useState(0)
+  const [selectedGapStart, setSelectedGapStart] = useState<Date | undefined>()
+  const [selectedGapEnd, setSelectedGapEnd] = useState<Date | undefined>()
 
   // Load username from localStorage on mount
   useEffect(() => {
@@ -392,6 +394,8 @@ export default function Dashboard() {
                     onAnalyze={handleAnalyze}
                     loading={loading}
                     disabled={loading}
+                    initialStartDate={selectedGapStart}
+                    initialEndDate={selectedGapEnd}
                   />
                 </div>
 
@@ -399,6 +403,19 @@ export default function Dashboard() {
                   username={username}
                   accountId={selectedAccount}
                   refreshTrigger={processedRangesRefresh}
+                  onSelectGap={(startDate, endDate) => {
+                    // Set dates in DateRangePicker
+                    setSelectedGapStart(startDate)
+                    setSelectedGapEnd(endDate)
+                    setSuccess(`Gap selected: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}. Dates filled in above - click "Analyze" to process this gap.`)
+                    // Scroll to date picker
+                    setTimeout(() => {
+                      const datePicker = document.querySelector('.card h2')?.parentElement
+                      if (datePicker) {
+                        datePicker.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }
+                    }, 100)
+                  }}
                 />
 
                 {analysisRuns.length > 0 ? (
