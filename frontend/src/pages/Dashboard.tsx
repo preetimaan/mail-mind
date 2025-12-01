@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api, EmailAccount, Summary, SenderInsights, CategoryInsights, FrequencyInsights, AnalysisRun } from '../api/client'
+import { api, EmailAccount, AnalysisRun } from '../api/client'
 import DateRangePicker from '../components/DateRangePicker'
 import AccountSelector from '../components/AccountSelector'
 import StatsGrid from '../components/StatsGrid'
@@ -11,215 +11,122 @@ import ProcessedRanges from '../components/ProcessedRanges'
 import AddAccountModal from '../components/AddAccountModal'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import AnalysisRunsList from '../components/AnalysisRunsList'
+import DashboardHeader from '../components/DashboardHeader'
+import UsernameForm from '../components/UsernameForm'
+import { useUsername } from '../hooks/useUsername'
+import { useOAuthCallback } from '../hooks/useOAuthCallback'
+import { useAccounts } from '../hooks/useAccounts'
+import { useInsights } from '../hooks/useInsights'
+import { useAnalysisPolling } from '../hooks/useAnalysisPolling'
 import './Dashboard.css'
 
 export default function Dashboard() {
-  const [usernameInput, setUsernameInput] = useState('')
-  const [username, setUsername] = useState('') // Submitted username
   const [showAddAccountModal, setShowAddAccountModal] = useState(false)
-  const [accounts, setAccounts] = useState<EmailAccount[]>([])
-  const [selectedAccount, setSelectedAccount] = useState<number | null>(null)
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [senderInsights, setSenderInsights] = useState<SenderInsights | null>(null)
-  const [categoryInsights, setCategoryInsights] = useState<CategoryInsights | null>(null)
-  const [frequencyInsights, setFrequencyInsights] = useState<FrequencyInsights | null>(null)
-  const [yearlyFrequencyInsights, setYearlyFrequencyInsights] = useState<any>(null)
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [processedRangesRefresh, setProcessedRangesRefresh] = useState(0)
-  const [expandedFailedGroups, setExpandedFailedGroups] = useState<Set<number>>(new Set())
   const [selectedGapStart, setSelectedGapStart] = useState<Date | undefined>()
   const [selectedGapEnd, setSelectedGapEnd] = useState<Date | undefined>()
 
-  // Load username from localStorage on mount
-  useEffect(() => {
-    const savedUsername = localStorage.getItem('mailmind_username')
-    if (savedUsername) {
-      setUsernameInput(savedUsername)
-      setUsername(savedUsername)
-    }
-  }, [])
+  const {
+    usernameInput,
+    setUsernameInput,
+    username,
+    setUsername,
+    handleUsernameSubmit,
+    handleUsernameKeyPress,
+    handleLogout,
+  } = useUsername()
 
-  // Handle OAuth callbacks from URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const oauthSuccess = params.get('oauth_success')
-    const oauthError = params.get('oauth_error')
-    const oauthUsername = params.get('username')
+  const {
+    accounts,
+    selectedAccount,
+    setSelectedAccount,
+    error: accountsError,
+    loadAccounts,
+    handleAccountAdded,
+    handleDeleteAccount,
+  } = useAccounts(username)
 
-    if (oauthSuccess === '1' && oauthUsername) {
+  const {
+    summary,
+    senderInsights,
+    categoryInsights,
+    frequencyInsights,
+    yearlyFrequencyInsights,
+    loadSummary,
+    loadInsights,
+  } = useInsights(username, selectedAccount)
+
+  const {
+    loading,
+    setLoading,
+    pollAnalysisRun,
+  } = useAnalysisPolling({
+    username,
+    selectedAccount,
+    onComplete: () => {
+      loadInsights()
+      loadSummary()
+      loadAnalysisRuns()
+      setProcessedRangesRefresh(prev => prev + 1)
+    },
+    onError: (errorMsg) => {
+      setError(errorMsg)
+    },
+    onSuccess: (message) => {
+      setSuccess(message)
+    },
+    checkAccountStatus: async (accountId) => {
+      try {
+        const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`)
+        const updatedAccounts = accountsResponse.data || []
+        const account = updatedAccounts.find((a: EmailAccount) => a.id === accountId)
+        return account?.is_active ?? true
+      } catch {
+        return true
+      }
+    },
+  })
+
+  // Handle OAuth callbacks
+  useOAuthCallback({
+    onSuccess: (oauthUsername) => {
       setSuccess('Gmail account added successfully!')
       setUsername(oauthUsername)
       setUsernameInput(oauthUsername)
       localStorage.setItem('mailmind_username', oauthUsername)
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-      // Reload accounts
       setTimeout(() => {
         loadAccounts()
       }, 500)
-    } else if (oauthError) {
-      setError(decodeURIComponent(oauthError))
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-    }
-  }, [])
+    },
+    onError: (errorMsg) => {
+      setError(errorMsg)
+    },
+  })
 
-  const handleUsernameSubmit = () => {
-    const trimmed = usernameInput.trim()
-    if (trimmed) {
-      setUsername(trimmed)
-      setSelectedAccount(null) // Reset selected account when username changes
-      setError(null)
-      setSuccess(null)
-      // Save to localStorage
-      localStorage.setItem('mailmind_username', trimmed)
-    }
-  }
-
-  const handleUsernameKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleUsernameSubmit()
-    }
-  }
-
-  const handleLogout = () => {
-    // Clear localStorage
-    localStorage.removeItem('mailmind_username')
-    
-    // Reset all state
-    setUsername('')
-    setUsernameInput('')
-    setAccounts([])
-    setSelectedAccount(null)
-    setSummary(null)
-    setSenderInsights(null)
-    setCategoryInsights(null)
-    setFrequencyInsights(null)
-    setYearlyFrequencyInsights(null)
-    setAnalysisRuns([])
-    setError(null)
-    setSuccess(null)
-    setLoading(false)
-    setShowAddAccountModal(false)
-  }
-
+  // Clear error/success when username changes, but don't reset selectedAccount
+  // (useAccounts hook will handle account selection)
   useEffect(() => {
     if (username) {
-      loadAccounts()
-      loadSummary()
+      setError(null)
+      setSuccess(null)
     }
   }, [username])
 
+  // Load analysis runs when account is selected
   useEffect(() => {
     if (username && selectedAccount) {
-      loadInsights()
       loadAnalysisRuns()
+    } else {
+      setAnalysisRuns([])
     }
   }, [username, selectedAccount])
 
-  const loadAccounts = async () => {
-    if (!username) {
-      console.log('loadAccounts: No username, skipping')
-      return
-    }
-    
-    try {
-      setError(null) // Clear any previous errors
-      console.log(`Loading accounts for username: ${username}`)
-      const response = await api.get(`/api/emails/accounts?username=${username}`)
-      setAccounts(response.data || [])
-      if (response.data && response.data.length > 0 && !selectedAccount) {
-        setSelectedAccount(response.data[0].id)
-      }
-    } catch (err: any) {
-      console.error('Error loading accounts:', err)
-      setAccounts([]) // Clear accounts on error
-      // Don't show error if it's just "no accounts" - that's normal for new users
-      if (err.response?.status === 404) {
-        setError(null) // 404 is fine - just means no accounts yet
-        setAccounts([]) // Ensure accounts is empty array
-      } else {
-        const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to load accounts'
-        setError(`Failed to load accounts: ${errorMessage}`)
-      }
-    }
-  }
-
-  const handleAccountAdded = () => {
-    loadAccounts()
-    setSuccess('Account added successfully!')
-  }
-
-  const handleDeleteAccount = async (accountId: number) => {
-    if (!username) return
-    
-    if (!window.confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
-      return
-    }
-
-    try {
-      await api.delete(`/api/emails/accounts/${accountId}?username=${username}`)
-      setSuccess('Account deleted successfully')
-      loadAccounts()
-      if (selectedAccount === accountId) {
-        setSelectedAccount(null)
-      }
-    } catch (err: any) {
-      const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to delete account'
-      setError(`Failed to delete account: ${errorMessage}`)
-    }
-  }
-
-  const loadSummary = async () => {
-    if (!username) return
-    
-    try {
-      const response = await api.get(`/api/insights/summary?username=${username}`)
-      setSummary(response.data)
-    } catch (err: any) {
-      // Silently handle 404 - user might not exist yet
-      if (err.response?.status === 404) {
-        setSummary({
-          total_accounts: 0,
-          total_emails: 0,
-          total_senders: 0,
-          accounts: []
-        })
-      } else {
-        console.error('Failed to load summary:', err)
-      }
-    }
-  }
-
-  const loadInsights = async () => {
-    if (!selectedAccount) return
-    
-    try {
-      const [senders, categories, frequency, yearlyFrequency] = await Promise.all([
-        api.get(`/api/insights/senders?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/categories?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/frequency?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/frequency/yearly?username=${username}&account_id=${selectedAccount}`).catch(() => ({ data: null }))
-      ])
-      
-      setSenderInsights(senders.data)
-      setCategoryInsights(categories.data)
-      setFrequencyInsights(frequency.data)
-      if (yearlyFrequency && yearlyFrequency.data && yearlyFrequency.data.years && yearlyFrequency.data.years.length > 0) {
-        setYearlyFrequencyInsights(yearlyFrequency.data)
-      } else {
-        setYearlyFrequencyInsights(null)
-      }
-    } catch (err: any) {
-      console.error('Failed to load insights:', err)
-    }
-  }
-
   const loadAnalysisRuns = async () => {
-    if (!selectedAccount) {
+    if (!selectedAccount || !username) {
       setAnalysisRuns([])
       return
     }
@@ -246,52 +153,10 @@ export default function Dashboard() {
       const response = await api.post(`/api/analysis/runs/${runId}/retry?username=${username}`)
       setSuccess(`Analysis retry started! Run ID: ${response.data.run_id}`)
       
-      // Refresh runs list to show the new run
       loadAnalysisRuns()
       
-      // Poll for completion
       const newRunId = response.data.run_id
-      const pollInterval = setInterval(async () => {
-        try {
-          const runResponse = await api.get(`/api/analysis/runs/${newRunId}?username=${username}`)
-          const run = runResponse.data
-          
-          if (run.status === 'completed' || run.status === 'failed') {
-            clearInterval(pollInterval)
-            setLoading(false)
-            if (run.status === 'completed') {
-              setSuccess(`Analysis completed! Processed ${run.emails_processed} emails.`)
-              loadInsights()
-              loadSummary()
-              loadAnalysisRuns()
-              setProcessedRangesRefresh(prev => prev + 1)
-            } else {
-              // Check if account is now inactive (token expired)
-              try {
-                const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`)
-                const updatedAccounts = accountsResponse.data || []
-                const account = updatedAccounts.find((a: EmailAccount) => a.id === selectedAccount)
-                if (account && !account.is_active) {
-                  setAccounts(updatedAccounts)
-                  setError('Analysis failed: Your email account credentials have expired or been revoked. Please reconnect your account using the "Reconnect" button, then try again.')
-                } else {
-                  // Use error message from run if available, otherwise show generic message
-                  const errorMsg = run.error_message || 'Analysis failed. Possible causes: Expired credentials, network issues, or email service unavailable. Check your account status and try again, or use the "Retry" button.'
-                  setError(errorMsg)
-                }
-              } catch {
-                // Use error message from run if available
-                const errorMsg = run.error_message || 'Analysis failed. Please check your account credentials and try again.'
-                setError(errorMsg)
-              }
-            }
-          }
-        } catch (err) {
-          clearInterval(pollInterval)
-          setLoading(false)
-          setError('Failed to check analysis status')
-        }
-      }, 2000)
+      await pollAnalysisRun(newRunId)
     } catch (err: any) {
       setLoading(false)
       const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to retry analysis'
@@ -319,51 +184,8 @@ export default function Dashboard() {
 
       setSuccess(`Analysis started! Run ID: ${response.data.run_id}`)
       
-      // Poll for completion
       const runId = response.data.run_id
-      const pollInterval = setInterval(async () => {
-        try {
-          const runResponse = await api.get(`/api/analysis/runs/${runId}?username=${username}`)
-          const run = runResponse.data
-          
-          if (run.status === 'completed' || run.status === 'failed') {
-            clearInterval(pollInterval)
-            setLoading(false)
-            if (run.status === 'completed') {
-              setSuccess(`Analysis completed! Processed ${run.emails_processed} emails.`)
-              loadInsights()
-              loadSummary()
-              loadAnalysisRuns()
-              // Trigger ProcessedRanges refresh
-              setProcessedRangesRefresh(prev => prev + 1)
-            } else {
-              // Check if account is now inactive (token expired)
-              // Reload accounts to get latest status
-              try {
-                const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`)
-                const updatedAccounts = accountsResponse.data || []
-                const account = updatedAccounts.find((a: EmailAccount) => a.id === selectedAccount)
-                if (account && !account.is_active) {
-                  setAccounts(updatedAccounts)
-                  setError('Analysis failed: Your email account credentials have expired or been revoked. Please reconnect your account using the "Reconnect" button, then try again.')
-                } else {
-                  // Use error message from run if available, otherwise show generic message
-                  const errorMsg = run.error_message || 'Analysis failed. Possible causes: Expired credentials, network issues, or email service unavailable. Check your account status and try again, or use the "Retry" button.'
-                  setError(errorMsg)
-                }
-              } catch {
-                // Use error message from run if available
-                const errorMsg = run.error_message || 'Analysis failed. Please check your account credentials and try again.'
-                setError(errorMsg)
-              }
-            }
-          }
-        } catch (err) {
-          clearInterval(pollInterval)
-          setLoading(false)
-          setError('Failed to check analysis status')
-        }
-      }, 2000)
+      await pollAnalysisRun(runId)
     } catch (err: any) {
       setLoading(false)
       const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to start analysis'
@@ -371,54 +193,36 @@ export default function Dashboard() {
     }
   }
 
+  const handleAccountAddedWithSuccess = () => {
+    handleAccountAdded()
+    setSuccess('Account added successfully!')
+  }
+
+  const handleGapSelect = (startDate: Date, endDate: Date) => {
+    setSelectedGapStart(startDate)
+    setSelectedGapEnd(endDate)
+    setSuccess(`Gap selected: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}. Dates filled in above - click "Analyze" to process this gap.`)
+    setTimeout(() => {
+      const datePicker = document.querySelector('.card h2')?.parentElement
+      if (datePicker) {
+        datePicker.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 100)
+  }
+
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
-        <div className="header-content">
-          <div>
-            <h1>Mail Mind</h1>
-            <p>Email Analysis and Classifier Tool</p>
-          </div>
-          {username && (
-            <div className="user-info">
-              <span className="current-user">Logged in as: <strong>{username}</strong></span>
-              <button 
-                onClick={handleLogout} 
-                className="logout-button"
-                title="Log out"
-              >
-                Log Out
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
+      <DashboardHeader username={username} onLogout={handleLogout} />
 
       <div className="container">
-        <div className="card">
-          <div className="form-group">
-            <label className="label">Username</label>
-            <div className="username-form">
-              <input
-                type="text"
-                className="input username-input"
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                onKeyPress={handleUsernameKeyPress}
-                placeholder="Enter your username"
-              />
-              <button
-                onClick={handleUsernameSubmit}
-                className="submit-button"
-                disabled={!usernameInput.trim()}
-              >
-                Load
-              </button>
-            </div>
-          </div>
-        </div>
+        <UsernameForm
+          usernameInput={usernameInput}
+          onUsernameInputChange={setUsernameInput}
+          onUsernameSubmit={handleUsernameSubmit}
+          onUsernameKeyPress={handleUsernameKeyPress}
+        />
 
-        {error && <div className="error">{error}</div>}
+        {(error || accountsError) && <div className="error">{error || accountsError}</div>}
         {success && <div className="success">{success}</div>}
 
         {username && (
@@ -429,11 +233,9 @@ export default function Dashboard() {
               onSelect={setSelectedAccount}
               onAddAccount={() => setShowAddAccountModal(true)}
               onDeleteAccount={handleDeleteAccount}
-              onReconnectAccount={(accountId, email, provider) => {
-                // Select the account first, then open modal
+              onReconnectAccount={(accountId) => {
                 setSelectedAccount(accountId)
                 setShowAddAccountModal(true)
-                // The modal will handle reconnection when same email/provider is used
               }}
             />
 
@@ -441,7 +243,7 @@ export default function Dashboard() {
               isOpen={showAddAccountModal}
               onClose={() => setShowAddAccountModal(false)}
               username={username}
-              onAccountAdded={handleAccountAdded}
+              onAccountAdded={handleAccountAddedWithSuccess}
               reconnectAccount={selectedAccount && accounts.find(a => a.id === selectedAccount && !a.is_active) ? {
                 email: accounts.find(a => a.id === selectedAccount)!.email,
                 provider: accounts.find(a => a.id === selectedAccount)!.provider
@@ -452,7 +254,15 @@ export default function Dashboard() {
               <StatsGrid summary={summary} selectedAccount={selectedAccount} />
             )}
 
-            {selectedAccount && (
+            {accounts.length > 0 && !selectedAccount && (
+              <div className="card" style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#fff3cd', border: '1px solid #ffc107' }}>
+                <p style={{ margin: 0, fontSize: '1rem' }}>
+                  <strong>Please select an account</strong> from the dropdown above to view insights and start analyzing emails.
+                </p>
+              </div>
+            )}
+
+            {selectedAccount ? (
               <>
                 <div className="card" style={{ marginTop: '2rem' }}>
                   <h2>Batch Analysis</h2>
@@ -474,197 +284,16 @@ export default function Dashboard() {
                   username={username}
                   accountId={selectedAccount}
                   refreshTrigger={processedRangesRefresh}
-                  onSelectGap={(startDate, endDate) => {
-                    // Set dates in DateRangePicker
-                    setSelectedGapStart(startDate)
-                    setSelectedGapEnd(endDate)
-                    setSuccess(`Gap selected: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}. Dates filled in above - click "Analyze" to process this gap.`)
-                    // Scroll to date picker
-                    setTimeout(() => {
-                      const datePicker = document.querySelector('.card h2')?.parentElement
-                      if (datePicker) {
-                        datePicker.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }
-                    }, 100)
-                  }}
+                  onSelectGap={handleGapSelect}
                 />
 
                 <div className="card">
                   <h2>Recent Analysis Runs</h2>
-                  {analysisRuns.length > 0 ? (
-                    <div className="runs-list">
-                      {(() => {
-                        // Group consecutive failed runs
-                        const runs = analysisRuns // Show all runs, not just first 5
-                        const grouped: Array<{ type: 'single' | 'failed-group', runs: AnalysisRun[], groupIndex?: number }> = []
-                        let currentFailedGroup: AnalysisRun[] = []
-                        let groupIndex = 0
-                        
-                        for (let i = 0; i < runs.length; i++) {
-                          const run = runs[i]
-                          if (run.status === 'failed') {
-                            currentFailedGroup.push(run)
-                          } else {
-                            // If we have a failed group, add it first
-                            if (currentFailedGroup.length > 0) {
-                              if (currentFailedGroup.length > 1) {
-                                grouped.push({ type: 'failed-group', runs: currentFailedGroup, groupIndex: groupIndex++ })
-                              } else {
-                                grouped.push({ type: 'single', runs: currentFailedGroup })
-                              }
-                              currentFailedGroup = []
-                            }
-                            grouped.push({ type: 'single', runs: [run] })
-                          }
-                        }
-                        
-                        // Add any remaining failed group
-                        if (currentFailedGroup.length > 0) {
-                          if (currentFailedGroup.length > 1) {
-                            grouped.push({ type: 'failed-group', runs: currentFailedGroup, groupIndex: groupIndex++ })
-                          } else {
-                            grouped.push({ type: 'single', runs: currentFailedGroup })
-                          }
-                        }
-                        
-                        return grouped.map((group) => {
-                          if (group.type === 'failed-group' && group.groupIndex !== undefined) {
-                            const isExpanded = expandedFailedGroups.has(group.groupIndex)
-                            const firstRun = group.runs[0]
-                            const lastRun = group.runs[group.runs.length - 1]
-                            
-                            return (
-                              <div key={`group-${group.groupIndex}`}>
-                                <div 
-                                  className="run-item" 
-                                  style={{ 
-                                    cursor: 'pointer',
-                                    backgroundColor: '#fff5f5',
-                                    border: '1px solid #f8d7da'
-                                  }}
-                                  onClick={() => {
-                                    const newSet = new Set(expandedFailedGroups)
-                                    if (isExpanded) {
-                                      newSet.delete(group.groupIndex!)
-                                    } else {
-                                      newSet.add(group.groupIndex!)
-                                    }
-                                    setExpandedFailedGroups(newSet)
-                                  }}
-                                >
-                                  <div>
-                                    <strong>
-                                      {group.runs.length} consecutive failed {group.runs.length === 1 ? 'run' : 'runs'}
-                                    </strong>
-                                    <div style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: '#666' }}>
-                                      {new Date(firstRun.start_date).toLocaleDateString()} - {new Date(lastRun.end_date).toLocaleDateString()}
-                                    </div>
-                                    {!isExpanded && firstRun.error_message && (
-                                      <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
-                                        {firstRun.error_message}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="run-status">
-                                    <span className="status-badge status-failed">
-                                      {group.runs.length} failed
-                                    </span>
-                                    <span style={{ fontSize: '0.9rem', color: '#666' }}>
-                                      {isExpanded ? '▼' : '▶'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {isExpanded && (
-                                  <div style={{ marginLeft: '1rem', marginTop: '0.5rem', borderLeft: '2px solid #f8d7da', paddingLeft: '1rem' }}>
-                                    {group.runs.map((run) => (
-                                      <div key={run.id} className="run-item" style={{ marginBottom: '0.5rem' }}>
-                                        <div>
-                                          <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
-                                          {new Date(run.end_date).toLocaleDateString()}
-                                          {run.error_message && (
-                                            <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
-                                              {run.error_message}
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="run-status">
-                                          <span className="status-badge status-failed">
-                                            failed
-                                          </span>
-                                          {run.emails_processed > 0 && (
-                                            <span>{run.emails_processed} emails</span>
-                                          )}
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleRetryAnalysis(run.id)
-                                            }}
-                                            className="button"
-                                            style={{ 
-                                              marginLeft: '1rem',
-                                              padding: '0.5rem 1rem',
-                                              fontSize: '0.9rem'
-                                            }}
-                                            disabled={loading}
-                                          >
-                                            Retry
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          } else {
-                            // Single run (non-failed or single failed)
-                            const run = group.runs[0]
-                            return (
-                              <div key={run.id} className="run-item">
-                                <div>
-                                  <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
-                                  {new Date(run.end_date).toLocaleDateString()}
-                                  {run.status === 'failed' && run.error_message && (
-                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
-                                      {run.error_message}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="run-status">
-                                  <span className={`status-badge status-${run.status}`}>
-                                    {run.status}
-                                  </span>
-                                  {run.emails_processed > 0 && (
-                                    <span>{run.emails_processed} emails</span>
-                                  )}
-                                  {run.status === 'failed' && (
-                                    <button
-                                      onClick={() => handleRetryAnalysis(run.id)}
-                                      className="button"
-                                      style={{ 
-                                        marginLeft: '1rem',
-                                        padding: '0.5rem 1rem',
-                                        fontSize: '0.9rem'
-                                      }}
-                                      disabled={loading}
-                                    >
-                                      Retry
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          }
-                        })
-                      })()}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      title="No analysis runs yet"
-                      message="Start your first analysis to see results here."
-                      icon="🔍"
-                    />
-                  )}
+                  <AnalysisRunsList
+                    runs={analysisRuns}
+                    loading={loading}
+                    onRetry={handleRetryAnalysis}
+                  />
                 </div>
 
                 {senderInsights ? (
@@ -729,11 +358,10 @@ export default function Dashboard() {
                   )
                 ) : null}
               </>
-            )}
+            ) : null}
           </>
         )}
       </div>
     </div>
   )
 }
-
