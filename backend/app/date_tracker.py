@@ -124,7 +124,12 @@ class DateTracker:
             # If there's a gap before this processed range
             if current_start < effective_start:
                 gap_end = min(effective_start, end_date)
-                if gap_end > current_start:
+                # Only add gap if it spans at least one full day (to avoid tiny gaps from timezone issues)
+                # Use date comparison to ensure we're looking at full days, not just hours
+                gap_start_date = current_start.date()
+                gap_end_date = gap_end.date()
+                # Check if gap spans at least one full day
+                if gap_end_date > gap_start_date:
                     gap = (current_start, gap_end)
                     unprocessed.append(gap)
                     logger.info(f"Found gap: {gap[0]} to {gap[1]}")
@@ -136,9 +141,13 @@ class DateTracker:
         
         # Check if there's remaining unprocessed range after last processed
         if current_start < end_date:
-            gap = (current_start, end_date)
-            unprocessed.append(gap)
-            logger.info(f"Found final gap: {gap[0]} to {gap[1]}")
+            # Only add gap if it spans at least one full day
+            gap_start_date = current_start.date()
+            gap_end_date = end_date.date()
+            if gap_end_date > gap_start_date:
+                gap = (current_start, end_date)
+                unprocessed.append(gap)
+                logger.info(f"Found final gap: {gap[0]} to {gap[1]}")
         
         logger.info(f"Total gaps found: {len(unprocessed)}")
         return unprocessed

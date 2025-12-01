@@ -61,8 +61,10 @@ class AnalysisService:
             print(f"[PRINT] Fetched {len(emails)} emails for this range")
             
             if not emails:
-                logger.info(f"No emails in range {range_start} to {range_end}, skipping")
-                print(f"[PRINT] No emails in range, skipping")
+                logger.info(f"No emails in range {range_start} to {range_end}, marking as processed anyway")
+                print(f"[PRINT] No emails in range, marking as processed anyway")
+                # Mark range as processed even if no emails (to prevent gaps from getting stuck)
+                self.date_tracker.mark_range_processed(range_start, range_end, 0)
                 continue
             
             # Store email metadata

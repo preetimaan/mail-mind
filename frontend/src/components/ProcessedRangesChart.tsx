@@ -95,6 +95,22 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No data to display</div>
   }
 
+  // Calculate dynamic interval based on time range
+  const calculateInterval = () => {
+    if (chartData.length === 0) return 0
+    const totalMonths = chartData.length
+    // Show all labels if <= 12 months
+    if (totalMonths <= 12) return 0
+    // Show every 2nd month if 13-24 months
+    if (totalMonths <= 24) return 1
+    // Show every 3rd month if 25-36 months
+    if (totalMonths <= 36) return 2
+    // Show every 6th month if 37-60 months
+    if (totalMonths <= 60) return 5
+    // Show every 12th month (yearly) if > 60 months
+    return 11
+  }
+
   return (
     <div>
       <ResponsiveContainer width="100%" height={300}>
@@ -105,7 +121,7 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
             angle={-45}
             textAnchor="end"
             height={80}
-            interval={0}
+            interval={calculateInterval()}
           />
           <YAxis 
             label={{ value: 'Coverage %', angle: -90, position: 'insideLeft' }}

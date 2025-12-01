@@ -416,12 +416,37 @@ async def get_processed_range_gaps(
     date_tracker = DateTracker(db, account_id)
     gaps = date_tracker.get_unprocessed_ranges(start_date, end_date)
     
+    # Filter out gaps that are in the future or have invalid dates
+    now = datetime.utcnow()
+    filtered_gaps = []
+    for gap_start, gap_end in gaps:
+        # Skip gaps that start in the future
+        if gap_start > now:
+            continue
+        # Clamp end_date to now if it's in the future
+        if gap_end > now:
+            gap_end = now
+        # Skip gaps where start >= end (invalid or zero-length)
+        if gap_start >= gap_end:
+            continue
+        # Only include gaps that span at least one full day
+        # Use date comparison to ensure we're looking at full days, not just hours
+        gap_start_date = gap_start.date()
+        gap_end_date = gap_end.date()
+        if gap_end_date <= gap_start_date:
+            continue
+        # Calculate days using date difference
+        days = (gap_end_date - gap_start_date).days + 1
+        if days < 1:
+            continue
+        filtered_gaps.append((gap_start, gap_end))
+    
     return [
         {
             'start_date': gap_start.isoformat(),
             'end_date': gap_end.isoformat(),
-            'days': (gap_end - gap_start).days + 1
+            'days': (gap_end.date() - gap_start.date()).days + 1
         }
-        for gap_start, gap_end in gaps
+        for gap_start, gap_end in filtered_gaps
     ]
 
