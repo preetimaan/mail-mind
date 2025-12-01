@@ -215,6 +215,7 @@ export default function Dashboard() {
       <DashboardHeader username={username} onLogout={handleLogout} />
 
       <div className="container">
+        {error && !username && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
         <UsernameForm
           usernameInput={usernameInput}
           onUsernameInputChange={setUsernameInput}
@@ -222,11 +223,9 @@ export default function Dashboard() {
           onUsernameKeyPress={handleUsernameKeyPress}
         />
 
-        {(error || accountsError) && <div className="error">{error || accountsError}</div>}
-        {success && <div className="success">{success}</div>}
-
         {username && (
           <>
+            {accountsError && <div className="error" style={{ marginTop: '1rem' }}>{accountsError}</div>}
             <AccountSelector
               accounts={accounts}
               selectedAccount={selectedAccount}
@@ -264,6 +263,12 @@ export default function Dashboard() {
 
             {selectedAccount ? (
               <>
+                {(error || success) && (
+                  <div style={{ marginTop: '1rem' }}>
+                    {error && <div className="error">{error}</div>}
+                    {success && <div className="success">{success}</div>}
+                  </div>
+                )}
                 <div className="card" style={{ marginTop: '2rem' }}>
                   <h2>Batch Analysis</h2>
                   {loading && (
