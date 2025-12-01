@@ -1,48 +1,66 @@
-import { Summary } from '../api/client'
+import { Summary, EmailAccount } from '../api/client'
 
 interface StatsGridProps {
-  summary: Summary
+  summary: Summary | null
   selectedAccount: number | null
+  accounts?: EmailAccount[]
 }
 
-export default function StatsGrid({ summary, selectedAccount }: StatsGridProps) {
+export default function StatsGrid({ summary, selectedAccount, accounts = [] }: StatsGridProps) {
+  // Default to 0 values if summary is null
+  const safeSummary: Summary = summary || {
+    total_accounts: 0,
+    total_emails: 0,
+    total_senders: 0,
+    accounts: []
+  }
+
   const account = selectedAccount
-    ? summary.accounts.find((a) => a.id === selectedAccount)
+    ? safeSummary.accounts.find((a) => a.id === selectedAccount)
+    : null
+
+  // Get account email from accounts list if not in summary
+  const accountFromList = selectedAccount
+    ? accounts.find((a) => a.id === selectedAccount)
     : null
 
   // Total stats (across all accounts)
   const totalStats = [
     {
       label: 'Total Accounts',
-      value: summary.total_accounts,
+      value: safeSummary.total_accounts,
     },
     {
       label: 'Total Emails (All Accounts)',
-      value: summary.total_emails.toLocaleString(),
+      value: safeSummary.total_emails.toLocaleString(),
     },
     {
       label: 'Total Senders (All Accounts)',
-      value: summary.total_senders.toLocaleString(),
+      value: safeSummary.total_senders.toLocaleString(),
     },
   ]
 
   // Current account stats (if account is selected)
-  const accountStats = account
+  // Show stats even if account not found in summary (will show 0 values)
+  const accountStats = selectedAccount
     ? [
         {
           label: 'Current Account Emails',
-          value: account.email_count.toLocaleString(),
+          value: account ? account.email_count.toLocaleString() : '0',
         },
         {
           label: 'Current Account Senders',
-          value: account.sender_count.toLocaleString(),
+          value: account ? account.sender_count.toLocaleString() : '0',
         },
         {
           label: 'Processed Ranges',
-          value: account.processed_ranges,
+          value: account ? account.processed_ranges : 0,
         },
       ]
     : []
+
+  // Get account email for display (from summary, accounts list, or fallback)
+  const accountEmail = account?.email || accountFromList?.email || (selectedAccount ? `Account #${selectedAccount}` : null)
 
   return (
     <div>
@@ -58,10 +76,10 @@ export default function StatsGrid({ summary, selectedAccount }: StatsGridProps) 
         </div>
       </div>
 
-      {account && (
+      {selectedAccount && (
         <div>
           <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', fontWeight: '600' }}>
-            Current Account: {account.email}
+            Current Account: {accountEmail}
           </h2>
           <div className="grid">
             {accountStats.map((stat) => (

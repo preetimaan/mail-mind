@@ -249,9 +249,7 @@ export default function Dashboard() {
               } : undefined}
             />
 
-            {summary && (
-              <StatsGrid summary={summary} selectedAccount={selectedAccount} />
-            )}
+            <StatsGrid summary={summary} selectedAccount={selectedAccount} accounts={accounts} />
 
             {accounts.length > 0 && !selectedAccount && (
               <div className="card" style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#fff3cd', border: '1px solid #ffc107' }}>
