@@ -20,7 +20,7 @@ export function useAccounts(username: string | null) {
       // Auto-select first account if we have accounts and no account is selected
       if (loadedAccounts.length > 0) {
         // Only auto-select if no account is currently selected, or if the selected account is not in the new list
-        const currentAccountExists = selectedAccount && loadedAccounts.some(a => a.id === selectedAccount)
+        const currentAccountExists = selectedAccount && loadedAccounts.some((a: { id: number }) => a.id === selectedAccount)
         if (!currentAccountExists) {
           setSelectedAccount(loadedAccounts[0].id)
         }
@@ -59,10 +59,7 @@ export function useAccounts(username: string | null) {
   const handleDeleteAccount = async (accountId: number) => {
     if (!username) return
     
-    if (!window.confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
-      return
-    }
-
+    // Note: Confirmation is handled in AccountSelector component before calling this function
     try {
       await api.delete(`/api/emails/accounts/${accountId}?username=${username}`)
       loadAccounts()

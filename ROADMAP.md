@@ -164,6 +164,8 @@
 - [x] Sticky header with reduced padding
 - [x] Contextual error/success message placement (above relevant sections)
 - [x] Modular component architecture for better maintainability
+- [x] Replace browser confirm dialogs with custom modals (DeleteAccountModal, ConfirmModal)
+- [x] Improved delete account flow with account selection modal
 - [ ] Enhanced category chart UI for missing categories
 - [ ] Responsive design improvements
 - [ ] Dark mode support (optional)
