@@ -76,14 +76,21 @@ async def list_email_accounts(
     db: Session = Depends(get_db)
 ):
     """List all email accounts for a user"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"Listing accounts for user: {username}")
         user = db.query(User).filter(User.username == username).first()
         if not user:
+            logger.info(f"User {username} not found, returning empty list")
             return []
         
         accounts = db.query(EmailAccount).filter(EmailAccount.user_id == user.id).all()
+        logger.info(f"Found {len(accounts)} accounts for user {username}")
         return accounts
     except Exception as e:
+        logger.error(f"Error listing accounts for user {username}: {e}", exc_info=True)
         print(f"Error listing accounts for user {username}: {e}")
         import traceback
         traceback.print_exc()

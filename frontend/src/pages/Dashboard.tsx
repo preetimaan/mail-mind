@@ -81,7 +81,9 @@ export default function Dashboard() {
     },
     checkAccountStatus: async (accountId) => {
       try {
-        const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`)
+        const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`, {
+          timeout: 60000, // 60 seconds timeout
+        })
         const updatedAccounts = accountsResponse.data || []
         const account = updatedAccounts.find((a: EmailAccount) => a.id === accountId)
         return account?.is_active ?? true
@@ -180,6 +182,8 @@ export default function Dashboard() {
         account_id: selectedAccount,
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
+      }, {
+        timeout: 60000, // 60 seconds for analysis start request
       })
 
       setSuccess(`Analysis started! Run ID: ${response.data.run_id}`)

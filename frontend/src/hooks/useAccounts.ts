@@ -13,7 +13,9 @@ export function useAccounts(username: string | null) {
     
     try {
       setError(null)
-      const response = await api.get(`/api/emails/accounts?username=${username}`)
+      const response = await api.get(`/api/emails/accounts?username=${username}`, {
+        timeout: 60000, // 60 seconds timeout
+      })
       const loadedAccounts = response.data || []
       setAccounts(loadedAccounts)
       

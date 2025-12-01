@@ -136,7 +136,18 @@ async def process_batch_analysis(
                 connector = GmailConnector(credentials_json)
             elif account.provider == 'yahoo':
                 creds = json.loads(credentials_json)
-                connector = YahooConnector(creds['email'], creds['password'])
+                # Handle different credential formats:
+                # 1. {"app_password": "..."} - from /accounts/yahoo endpoint
+                # 2. {"email": "...", "password": "..."} - from /accounts endpoint or add_account.py
+                if 'app_password' in creds:
+                    # Format 1: app_password stored separately, use account.email
+                    connector = YahooConnector(account.email, creds['app_password'])
+                elif 'email' in creds and 'password' in creds:
+                    # Format 2: email and password both in credentials
+                    connector = YahooConnector(creds['email'], creds['password'])
+                else:
+                    # Fallback: try using account.email and credentials as password (for test-connection format)
+                    connector = YahooConnector(account.email, credentials_json)
             else:
                 analysis_run.status = "failed"
                 db.commit()
