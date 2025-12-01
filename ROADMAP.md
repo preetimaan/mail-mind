@@ -70,6 +70,9 @@
   - [x] Account management UI (AddAccountModal)
   - [x] OAuth callback handling
   - [x] Failed run grouping and retry functionality
+  - [x] Modular component architecture (custom hooks, extracted components)
+  - [x] Sticky header with reduced padding
+  - [x] Contextual error/success message placement
 - [x] Visualization components
   - [x] Stats grid (summary statistics)
   - [x] Sender chart (top senders with percentages)
@@ -83,6 +86,12 @@
   - [x] Error and success message display
   - [x] User-friendly error messages for failed runs
 - [x] API client with TypeScript types
+- [x] Custom hooks for state management
+  - [x] useUsername - username state and localStorage
+  - [x] useOAuthCallback - OAuth callback handling
+  - [x] useAccounts - account loading and management
+  - [x] useInsights - insights data fetching
+  - [x] useAnalysisPolling - analysis run polling
 
 ### Documentation
 - [x] README.md with setup instructions
@@ -152,6 +161,9 @@
 - [x] Add loading spinner for in-progress analysis
 - [x] Improve overall UI design (modern, clean interface)
 - [x] Better visual feedback for missing/empty data
+- [x] Sticky header with reduced padding
+- [x] Contextual error/success message placement (above relevant sections)
+- [x] Modular component architecture for better maintainability
 - [ ] Enhanced category chart UI for missing categories
 - [ ] Responsive design improvements
 - [ ] Dark mode support (optional)
