@@ -166,6 +166,7 @@
 - [x] Modular component architecture for better maintainability
 - [x] Replace browser confirm dialogs with custom modals (DeleteAccountModal, ConfirmModal)
 - [x] Improved delete account flow with account selection modal
+- [x] Copy email functionality for frequent senders (individual and bulk copy)
 - [ ] Enhanced category chart UI for missing categories
 - [ ] Responsive design improvements
 - [ ] Dark mode support (optional)
