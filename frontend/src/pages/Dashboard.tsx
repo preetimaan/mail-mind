@@ -45,6 +45,7 @@ export default function Dashboard() {
     selectedAccount,
     setSelectedAccount,
     error: accountsError,
+    loading: accountsLoading,
     loadAccounts,
     handleAccountAdded,
     handleDeleteAccount,
@@ -229,6 +230,7 @@ export default function Dashboard() {
 
         {username && (
           <>
+            {accountsLoading && <div style={{ marginTop: '1rem', color: '#666' }}>Loading accounts...</div>}
             {accountsError && <div className="error" style={{ marginTop: '1rem' }}>{accountsError}</div>}
             <AccountSelector
               accounts={accounts}

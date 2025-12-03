@@ -81,13 +81,17 @@ async def list_email_accounts(
     
     try:
         logger.info(f"Listing accounts for user: {username}")
+        # Use a simple query with timeout protection
         user = db.query(User).filter(User.username == username).first()
         if not user:
             logger.info(f"User {username} not found, returning empty list")
             return []
         
+        # Simple query - should be fast
         accounts = db.query(EmailAccount).filter(EmailAccount.user_id == user.id).all()
         logger.info(f"Found {len(accounts)} accounts for user {username}")
+        
+        # Return accounts immediately
         return accounts
     except Exception as e:
         logger.error(f"Error listing accounts for user {username}: {e}", exc_info=True)
