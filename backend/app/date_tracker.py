@@ -229,6 +229,41 @@ class DateTracker:
             ProcessedDateRange.account_id == self.account_id
         ).order_by(ProcessedDateRange.start_date).all()
     
+    def remove_ranges(self, ranges: List[Tuple[datetime, datetime]]) -> None:
+        """
+        Remove processed date ranges that overlap with the given ranges.
+        This is used to rollback ranges that were marked as processed but the analysis failed.
+        """
+        if not ranges:
+            return
+        
+        logger.info(f"Removing {len(ranges)} processed date ranges due to analysis failure")
+        print(f"[PRINT] Removing {len(ranges)} processed date ranges due to analysis failure")
+        
+        for range_start, range_end in ranges:
+            # Find ranges that overlap with this range
+            # A range overlaps if: start <= range_end AND end >= range_start
+            overlapping = self.db.query(ProcessedDateRange).filter(
+                ProcessedDateRange.account_id == self.account_id,
+                ProcessedDateRange.start_date <= range_end,
+                ProcessedDateRange.end_date >= range_start
+            ).all()
+            
+            if overlapping:
+                logger.info(f"Found {len(overlapping)} overlapping ranges to remove for {range_start} to {range_end}")
+                for r in overlapping:
+                    self.db.delete(r)
+        
+        try:
+            self.db.commit()
+            logger.info(f"Successfully removed processed date ranges")
+            print(f"[PRINT] Successfully removed processed date ranges")
+        except Exception as e:
+            logger.error(f"ERROR removing processed date ranges: {e}", exc_info=True)
+            print(f"[PRINT] ERROR removing processed date ranges: {e}")
+            self.db.rollback()
+            # Don't raise - we don't want to fail the error handling itself
+    
     def is_date_range_processed(
         self, 
         start_date: datetime, 

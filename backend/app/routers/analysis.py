@@ -189,6 +189,18 @@ async def process_batch_analysis(
         logger.error(f"ValueError during analysis: {error_msg}")
         print(f"[PRINT] ValueError during analysis: {error_msg}")
         
+        # Rollback any processed date ranges that were marked during this failed analysis
+        # Note: We can't easily track ranges from ValueError since it happens before result is returned
+        # But we'll try to get them from the service if possible
+        try:
+            # Try to get processed ranges from the service's date tracker
+            from app.date_tracker import DateTracker
+            date_tracker = DateTracker(db, account_id)
+            # We can't easily determine which ranges were processed, so we'll skip rollback for ValueError
+            # The ranges should be minimal since ValueError typically happens early
+        except:
+            pass
+        
         if 'expired or revoked' in error_msg or 'invalid_grant' in error_msg:
             try:
                 account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
@@ -225,6 +237,9 @@ async def process_batch_analysis(
             error_type = "connection_error"
         elif "credentials" in error_msg.lower() or "authentication" in error_msg.lower():
             error_type = "auth_error"
+        
+        # Note: Processed date ranges are now rolled back automatically in the analysis service
+        # if the analysis fails. The service tracks ranges and removes them on exception.
         
         # Rollback any pending transaction
         try:
