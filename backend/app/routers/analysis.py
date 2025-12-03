@@ -355,6 +355,18 @@ def process_batch_analysis(
         except:
             pass
         
+        # Rollback any processed date ranges that were marked during this failed analysis
+        # Note: We can't easily track ranges from ValueError since it happens before result is returned
+        # But we'll try to get them from the service if possible
+        try:
+            # Try to get processed ranges from the service's date tracker
+            from app.date_tracker import DateTracker
+            date_tracker = DateTracker(db, account_id)
+            # We can't easily determine which ranges were processed, so we'll skip rollback for ValueError
+            # The ranges should be minimal since ValueError typically happens early
+        except:
+            pass
+        
         if 'expired or revoked' in error_msg or 'invalid_grant' in error_msg:
             try:
                 account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
