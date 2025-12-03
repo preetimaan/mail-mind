@@ -55,10 +55,22 @@ class AnalysisService:
         for range_start, range_end in unprocessed_ranges:
             logger.info(f"Processing range: {range_start} to {range_end}")
             print(f"[PRINT] Processing range: {range_start} to {range_end}")
-            # Fetch emails
-            emails = connector.fetch_emails_by_date_range(range_start, range_end)
-            logger.info(f"Fetched {len(emails)} emails for this range")
-            print(f"[PRINT] Fetched {len(emails)} emails for this range")
+            # Fetch emails with timeout handling
+            try:
+                emails = connector.fetch_emails_by_date_range(range_start, range_end)
+                logger.info(f"Fetched {len(emails)} emails for this range")
+                print(f"[PRINT] Fetched {len(emails)} emails for this range")
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Error fetching emails for range {range_start} to {range_end}: {error_msg}")
+                print(f"[PRINT] Error fetching emails: {error_msg}")
+                
+                # Check if it's a timeout error
+                if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():
+                    raise Exception(f"Request timed out while fetching emails from {range_start.date()} to {range_end.date()}. "
+                                  f"The date range may be too large. Try analyzing a smaller date range (e.g., 1-3 months at a time).")
+                else:
+                    raise Exception(f"Failed to fetch emails: {error_msg}")
             
             if not emails:
                 logger.info(f"No emails in range {range_start} to {range_end}, marking as processed anyway")
