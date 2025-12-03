@@ -69,10 +69,13 @@ export default function Dashboard() {
     username,
     selectedAccount,
     onComplete: () => {
-      loadInsights()
-      loadSummary()
-      loadAnalysisRuns()
-      setProcessedRangesRefresh(prev => prev + 1)
+      // Add a small delay to ensure database transaction is committed
+      setTimeout(() => {
+        loadSummary()
+        loadInsights()
+        loadAnalysisRuns()
+        setProcessedRangesRefresh(prev => prev + 1)
+      }, 500) // 500ms delay to allow database to commit
     },
     onError: (errorMsg) => {
       setError(errorMsg)

@@ -24,6 +24,8 @@ export function useInsights(username: string | null, selectedAccount: number | n
         })
       } else {
         console.error('Failed to load summary:', err)
+        // Don't clear summary on error - keep existing data
+        // This prevents counts from disappearing on transient errors
       }
     }
   }

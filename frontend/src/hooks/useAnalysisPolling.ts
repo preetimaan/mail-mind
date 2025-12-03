@@ -34,7 +34,8 @@ export function useAnalysisPolling({
           setLoading(false)
           
           if (run.status === 'completed') {
-            onSuccess(`Analysis completed! Processed ${run.emails_processed} emails.`)
+            const emailCount = run.emails_processed ?? 0
+            onSuccess(`Analysis completed! Processed ${emailCount} emails.`)
             onComplete()
           } else {
             // Check if account is inactive (token expired)
