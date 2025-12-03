@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { SenderInsights } from '../api/client'
+import { SenderInsights, api } from '../api/client'
 
 interface SenderChartProps {
   insights: SenderInsights
+  username: string
+  accountId: number
 }
 
-export default function SenderChart({ insights }: SenderChartProps) {
+export default function SenderChart({ insights, username, accountId }: SenderChartProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const [allSenders, setAllSenders] = useState<SenderInsights['top_senders'] | null>(null)
+  const [loadingAll, setLoadingAll] = useState(false)
 
   const data = insights.top_senders.slice(0, 10).map((sender) => ({
     name: sender.name || sender.email.split('@')[0],
@@ -17,6 +22,27 @@ export default function SenderChart({ insights }: SenderChartProps) {
   }))
 
   const topSenders = insights.top_senders.slice(0, 10)
+
+  const loadAllSenders = async () => {
+    if (allSenders) {
+      // Already loaded, just toggle display
+      setShowAll(!showAll)
+      return
+    }
+
+    setLoadingAll(true)
+    try {
+      const response = await api.get(`/api/insights/senders?username=${username}&account_id=${accountId}&limit=0`)
+      setAllSenders(response.data.top_senders)
+      setShowAll(true)
+    } catch (err) {
+      console.error('Failed to load all senders:', err)
+    } finally {
+      setLoadingAll(false)
+    }
+  }
+
+  const displayedSenders = showAll && allSenders ? allSenders : topSenders
 
   const copyEmail = async (email: string, index: number) => {
     try {
@@ -29,7 +55,8 @@ export default function SenderChart({ insights }: SenderChartProps) {
   }
 
   const copyAllEmails = async () => {
-    const allEmails = topSenders.map(s => s.email).join(', ')
+    const sendersToCopy = showAll && allSenders ? allSenders : topSenders
+    const allEmails = sendersToCopy.map(s => s.email).join(', ')
     try {
       await navigator.clipboard.writeText(allEmails)
       setCopiedAll(true)
@@ -53,39 +80,79 @@ export default function SenderChart({ insights }: SenderChartProps) {
       </ResponsiveContainer>
       
       <div style={{ marginTop: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0 }}>Top Senders</h3>
-          <button
-            onClick={copyAllEmails}
-            type="button"
-            style={{
-              background: 'none',
-              border: '1px solid #667eea',
-              color: '#667eea',
-              padding: '0.5rem 1rem',
-              borderRadius: '4px',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              fontWeight: '500',
-              transition: 'all 0.2s',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#667eea'
-              e.currentTarget.style.color = '#fff'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = '#667eea'
-            }}
-          >
-            {copiedAll ? '✓ Copied!' : '📋 Copy All Emails'}
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h3 style={{ margin: 0 }}>
+            {showAll ? `All Senders (${allSenders?.length || 0})` : `Top Senders (${topSenders.length})`}
+          </h3>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {insights.top_senders.length > topSenders.length && (
+              <button
+                onClick={loadAllSenders}
+                type="button"
+                disabled={loadingAll}
+                style={{
+                  background: showAll ? '#667eea' : 'none',
+                  border: '1px solid #667eea',
+                  color: showAll ? '#fff' : '#667eea',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '4px',
+                  fontSize: '0.9rem',
+                  cursor: loadingAll ? 'wait' : 'pointer',
+                  fontWeight: '500',
+                  transition: 'all 0.2s',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  opacity: loadingAll ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!loadingAll && !showAll) {
+                    e.currentTarget.style.backgroundColor = '#667eea'
+                    e.currentTarget.style.color = '#fff'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loadingAll && !showAll) {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = '#667eea'
+                  }
+                }}
+              >
+                {loadingAll ? 'Loading...' : showAll ? 'Show Top 10' : `Show All (${insights.total_emails > 0 ? '~' + Math.min(insights.top_senders.length, 1000) : 0})`}
+              </button>
+            )}
+            <button
+              onClick={copyAllEmails}
+              type="button"
+              style={{
+                background: 'none',
+                border: '1px solid #667eea',
+                color: '#667eea',
+                padding: '0.5rem 1rem',
+                borderRadius: '4px',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#667eea'
+                e.currentTarget.style.color = '#fff'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = '#667eea'
+              }}
+            >
+              {copiedAll ? '✓ Copied!' : '📋 Copy All Emails'}
+            </button>
+          </div>
         </div>
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {topSenders.map((sender, index) => (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: showAll ? '600px' : 'none', overflowY: showAll ? 'auto' : 'visible' }}>
+          {displayedSenders.map((sender, index) => (
             <li 
               key={sender.email} 
               style={{ 

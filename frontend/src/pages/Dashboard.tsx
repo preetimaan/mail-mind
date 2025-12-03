@@ -307,7 +307,7 @@ export default function Dashboard() {
                   senderInsights.total_emails > 0 ? (
                     <div className="card">
                       <h2>Top Senders</h2>
-                      <SenderChart insights={senderInsights} />
+                      <SenderChart insights={senderInsights} username={username || ''} accountId={selectedAccount || 0} />
                     </div>
                   ) : (
                     <div className="card">

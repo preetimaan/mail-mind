@@ -84,10 +84,14 @@ async def get_summary(
 async def get_sender_insights(
     username: str,
     account_id: int,
-    limit: int = 20,
+    limit: Optional[int] = 20,
     db: Session = Depends(get_db)
 ):
-    """Get top senders and patterns"""
+    """Get top senders and patterns
+    
+    Args:
+        limit: Maximum number of senders to return. If None or 0, returns all senders.
+    """
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -100,8 +104,10 @@ async def get_sender_insights(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    # Get sender counts
-    sender_counts = db.query(
+    # Get sender counts - includes ALL emails for this account
+    # Note: Groups by both sender_email and sender_name, so same email with different names
+    # will appear as separate entries (this is correct behavior)
+    query = db.query(
         EmailMetadata.sender_email,
         EmailMetadata.sender_name,
         func.count(EmailMetadata.id).label('count')
@@ -112,8 +118,15 @@ async def get_sender_insights(
         EmailMetadata.sender_name
     ).order_by(
         func.count(EmailMetadata.id).desc()
-    ).limit(limit).all()
+    )
     
+    # Apply limit only if specified and > 0
+    if limit and limit > 0:
+        query = query.limit(limit)
+    
+    sender_counts = query.all()
+    
+    # Get total email count for this account (includes all emails, no filters)
     total_emails = db.query(EmailMetadata).filter(
         EmailMetadata.account_id == account_id
     ).count()
