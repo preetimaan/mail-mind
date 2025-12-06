@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import json
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from app.database import get_db, User, EmailAccount, AnalysisRun, EmailMetadata, AnalysisResult
 from app.encryption import EncryptionManager
@@ -19,6 +21,7 @@ class AnalysisRequest(BaseModel):
     account_id: int
     start_date: datetime
     end_date: datetime
+    force_reanalysis: Optional[bool] = False  # If True, re-analyze even if already processed
 
 class AnalysisResponse(BaseModel):
     run_id: int
@@ -41,67 +44,110 @@ async def start_batch_analysis(
     logger.info(f"Account ID: {request.account_id}")
     logger.info(f"Start Date: {request.start_date}")
     logger.info(f"End Date: {request.end_date}")
+    logger.info(f"Force Reanalysis: {request.force_reanalysis}")
     logger.info("=" * 50)
-    # Also use print as backup - this should always show
     print("=" * 50)
     print("[PRINT] BATCH ANALYSIS REQUEST RECEIVED")
     print(f"[PRINT] Username: {request.username}, Account ID: {request.account_id}")
     print(f"[PRINT] Date range: {request.start_date} to {request.end_date}")
+    print(f"[PRINT] Force Reanalysis: {request.force_reanalysis}")
     print("=" * 50)
     
-    # Verify user and account
-    user = db.query(User).filter(User.username == request.username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    account = db.query(EmailAccount).filter(
-        EmailAccount.id == request.account_id,
-        EmailAccount.user_id == user.id
-    ).first()
-    
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    # Create analysis run
-    analysis_run = AnalysisRun(
-        user_id=user.id,
-        account_id=account.id,
-        start_date=request.start_date,
-        end_date=request.end_date,
-        status="pending"
-    )
-    db.add(analysis_run)
-    db.commit()
-    db.refresh(analysis_run)
-    
-    # Start background analysis
-    logger.info(f"Adding background task for run_id={analysis_run.id}")
-    print(f"[PRINT] Adding background task for run_id={analysis_run.id}")  # Also use print as backup
-    background_tasks.add_task(
-        process_batch_analysis,
-        analysis_run.id,
-        user.id,
-        account.id,
-        request.start_date,
-        request.end_date
-    )
-    logger.info(f"Background task added, returning response")
-    print(f"[PRINT] Background task added, returning response")
-    
-    return AnalysisResponse(
-        run_id=analysis_run.id,
-        status="pending",
-        message="Analysis started in background"
-    )
+    try:
+        # Run database operations in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+        
+        def create_analysis_run_sync():
+            # Verify user and account
+            logger.info("Querying user...")
+            print("[PRINT] Querying user...")
+            user = db.query(User).filter(User.username == request.username).first()
+            if not user:
+                logger.warning(f"User not found: {request.username}")
+                raise HTTPException(status_code=404, detail="User not found")
+            logger.info(f"User found: {user.id}")
+            print(f"[PRINT] User found: {user.id}")
+            
+            logger.info("Querying account...")
+            print("[PRINT] Querying account...")
+            account = db.query(EmailAccount).filter(
+                EmailAccount.id == request.account_id,
+                EmailAccount.user_id == user.id
+            ).first()
+            
+            if not account:
+                logger.warning(f"Account not found: {request.account_id}")
+                raise HTTPException(status_code=404, detail="Account not found")
+            logger.info(f"Account found: {account.id}")
+            print(f"[PRINT] Account found: {account.id}")
+            
+            # Create analysis run
+            logger.info("Creating analysis run...")
+            print("[PRINT] Creating analysis run...")
+            analysis_run = AnalysisRun(
+                user_id=user.id,
+                account_id=account.id,
+                start_date=request.start_date,
+                end_date=request.end_date,
+                status="pending"
+            )
+            db.add(analysis_run)
+            logger.info("Committing analysis run...")
+            print("[PRINT] Committing analysis run...")
+            db.commit()
+            logger.info("Refreshing analysis run...")
+            print("[PRINT] Refreshing analysis run...")
+            db.refresh(analysis_run)
+            logger.info(f"Analysis run created: {analysis_run.id}")
+            print(f"[PRINT] Analysis run created: {analysis_run.id}")
+            return analysis_run, user.id, account.id
+        
+        logger.info("Running database operations in thread pool...")
+        print("[PRINT] Running database operations in thread pool...")
+        analysis_run, user_id, account_id = await loop.run_in_executor(executor, create_analysis_run_sync)
+        
+        # Start background analysis (force_reanalysis deletion will happen in background task)
+        logger.info(f"Adding background task for run_id={analysis_run.id}")
+        print(f"[PRINT] Adding background task for run_id={analysis_run.id}")
+        background_tasks.add_task(
+            process_batch_analysis,
+            analysis_run.id,
+            user_id,
+            account_id,
+            request.start_date,
+            request.end_date,
+            request.force_reanalysis
+        )
+        logger.info(f"Background task added, returning response")
+        print(f"[PRINT] Background task added, returning response")
+        
+        response = AnalysisResponse(
+            run_id=analysis_run.id,
+            status="pending",
+            message="Analysis started in background"
+        )
+        logger.info(f"Returning response with run_id={response.run_id}")
+        print(f"[PRINT] Returning response with run_id={response.run_id}")
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in start_batch_analysis: {e}", exc_info=True)
+        print(f"[PRINT] ERROR in start_batch_analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to start analysis: {str(e)}")
 
-async def process_batch_analysis(
+def process_batch_analysis(
     run_id: int,
     user_id: int,
     account_id: int,
     start_date: datetime,
-    end_date: datetime
+    end_date: datetime,
+    force_reanalysis: bool = False
 ):
-    """Background task to process batch analysis"""
+    """Background task to process batch analysis (synchronous)"""
     import logging
     logger = logging.getLogger(__name__)
     
@@ -118,6 +164,32 @@ async def process_batch_analysis(
         
         analysis_run.status = "processing"
         db.commit()
+        
+        # If force_reanalysis is True, remove processed date ranges for this range
+        if force_reanalysis:
+            logger.info(f"Force reanalysis requested - removing processed date ranges for {start_date} to {end_date}")
+            print(f"[PRINT] Force reanalysis requested - removing processed date ranges for {start_date} to {end_date}")
+            # Remove any processed ranges that overlap with the requested range
+            from app.database import ProcessedDateRange
+            overlapping_ranges = db.query(ProcessedDateRange).filter(
+                ProcessedDateRange.account_id == account_id,
+                ProcessedDateRange.start_date < end_date,
+                ProcessedDateRange.end_date > start_date
+            ).all()
+            
+            if overlapping_ranges:
+                logger.info(f"Found {len(overlapping_ranges)} processed date ranges to remove for re-analysis:")
+                print(f"[PRINT] Found {len(overlapping_ranges)} processed date ranges to remove:")
+                for range_obj in overlapping_ranges:
+                    logger.info(f"  - Removing range: {range_obj.start_date} to {range_obj.end_date} ({range_obj.emails_count} emails)")
+                    print(f"[PRINT]   Removing range: {range_obj.start_date} to {range_obj.end_date} ({range_obj.emails_count} emails)")
+                    db.delete(range_obj)
+                db.commit()
+                logger.info(f"Successfully removed {len(overlapping_ranges)} processed date ranges - will re-fetch and re-analyze")
+                print(f"[PRINT] Successfully removed {len(overlapping_ranges)} processed date ranges - will re-fetch and re-analyze")
+            else:
+                logger.info(f"No processed date ranges found to remove (range may not have been processed yet)")
+                print(f"[PRINT] No processed date ranges found to remove")
         
         # Get account
         account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()

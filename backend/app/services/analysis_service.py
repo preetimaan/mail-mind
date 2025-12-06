@@ -50,44 +50,60 @@ class AnalysisService:
             }
         
         total_emails = 0
-        # Track ranges that have been marked as processed in this analysis
-        # If analysis fails, we'll need to remove these to prevent premature marking
-        processed_ranges_in_this_run = []
         
-        try:
-            # Process each unprocessed range
-            for range_start, range_end in unprocessed_ranges:
-                logger.info(f"Processing range: {range_start} to {range_end}")
-                print(f"[PRINT] Processing range: {range_start} to {range_end}")
-                # Fetch emails with timeout handling
-                try:
-                    emails = connector.fetch_emails_by_date_range(range_start, range_end)
-                    logger.info(f"Fetched {len(emails)} emails for this range")
-                    print(f"[PRINT] Fetched {len(emails)} emails for this range")
-                except Exception as e:
-                    error_msg = str(e)
-                    logger.error(f"Error fetching emails for range {range_start} to {range_end}: {error_msg}")
-                    print(f"[PRINT] Error fetching emails: {error_msg}")
-                    
-                    # Check if it's a timeout error
-                    if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():
-                        raise Exception(f"Request timed out while fetching emails from {range_start.date()} to {range_end.date()}. "
-                                      f"The date range may be too large. Try analyzing a smaller date range (e.g., 1-3 months at a time).")
-                    else:
-                        raise Exception(f"Failed to fetch emails: {error_msg}")
+        # Process each unprocessed range
+        for range_start, range_end in unprocessed_ranges:
+            logger.info(f"Processing range: {range_start} to {range_end}")
+            print(f"[PRINT] Processing range: {range_start} to {range_end}")
+            # Fetch emails
+            emails = connector.fetch_emails_by_date_range(range_start, range_end)
+            logger.info(f"Fetched {len(emails)} emails for this range")
+            print(f"[PRINT] Fetched {len(emails)} emails for this range")
+            
+            if not emails:
+                logger.info(f"No emails in range {range_start} to {range_end}, marking as processed anyway")
+                print(f"[PRINT] No emails in range, marking as processed anyway")
+                # Mark range as processed even if no emails (to prevent gaps from getting stuck)
+                self.date_tracker.mark_range_processed(range_start, range_end, 0)
+                continue
+            
+            # Store email metadata
+            stored_emails = []
+            for email_data in emails:
+                # Check if email already exists
+                existing = self.db.query(EmailMetadata).filter(
+                    EmailMetadata.message_id == email_data['message_id'],
+                    EmailMetadata.account_id == self.account_id
+                ).first()
                 
-                if not emails:
-                    logger.info(f"No emails in range {range_start} to {range_end}, marking as processed anyway")
-                    print(f"[PRINT] No emails in range, marking as processed anyway")
-                    # Mark range as processed even if no emails (to prevent gaps from getting stuck)
-                    self.date_tracker.mark_range_processed(range_start, range_end, 0)
-                    processed_ranges_in_this_run.append((range_start, range_end))
+                if existing:
+                    stored_emails.append(existing)
                     continue
                 
-                # Store email metadata
+                # Create new metadata
+                email_meta = EmailMetadata(
+                    account_id=self.account_id,
+                    message_id=email_data['message_id'],
+                    sender_email=email_data['sender_email'],
+                    sender_name=email_data.get('sender_name'),
+                    subject=email_data.get('subject', ''),
+                    date_received=email_data['date_received']
+                )
+                self.db.add(email_meta)
+                stored_emails.append(email_meta)
+            
+            # Commit with error handling for race conditions
+            try:
+                self.db.commit()
+            except IntegrityError as e:
+                # Handle race condition: another process may have inserted the same email
+                logger.warning(f"IntegrityError during email commit (likely race condition): {e}")
+                print(f"[PRINT] IntegrityError during email commit (likely race condition): {e}")
+                self.db.rollback()
+                
+                # Re-fetch existing emails that may have been inserted by another process
                 stored_emails = []
                 for email_data in emails:
-                    # Check if email already exists
                     existing = self.db.query(EmailMetadata).filter(
                         EmailMetadata.message_id == email_data['message_id'],
                         EmailMetadata.account_id == self.account_id
@@ -95,120 +111,72 @@ class AnalysisService:
                     
                     if existing:
                         stored_emails.append(existing)
-                        continue
-                    
-                    # Create new metadata
-                    email_meta = EmailMetadata(
-                        account_id=self.account_id,
-                        message_id=email_data['message_id'],
-                        sender_email=email_data['sender_email'],
-                        sender_name=email_data.get('sender_name'),
-                        subject=email_data.get('subject', ''),
-                        date_received=email_data['date_received']
-                    )
-                    self.db.add(email_meta)
-                    stored_emails.append(email_meta)
-                
-                # Commit with error handling for race conditions
-                try:
-                    self.db.commit()
-                except IntegrityError as e:
-                    # Handle race condition: another process may have inserted the same email
-                    logger.warning(f"IntegrityError during email commit (likely race condition): {e}")
-                    print(f"[PRINT] IntegrityError during email commit (likely race condition): {e}")
-                    self.db.rollback()
-                    
-                    # Re-fetch existing emails that may have been inserted by another process
-                    stored_emails = []
-                    for email_data in emails:
-                        existing = self.db.query(EmailMetadata).filter(
-                            EmailMetadata.message_id == email_data['message_id'],
-                            EmailMetadata.account_id == self.account_id
-                        ).first()
-                        
-                        if existing:
-                            stored_emails.append(existing)
-                        else:
-                            # Try to insert again (shouldn't happen, but handle gracefully)
-                            logger.warning(f"Email {email_data['message_id']} not found after rollback, skipping")
-                            print(f"[PRINT] Email {email_data['message_id']} not found after rollback, skipping")
-                
-                # Refresh to get IDs
-                for email_meta in stored_emails:
-                    self.db.refresh(email_meta)
-                
-                # Analyze batch
-                analysis_data = self.nlp_analyzer.analyze_batch(emails)
-                
-                # Store analysis results
-                for email_meta, email_data in zip(stored_emails, emails):
-                    # Determine clusters
-                    sender_cluster = self._get_sender_cluster(
-                        email_data['sender_email'],
-                        analysis_data['sender_patterns']
-                    )
-                    subject_cluster = self._get_subject_cluster(
-                        email_data.get('subject', ''),
-                        analysis_data['subject_clusters']
-                    )
-                    category = self._get_category(email_data, analysis_data['categories'])
-                    
-                    # Encrypt full analysis
-                    encrypted_analysis = self.enc_manager.encrypt({
-                        'sender_email': email_data['sender_email'],
-                        'sender_name': email_data.get('sender_name'),
-                        'subject': email_data.get('subject', ''),
-                        'snippet': email_data.get('snippet', ''),
-                        'date_received': email_data['date_received'].isoformat(),
-                        'analysis': analysis_data
-                    })
-                    
-                    analysis_result = AnalysisResult(
-                        email_id=email_meta.id,
-                        analysis_run_id=run_id,
-                        encrypted_analysis=encrypted_analysis,
-                        sender_cluster=sender_cluster,
-                        subject_cluster=subject_cluster,
-                        category=category
-                    )
-                    self.db.add(analysis_result)
-                
-                self.db.commit()
-                total_emails += len(emails)
-                
-                # Mark range as processed
-                try:
-                    logger.info(f"Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
-                    print(f"[PRINT] Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
-                    self.date_tracker.mark_range_processed(range_start, range_end, len(emails))
-                    processed_ranges_in_this_run.append((range_start, range_end))
-                    logger.info(f"Successfully marked range as processed")
-                    print(f"[PRINT] Successfully marked range as processed")
-                except Exception as e:
-                    logger.error(f"ERROR: Failed to mark range as processed: {e}", exc_info=True)
-                    print(f"[PRINT] ERROR: Failed to mark range as processed: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Don't fail the whole analysis if marking fails, but log it
-                    # If marking fails, we can't track it, so we'll leave it as is
+                    else:
+                        # Try to insert again (shouldn't happen, but handle gracefully)
+                        logger.warning(f"Email {email_data['message_id']} not found after rollback, skipping")
+                        print(f"[PRINT] Email {email_data['message_id']} not found after rollback, skipping")
             
-            return {
-                'emails_processed': total_emails,
-                'ranges_processed': len(unprocessed_ranges),
-                'processed_ranges': processed_ranges_in_this_run  # Return for cleanup if needed
-            }
-        except Exception as e:
-            # If analysis fails, rollback any processed ranges that were marked
-            if processed_ranges_in_this_run:
-                logger.error(f"Analysis failed, rolling back {len(processed_ranges_in_this_run)} processed date ranges")
-                print(f"[PRINT] Analysis failed, rolling back {len(processed_ranges_in_this_run)} processed date ranges")
-                try:
-                    self.date_tracker.remove_ranges(processed_ranges_in_this_run)
-                except Exception as rollback_error:
-                    logger.error(f"Failed to rollback processed ranges: {rollback_error}")
-                    print(f"[PRINT] Failed to rollback processed ranges: {rollback_error}")
-            # Re-raise the original exception
-            raise
+            # Refresh to get IDs
+            for email_meta in stored_emails:
+                self.db.refresh(email_meta)
+            
+            # Analyze batch
+            analysis_data = self.nlp_analyzer.analyze_batch(emails)
+            
+            # Store analysis results
+            for email_meta, email_data in zip(stored_emails, emails):
+                # Determine clusters
+                sender_cluster = self._get_sender_cluster(
+                    email_data['sender_email'],
+                    analysis_data['sender_patterns']
+                )
+                subject_cluster = self._get_subject_cluster(
+                    email_data.get('subject', ''),
+                    analysis_data['subject_clusters']
+                )
+                category = self._get_category(email_data, analysis_data['categories'])
+                
+                # Encrypt full analysis
+                encrypted_analysis = self.enc_manager.encrypt({
+                    'sender_email': email_data['sender_email'],
+                    'sender_name': email_data.get('sender_name'),
+                    'subject': email_data.get('subject', ''),
+                    'snippet': email_data.get('snippet', ''),
+                    'date_received': email_data['date_received'].isoformat(),
+                    'analysis': analysis_data
+                })
+                
+                analysis_result = AnalysisResult(
+                    email_id=email_meta.id,
+                    analysis_run_id=run_id,
+                    encrypted_analysis=encrypted_analysis,
+                    sender_cluster=sender_cluster,
+                    subject_cluster=subject_cluster,
+                    category=category
+                )
+                self.db.add(analysis_result)
+            
+            self.db.commit()
+            total_emails += len(emails)
+            
+            # Mark range as processed
+            try:
+                logger.info(f"Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
+                print(f"[PRINT] Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
+                self.date_tracker.mark_range_processed(range_start, range_end, len(emails))
+                logger.info(f"Successfully marked range as processed")
+                print(f"[PRINT] Successfully marked range as processed")
+            except Exception as e:
+                logger.error(f"ERROR: Failed to mark range as processed: {e}", exc_info=True)
+                print(f"[PRINT] ERROR: Failed to mark range as processed: {e}")
+                import traceback
+                traceback.print_exc()
+                # Don't fail the whole analysis if marking fails, but log it
+        
+        return {
+            'emails_processed': total_emails,
+            'ranges_processed': len(unprocessed_ranges)
+        }
     
     def _get_sender_cluster(self, sender_email: str, sender_patterns: Dict) -> str:
         """Get sender cluster identifier"""

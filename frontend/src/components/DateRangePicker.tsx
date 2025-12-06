@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
 interface DateRangePickerProps {
-  onAnalyze: (startDate: Date, endDate: Date) => void
+  onAnalyze: (startDate: Date, endDate: Date, forceReanalysis?: boolean) => void
   loading: boolean
   disabled: boolean
   initialStartDate?: Date
@@ -15,6 +15,7 @@ export default function DateRangePicker({ onAnalyze, loading, disabled, initialS
   
   const [startDate, setStartDate] = useState(initialStartDate ? formatDateForInput(initialStartDate) : '')
   const [endDate, setEndDate] = useState(initialEndDate ? formatDateForInput(initialEndDate) : '')
+  const [forceReanalysis, setForceReanalysis] = useState(false)
   
   // Update when initial dates change
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function DateRangePicker({ onAnalyze, loading, disabled, initialS
       return
     }
 
-    onAnalyze(start, end)
+    onAnalyze(start, end, forceReanalysis)
   }
 
   return (
@@ -77,6 +78,18 @@ export default function DateRangePicker({ onAnalyze, loading, disabled, initialS
         >
           {loading ? 'Analyzing...' : 'Analyze'}
         </button>
+      </div>
+      <div style={{ marginTop: '0.5rem' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+          <input
+            type="checkbox"
+            checked={forceReanalysis}
+            onChange={(e) => setForceReanalysis(e.target.checked)}
+            disabled={disabled || loading}
+            style={{ cursor: 'pointer' }}
+          />
+          <span>Force re-analysis (overwrite existing processed ranges)</span>
+        </label>
       </div>
     </form>
   )

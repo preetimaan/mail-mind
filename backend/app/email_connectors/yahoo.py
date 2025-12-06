@@ -139,7 +139,7 @@ class YahooConnector:
                         # Set a shorter timeout per email (10 seconds) to avoid hanging
                         original_timeout = socket.getdefaulttimeout()
                         try:
-                            socket.settimeout(10)  # 10 second timeout per email fetch
+                            socket.setdefaulttimeout(10)  # 10 second timeout per email fetch
                             # Fetch only headers instead of full email body for better performance
                             status, msg_data = self.imap.uid('FETCH', email_uid, '(BODY.PEEK[HEADER])')
                         except socket.timeout:
@@ -152,7 +152,7 @@ class YahooConnector:
                             continue
                         finally:
                             # Restore original timeout
-                            socket.settimeout(original_timeout)
+                            socket.setdefaulttimeout(original_timeout)
                         
                         if status != 'OK' or not msg_data or not msg_data[0]:
                             continue

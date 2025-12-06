@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import Counter
 
 from app.database import get_db, User, EmailAccount, EmailMetadata, AnalysisResult, ProcessedDateRange
@@ -354,6 +354,9 @@ async def get_processed_ranges(
     db: Session = Depends(get_db)
 ):
     """Get processed date ranges for an account"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -370,7 +373,14 @@ async def get_processed_ranges(
         ProcessedDateRange.account_id == account_id
     ).order_by(ProcessedDateRange.start_date).all()
     
-    return [
+    logger.info(f"Found {len(ranges)} processed date ranges for account {account_id} (username: {username})")
+    print(f"[PRINT] Found {len(ranges)} processed date ranges for account {account_id} (username: {username})")
+    if ranges:
+        for r in ranges[:5]:  # Log first 5 ranges
+            logger.info(f"  Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
+            print(f"[PRINT]   Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
+    
+    result = [
         {
             'start_date': r.start_date.isoformat(),
             'end_date': r.end_date.isoformat(),
@@ -379,6 +389,68 @@ async def get_processed_ranges(
         }
         for r in ranges
     ]
+    
+    # If no ranges exist but emails do, try to reconstruct from email metadata
+    if len(ranges) == 0:
+        email_count = db.query(EmailMetadata).filter(
+            EmailMetadata.account_id == account_id
+        ).count()
+        
+        if email_count > 0:
+            logger.info(f"No processed ranges found, but {email_count} emails exist. Attempting to reconstruct ranges from email metadata.")
+            print(f"[PRINT] No processed ranges found, but {email_count} emails exist. Attempting to reconstruct ranges from email metadata.")
+            
+            # Get min and max dates from emails
+            min_max = db.query(
+                func.min(EmailMetadata.date_received).label('min_date'),
+                func.max(EmailMetadata.date_received).label('max_date')
+            ).filter(
+                EmailMetadata.account_id == account_id
+            ).first()
+            
+            if min_max and min_max.min_date and min_max.max_date:
+                # Create a single range covering all emails
+                # Round to start of day for min, end of day for max
+                min_date = min_max.min_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                max_date = min_max.max_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                
+                # Check if range already exists (shouldn't, but just in case)
+                existing = db.query(ProcessedDateRange).filter(
+                    ProcessedDateRange.account_id == account_id,
+                    ProcessedDateRange.start_date == min_date,
+                    ProcessedDateRange.end_date == max_date
+                ).first()
+                
+                if not existing:
+                    logger.info(f"Creating reconstructed range: {min_date} to {max_date} with {email_count} emails")
+                    print(f"[PRINT] Creating reconstructed range: {min_date} to {max_date} with {email_count} emails")
+                    
+                    new_range = ProcessedDateRange(
+                        account_id=account_id,
+                        start_date=min_date,
+                        end_date=max_date,
+                        emails_count=email_count,
+                        processed_at=datetime.utcnow()
+                    )
+                    db.add(new_range)
+                    try:
+                        db.commit()
+                        logger.info(f"Successfully created reconstructed processed date range")
+                        print(f"[PRINT] Successfully created reconstructed processed date range")
+                        
+                        # Return the newly created range
+                        result = [{
+                            'start_date': new_range.start_date.isoformat(),
+                            'end_date': new_range.end_date.isoformat(),
+                            'emails_count': new_range.emails_count,
+                            'processed_at': new_range.processed_at.isoformat()
+                        }]
+                    except Exception as e:
+                        logger.error(f"Failed to create reconstructed range: {e}", exc_info=True)
+                        print(f"[PRINT] Failed to create reconstructed range: {e}")
+                        db.rollback()
+    
+    return result
 
 @router.get("/processed-ranges/gaps")
 async def get_processed_range_gaps(

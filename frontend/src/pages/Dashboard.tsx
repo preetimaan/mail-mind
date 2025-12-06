@@ -170,7 +170,7 @@ export default function Dashboard() {
     }
   }
 
-  const handleAnalyze = async (startDate: Date, endDate: Date) => {
+  const handleAnalyze = async (startDate: Date, endDate: Date, forceReanalysis: boolean = false) => {
     if (!selectedAccount || !username) {
       setError('Please select an account')
       return
@@ -186,11 +186,12 @@ export default function Dashboard() {
         account_id: selectedAccount,
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
+        force_reanalysis: forceReanalysis,
       }, {
         timeout: 60000, // 60 seconds for analysis start request
       })
 
-      setSuccess(`Analysis started! Run ID: ${response.data.run_id}`)
+      setSuccess(`Analysis started! Run ID: ${response.data.run_id}${forceReanalysis ? ' (re-analyzing existing ranges)' : ''}`)
       
       const runId = response.data.run_id
       await pollAnalysisRun(runId)
