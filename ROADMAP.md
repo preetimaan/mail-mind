@@ -175,6 +175,8 @@
 - [x] Improved delete account flow with account selection modal
 - [x] Copy email functionality for frequent senders (individual and bulk copy)
 - [x] Show email summary with 0 values when no data exists (always visible)
+- [ ] Frontend state persistence - Restore analysis state on page refresh
+- [ ] Concurrent analysis handling - Prevent/queue multiple simultaneous analyses
 - [ ] Enhanced category chart UI for missing categories
 - [ ] Responsive design improvements
 - [ ] Dark mode support (optional)
@@ -299,6 +301,8 @@
 3. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
 4. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
 5. **Duplicate email handling** - ✅ Fixed (composite unique constraint, IntegrityError handling, Yahoo UID support)
+6. **Frontend state persistence** - If page is refreshed, everything resets - including started analysis on the frontend. Need to persist analysis state and restore on page reload.
+7. **Concurrent analysis handling** - Do we handle analysis request when one is already running? Need to prevent multiple simultaneous analyses or queue them properly.
 
 ---
 
