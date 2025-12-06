@@ -145,14 +145,14 @@ After analysis completes, view:
   - Daily averages
   - Hourly distribution (peak hours)
   - Weekday patterns
-- **Processed Ranges**: See which date ranges have been analyzed (avoids duplicates)
+- **Processed Ranges**: Visual timeline showing which months are fully processed (Yes/No) - helps identify gaps in analysis
 
 ### 4. Key Features
 
 **Smart Date Tracking**:
 - System automatically tracks processed date ranges
 - Re-analyzing the same range only processes new/unprocessed dates
-- View processed ranges in the dashboard
+- View processed ranges in the dashboard with Yes/No visualization (fully processed vs. gaps)
 
 **Batch Processing**:
 - Handles thousands of emails efficiently
