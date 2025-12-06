@@ -33,7 +33,9 @@
   - [x] Date range tracking to avoid reprocessing
   - [x] Incremental processing (only unprocessed dates)
   - [x] Background task execution
-  - [x] Status tracking (pending, processing, completed, failed)
+  - [x] Status tracking (pending, processing, completed, failed, cancelled)
+  - [x] Analysis cancellation support with automatic revert
+  - [x] Change tracking for revert operations (emails, analysis results, processed ranges)
 - [x] Date tracker for processed ranges
   - [x] Gap detection
   - [x] Range merging for overlapping dates
@@ -48,6 +50,7 @@
   - [x] `GET /api/analysis/runs` - List analysis runs
   - [x] `GET /api/analysis/runs/{id}` - Get run status
   - [x] `POST /api/analysis/runs/{id}/retry` - Retry failed analysis runs
+  - [x] `POST /api/analysis/runs/{id}/stop` - Stop running analysis and revert changes
 - [x] OAuth
   - [x] `GET /api/oauth/authorize` - Generate OAuth authorization URL
   - [x] `GET /api/oauth/callback` - Handle OAuth callback and store credentials (✅ Implemented - required for Gmail account setup)
@@ -67,6 +70,7 @@
   - [x] Account selector component
   - [x] Date range picker (with gap pre-filling support)
   - [x] Analysis trigger with loading states
+  - [x] Stop analysis button (always visible, disabled when no analysis running)
   - [x] Account management UI (AddAccountModal)
   - [x] OAuth callback handling
   - [x] Failed run grouping and retry functionality
@@ -106,6 +110,8 @@
 - [x] Failed run grouping in UI (collapsible sections)
 - [x] Graceful handling of expired/revoked OAuth tokens
 - [x] Utility script to mark stuck runs as failed
+- [x] Analysis cancellation with automatic data revert
+- [x] Change tracking during analysis for safe rollback
 
 ### Bug Fixes
 - [x] Fixed `analysis_run_id` null constraint bug
@@ -333,6 +339,14 @@
 - Export functionality
 - Email filtering & search
 - Testing infrastructure
+
+**Recent Completions:**
+- ✅ Stop analysis functionality with revert
+- ✅ Copy email functionality for frequent senders
+- ✅ Always show email summary with 0 values
+- ✅ Show all senders feature
+- ✅ Improved timeout handling and Yahoo credential support
+- ✅ Improved processed range gap detection
 
 ---
 
