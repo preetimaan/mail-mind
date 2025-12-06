@@ -75,6 +75,12 @@ export interface AnalysisRun {
   error_message?: string | null
 }
 
+export interface StopAnalysisResponse {
+  run_id: number
+  status: string
+  message: string
+}
+
 export interface Summary {
   total_accounts: number
   total_emails: number

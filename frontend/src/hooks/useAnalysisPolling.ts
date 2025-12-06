@@ -29,13 +29,16 @@ export function useAnalysisPolling({
         const runResponse = await api.get(`/api/analysis/runs/${runId}?username=${username}`)
         const run = runResponse.data
         
-        if (run.status === 'completed' || run.status === 'failed') {
+        if (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled') {
           clearInterval(pollInterval)
           setLoading(false)
           
           if (run.status === 'completed') {
             const emailCount = run.emails_processed ?? 0
             onSuccess(`Analysis completed! Processed ${emailCount} emails.`)
+            onComplete()
+          } else if (run.status === 'cancelled') {
+            onSuccess('Analysis stopped successfully.')
             onComplete()
           } else {
             // Check if account is inactive (token expired)

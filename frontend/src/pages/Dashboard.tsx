@@ -24,6 +24,7 @@ import './Dashboard.css'
 export default function Dashboard() {
   const [showAddAccountModal, setShowAddAccountModal] = useState(false)
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([])
+  const [currentRunningRunId, setCurrentRunningRunId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [processedRangesRefresh, setProcessedRangesRefresh] = useState(0)
@@ -69,6 +70,8 @@ export default function Dashboard() {
     username,
     selectedAccount,
     onComplete: () => {
+      // Clear running run ID
+      setCurrentRunningRunId(null)
       // Add a small delay to ensure database transaction is committed
       setTimeout(() => {
         loadSummary()
@@ -128,8 +131,26 @@ export default function Dashboard() {
       loadAnalysisRuns()
     } else {
       setAnalysisRuns([])
+      setCurrentRunningRunId(null)
     }
   }, [username, selectedAccount])
+
+  // Check for running analysis when runs are loaded
+  useEffect(() => {
+    const runningRun = analysisRuns.find(run => run.status === 'pending' || run.status === 'processing')
+    if (runningRun) {
+      setCurrentRunningRunId(currentId => {
+        // Only update if we don't already have a running run, or if the current one is no longer running
+        if (!currentId || !analysisRuns.find(r => r.id === currentId && (r.status === 'pending' || r.status === 'processing'))) {
+          return runningRun.id
+        }
+        return currentId
+      })
+    } else {
+      // Clear if no running runs found
+      setCurrentRunningRunId(null)
+    }
+  }, [analysisRuns])
 
   const loadAnalysisRuns = async () => {
     if (!selectedAccount || !username) {
@@ -170,6 +191,37 @@ export default function Dashboard() {
     }
   }
 
+  const handleStopAnalysis = async () => {
+    if (!username || !currentRunningRunId) {
+      setError('No analysis running')
+      return
+    }
+
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await api.post(`/api/analysis/runs/${currentRunningRunId}/stop?username=${username}`)
+      setSuccess(response.data.message || 'Analysis stopped successfully')
+      
+      setCurrentRunningRunId(null)
+      setLoading(false)
+      
+      // Reload analysis runs to show updated status
+      loadAnalysisRuns()
+      
+      // Refresh insights and summary
+      setTimeout(() => {
+        loadSummary()
+        loadInsights()
+        setProcessedRangesRefresh(prev => prev + 1)
+      }, 500)
+    } catch (err: any) {
+      const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to stop analysis'
+      setError(errorMessage)
+    }
+  }
+
   const handleAnalyze = async (startDate: Date, endDate: Date, forceReanalysis: boolean = false) => {
     if (!selectedAccount || !username) {
       setError('Please select an account')
@@ -194,9 +246,13 @@ export default function Dashboard() {
       setSuccess(`Analysis started! Run ID: ${response.data.run_id}${forceReanalysis ? ' (re-analyzing existing ranges)' : ''}`)
       
       const runId = response.data.run_id
+      setCurrentRunningRunId(runId)
       await pollAnalysisRun(runId)
+      // Clear running run ID after completion
+      setCurrentRunningRunId(null)
     } catch (err: any) {
       setLoading(false)
+      setCurrentRunningRunId(null)
       const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || 'Failed to start analysis'
       setError(errorMessage)
     }
@@ -286,8 +342,10 @@ export default function Dashboard() {
                   )}
                   <DateRangePicker
                     onAnalyze={handleAnalyze}
+                    onStop={handleStopAnalysis}
                     loading={loading}
                     disabled={loading}
+                    hasRunningAnalysis={currentRunningRunId !== null}
                     initialStartDate={selectedGapStart}
                     initialEndDate={selectedGapEnd}
                   />

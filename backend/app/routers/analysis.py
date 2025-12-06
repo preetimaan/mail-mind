@@ -162,6 +162,12 @@ def process_batch_analysis(
         if not analysis_run:
             return
         
+        # Check if already cancelled
+        if analysis_run.status == "cancelled":
+            logger.info(f"Analysis run {run_id} was cancelled before processing started")
+            print(f"[PRINT] Analysis run {run_id} was cancelled before processing started")
+            return
+        
         analysis_run.status = "processing"
         db.commit()
         
@@ -237,7 +243,7 @@ def process_batch_analysis(
             raise
         
         # Use analysis service
-        service = AnalysisService(db, user_id, account_id)
+        service = AnalysisService(db, user_id, account_id, run_id)
         logger.info(f"Calling analyze_date_range for run_id={analysis_run.id}")
         result = service.analyze_date_range(
             connector,
@@ -245,17 +251,43 @@ def process_batch_analysis(
             end_date,
             run_id=analysis_run.id
         )
+        
+        # Check if cancelled during processing
+        db.refresh(analysis_run)
+        if analysis_run.status == "cancelled":
+            logger.info(f"Analysis run {run_id} was cancelled during processing, reverting changes")
+            print(f"[PRINT] Analysis run {run_id} was cancelled during processing, reverting changes")
+            # Revert changes
+            service.revert_run_changes()
+            return
+        
         logger.info(f"Analysis completed: {result}")
         
         # Update analysis run - refresh to get latest state
         db.refresh(analysis_run)
-        analysis_run.status = "completed"
-        analysis_run.emails_processed = result['emails_processed']
-        analysis_run.completed_at = datetime.utcnow()
-        db.commit()
-        logger.info(f"Analysis run {analysis_run.id} marked as completed")
+        if analysis_run.status != "cancelled":  # Only update if not cancelled
+            analysis_run.status = "completed"
+            analysis_run.emails_processed = result['emails_processed']
+            analysis_run.completed_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"Analysis run {analysis_run.id} marked as completed")
         
     except ValueError as e:
+        # Check if cancelled first
+        try:
+            db.refresh(analysis_run)
+            if analysis_run.status == "cancelled":
+                logger.info(f"Analysis run {run_id} was cancelled, reverting changes")
+                print(f"[PRINT] Analysis run {run_id} was cancelled, reverting changes")
+                try:
+                    service = AnalysisService(db, user_id, account_id, run_id)
+                    service.revert_run_changes()
+                except:
+                    pass  # Ignore revert errors if service wasn't created
+                return
+        except:
+            pass
+        
         # Handle token expiration/revocation errors
         error_msg = str(e)
         logger.error(f"ValueError during analysis: {error_msg}")
@@ -295,6 +327,21 @@ def process_batch_analysis(
             # Re-raise if it's a different ValueError
             raise
     except Exception as e:
+        # Check if cancelled first
+        try:
+            db.refresh(analysis_run)
+            if analysis_run.status == "cancelled":
+                logger.info(f"Analysis run {run_id} was cancelled, reverting changes")
+                print(f"[PRINT] Analysis run {run_id} was cancelled, reverting changes")
+                try:
+                    service = AnalysisService(db, user_id, account_id, run_id)
+                    service.revert_run_changes()
+                except:
+                    pass  # Ignore revert errors if service wasn't created
+                return
+        except:
+            pass
+        
         error_msg = str(e)
         logger.error(f"Analysis error: {error_msg}", exc_info=True)
         print(f"[PRINT] Analysis error: {error_msg}")
@@ -497,4 +544,114 @@ async def retry_analysis_run(
         status="pending",
         message="Analysis retry started in background"
     )
+
+@router.post("/runs/{run_id}/stop")
+async def stop_analysis_run(
+    run_id: int,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """Stop a running analysis and revert changes"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Verify user
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get the analysis run
+    analysis_run = db.query(AnalysisRun).filter(
+        AnalysisRun.id == run_id,
+        AnalysisRun.user_id == user.id
+    ).first()
+    
+    if not analysis_run:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+    
+    # Only allow stopping runs that are pending or processing
+    if analysis_run.status not in ["pending", "processing"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot stop analysis run with status '{analysis_run.status}'. Only pending or processing runs can be stopped."
+        )
+    
+    logger.info(f"Stopping analysis run {run_id} for user {username}")
+    print(f"[PRINT] Stopping analysis run {run_id} for user {username}")
+    
+    # Mark as cancelled - the background task will check this and revert
+    analysis_run.status = "cancelled"
+    db.commit()
+    
+    # Revert changes made by this run
+    try:
+        # Delete analysis results created by this run
+        analysis_results = db.query(AnalysisResult).filter(
+            AnalysisResult.analysis_run_id == run_id
+        ).all()
+        
+        # Get email IDs that were only analyzed by this run
+        email_ids_to_check = [ar.email_id for ar in analysis_results]
+        
+        # Delete analysis results
+        for ar in analysis_results:
+            db.delete(ar)
+        
+        # Delete emails that were created during this run
+        # We'll identify them by checking if they have no other analysis results
+        if email_ids_to_check:
+            emails_to_delete = db.query(EmailMetadata).filter(
+                EmailMetadata.id.in_(email_ids_to_check),
+                EmailMetadata.account_id == analysis_run.account_id
+            ).all()
+            
+            for email in emails_to_delete:
+                # Check if this email has any other analysis results
+                other_results = db.query(AnalysisResult).filter(
+                    AnalysisResult.email_id == email.id,
+                    AnalysisResult.analysis_run_id != run_id
+                ).count()
+                
+                if other_results == 0:
+                    # This email was only analyzed by this run, delete it
+                    db.delete(email)
+        
+        # Revert processed date ranges that were created during this run
+        # We need to track which ranges were processed by this run
+        # For now, we'll remove ranges that were processed after the run was created
+        # and overlap with the run's date range
+        from app.database import ProcessedDateRange
+        from datetime import timedelta
+        
+        # Remove ranges that were processed during this run's timeframe
+        # We'll be conservative and only remove ranges created very recently
+        # (within the last hour) that overlap with this run's date range
+        recent_cutoff = datetime.utcnow() - timedelta(hours=1)
+        overlapping_ranges = db.query(ProcessedDateRange).filter(
+            ProcessedDateRange.account_id == analysis_run.account_id,
+            ProcessedDateRange.start_date < analysis_run.end_date,
+            ProcessedDateRange.end_date > analysis_run.start_date,
+            ProcessedDateRange.processed_at >= analysis_run.created_at
+        ).all()
+        
+        for range_obj in overlapping_ranges:
+            db.delete(range_obj)
+        
+        db.commit()
+        logger.info(f"Successfully reverted changes for cancelled run {run_id}")
+        print(f"[PRINT] Successfully reverted changes for cancelled run {run_id}")
+        
+    except Exception as e:
+        logger.error(f"Error reverting changes for run {run_id}: {e}", exc_info=True)
+        print(f"[PRINT] Error reverting changes for run {run_id}: {e}")
+        db.rollback()
+        # Still mark as cancelled even if revert fails
+        analysis_run.status = "cancelled"
+        db.commit()
+    
+    return {
+        "run_id": run_id,
+        "status": "cancelled",
+        "message": "Analysis stopped and changes reverted"
+    }
 

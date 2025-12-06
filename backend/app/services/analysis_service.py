@@ -15,13 +15,16 @@ logger = logging.getLogger(__name__)
 class AnalysisService:
     """Service for batch email analysis"""
     
-    def __init__(self, db: Session, user_id: int, account_id: int):
+    def __init__(self, db: Session, user_id: int, account_id: int, run_id: int = None):
         self.db = db
         self.user_id = user_id
         self.account_id = account_id
+        self.run_id = run_id
         self.enc_manager = EncryptionManager(user_id)
         self.nlp_analyzer = NLPAnalyzer()
         self.date_tracker = DateTracker(db, account_id)
+        self.processed_ranges = []  # Track ranges processed in this run for revert
+        self.processed_email_ids = []  # Track email IDs processed in this run
     
     def analyze_date_range(
         self,
@@ -33,6 +36,9 @@ class AnalysisService:
         """
         Analyze emails in date range, skipping already processed dates
         """
+        # Use self.run_id if available, otherwise use parameter
+        if self.run_id:
+            run_id = self.run_id
         if run_id is None:
             raise ValueError("run_id is required for analysis results")
         # Get unprocessed date ranges
@@ -53,6 +59,14 @@ class AnalysisService:
         
         # Process each unprocessed range
         for range_start, range_end in unprocessed_ranges:
+            # Check if run was cancelled
+            if self.run_id:
+                analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == self.run_id).first()
+                if analysis_run and analysis_run.status == "cancelled":
+                    logger.info(f"Analysis run {self.run_id} was cancelled, stopping processing")
+                    print(f"[PRINT] Analysis run {self.run_id} was cancelled, stopping processing")
+                    break
+            
             logger.info(f"Processing range: {range_start} to {range_end}")
             print(f"[PRINT] Processing range: {range_start} to {range_end}")
             # Fetch emails
@@ -65,6 +79,7 @@ class AnalysisService:
                 print(f"[PRINT] No emails in range, marking as processed anyway")
                 # Mark range as processed even if no emails (to prevent gaps from getting stuck)
                 self.date_tracker.mark_range_processed(range_start, range_end, 0)
+                self.processed_ranges.append((range_start, range_end))
                 continue
             
             # Store email metadata
@@ -155,9 +170,14 @@ class AnalysisService:
                     category=category
                 )
                 self.db.add(analysis_result)
+                # Track email IDs for potential revert
+                self.processed_email_ids.append(email_meta.id)
             
             self.db.commit()
             total_emails += len(emails)
+            
+            # Track processed range for potential revert
+            self.processed_ranges.append((range_start, range_end))
             
             # Mark range as processed
             try:
@@ -212,4 +232,55 @@ class AnalysisService:
         elif '@' in sender and not any(kw in sender for kw in ['noreply', 'no-reply']):
             return 'personal'
         return 'other'
+    
+    def revert_run_changes(self):
+        """Revert changes made by this analysis run"""
+        if not self.run_id:
+            return
+        
+        logger.info(f"Reverting changes for run {self.run_id}")
+        print(f"[PRINT] Reverting changes for run {self.run_id}")
+        
+        try:
+            # Delete analysis results created by this run
+            analysis_results = self.db.query(AnalysisResult).filter(
+                AnalysisResult.analysis_run_id == self.run_id
+            ).all()
+            
+            email_ids_with_results = set()
+            for ar in analysis_results:
+                email_ids_with_results.add(ar.email_id)
+                self.db.delete(ar)
+            
+            # Delete emails that were created during this run and have no other analysis results
+            if self.processed_email_ids:
+                for email_id in self.processed_email_ids:
+                    if email_id in email_ids_with_results:
+                        # Check if this email has any other analysis results
+                        other_results = self.db.query(AnalysisResult).filter(
+                            AnalysisResult.email_id == email_id,
+                            AnalysisResult.analysis_run_id != self.run_id
+                        ).count()
+                        
+                        if other_results == 0:
+                            # This email was only analyzed by this run, delete it
+                            email = self.db.query(EmailMetadata).filter(
+                                EmailMetadata.id == email_id
+                            ).first()
+                            if email:
+                                self.db.delete(email)
+            
+            # Revert processed date ranges
+            if self.processed_ranges:
+                self.date_tracker.remove_ranges(self.processed_ranges)
+            
+            self.db.commit()
+            logger.info(f"Successfully reverted changes for run {self.run_id}")
+            print(f"[PRINT] Successfully reverted changes for run {self.run_id}")
+            
+        except Exception as e:
+            logger.error(f"Error reverting changes for run {self.run_id}: {e}", exc_info=True)
+            print(f"[PRINT] Error reverting changes for run {self.run_id}: {e}")
+            self.db.rollback()
+            raise
 

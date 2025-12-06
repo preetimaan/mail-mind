@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 
 interface DateRangePickerProps {
   onAnalyze: (startDate: Date, endDate: Date, forceReanalysis?: boolean) => void
+  onStop?: () => void
   loading: boolean
   disabled: boolean
+  hasRunningAnalysis: boolean
   initialStartDate?: Date
   initialEndDate?: Date
 }
 
-export default function DateRangePicker({ onAnalyze, loading, disabled, initialStartDate, initialEndDate }: DateRangePickerProps) {
+export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, hasRunningAnalysis, initialStartDate, initialEndDate }: DateRangePickerProps) {
   const formatDateForInput = (date: Date) => {
     return date.toISOString().split('T')[0]
   }
@@ -47,7 +49,7 @@ export default function DateRangePicker({ onAnalyze, loading, disabled, initialS
 
   return (
     <form onSubmit={handleSubmit}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '1rem', alignItems: 'end' }}>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="label">Start Date</label>
           <input
@@ -77,6 +79,21 @@ export default function DateRangePicker({ onAnalyze, loading, disabled, initialS
           style={{ marginBottom: 0 }}
         >
           {loading ? 'Analyzing...' : 'Analyze'}
+        </button>
+        <button
+          type="button"
+          className="button"
+          onClick={onStop}
+          disabled={!hasRunningAnalysis || !onStop}
+          style={{ 
+            marginBottom: 0,
+            backgroundColor: hasRunningAnalysis ? '#dc3545' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            opacity: hasRunningAnalysis ? 1 : 0.6
+          }}
+        >
+          Stop
         </button>
       </div>
       <div style={{ marginTop: '0.5rem' }}>
