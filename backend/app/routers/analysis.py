@@ -436,16 +436,22 @@ async def get_analysis_run(
 async def list_analysis_runs(
     username: str,
     account_id: Optional[int] = None,
+    limit: Optional[int] = 50,
+    offset: Optional[int] = 0,
     db: Session = Depends(get_db)
 ):
-    """List analysis runs for a user"""
+    """List analysis runs for a user with pagination"""
     import logging
     logger = logging.getLogger(__name__)
     
     user = db.query(User).filter(User.username == username).first()
     if not user:
         logger.warning(f"User {username} not found when listing analysis runs")
-        return []
+        return {
+            "runs": [],
+            "total": 0,
+            "has_more": False
+        }
     
     query = db.query(AnalysisRun).filter(AnalysisRun.user_id == user.id)
     if account_id:
@@ -454,22 +460,31 @@ async def list_analysis_runs(
     else:
         logger.info(f"Listing all analysis runs for user {username} (no account filter)")
     
-    runs = query.order_by(AnalysisRun.created_at.desc()).limit(50).all()
-    logger.info(f"Found {len(runs)} analysis runs for user {username}")
+    # Get total count
+    total_count = query.count()
     
-    return [
-        {
-            "id": run.id,
-            "account_id": run.account_id,
-            "status": run.status,
-            "emails_processed": run.emails_processed,
-            "start_date": run.start_date.isoformat(),
-            "end_date": run.end_date.isoformat(),
-            "created_at": run.created_at.isoformat(),
-            "completed_at": run.completed_at.isoformat() if run.completed_at else None
-        }
-        for run in runs
-    ]
+    # Apply pagination
+    runs = query.order_by(AnalysisRun.created_at.desc()).offset(offset).limit(limit).all()
+    logger.info(f"Found {len(runs)} analysis runs for user {username} (offset={offset}, limit={limit}, total={total_count})")
+    
+    return {
+        "runs": [
+            {
+                "id": run.id,
+                "account_id": run.account_id,
+                "status": run.status,
+                "emails_processed": run.emails_processed,
+                "start_date": run.start_date.isoformat(),
+                "end_date": run.end_date.isoformat(),
+                "created_at": run.created_at.isoformat(),
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "error_message": getattr(run, 'error_message', None)
+            }
+            for run in runs
+        ],
+        "total": total_count,
+        "has_more": offset + len(runs) < total_count
+    }
 
 @router.post("/runs/{run_id}/retry", response_model=AnalysisResponse)
 async def retry_analysis_run(

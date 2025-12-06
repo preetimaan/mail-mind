@@ -81,6 +81,12 @@ export interface StopAnalysisResponse {
   message: string
 }
 
+export interface AnalysisRunsResponse {
+  runs: AnalysisRun[]
+  total: number
+  has_more: boolean
+}
+
 export interface Summary {
   total_accounts: number
   total_emails: number

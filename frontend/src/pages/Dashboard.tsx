@@ -24,6 +24,9 @@ import './Dashboard.css'
 export default function Dashboard() {
   const [showAddAccountModal, setShowAddAccountModal] = useState(false)
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([])
+  const [analysisRunsOffset, setAnalysisRunsOffset] = useState(0)
+  const [hasMoreRuns, setHasMoreRuns] = useState(false)
+  const [loadingMoreRuns, setLoadingMoreRuns] = useState(false)
   const [currentRunningRunId, setCurrentRunningRunId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -76,7 +79,7 @@ export default function Dashboard() {
       setTimeout(() => {
         loadSummary()
         loadInsights()
-        loadAnalysisRuns()
+        loadAnalysisRuns(true)
         setProcessedRangesRefresh(prev => prev + 1)
       }, 500) // 500ms delay to allow database to commit
     },
@@ -128,9 +131,11 @@ export default function Dashboard() {
   // Load analysis runs when account is selected
   useEffect(() => {
     if (username && selectedAccount) {
-      loadAnalysisRuns()
+      loadAnalysisRuns(true)
     } else {
       setAnalysisRuns([])
+      setAnalysisRunsOffset(0)
+      setHasMoreRuns(false)
       setCurrentRunningRunId(null)
     }
   }, [username, selectedAccount])
@@ -152,17 +157,42 @@ export default function Dashboard() {
     }
   }, [analysisRuns])
 
-  const loadAnalysisRuns = async () => {
+  const loadAnalysisRuns = async (reset: boolean = false) => {
     if (!selectedAccount || !username) {
       setAnalysisRuns([])
+      setAnalysisRunsOffset(0)
+      setHasMoreRuns(false)
       return
     }
     
+    const offset = reset ? 0 : analysisRunsOffset
+    const limit = 5
+    
     try {
-      const response = await api.get(`/api/analysis/runs?username=${username}&account_id=${selectedAccount}`)
-      setAnalysisRuns(response.data)
+      const response = await api.get(`/api/analysis/runs?username=${username}&account_id=${selectedAccount}&limit=${limit}&offset=${offset}`)
+      const data = response.data
+      
+      if (reset) {
+        setAnalysisRuns(data.runs || [])
+        setAnalysisRunsOffset(limit)
+      } else {
+        setAnalysisRuns(prev => [...prev, ...(data.runs || [])])
+        setAnalysisRunsOffset(prev => prev + limit)
+      }
+      setHasMoreRuns(data.has_more || false)
     } catch (err: any) {
       console.error('Failed to load analysis runs:', err)
+    }
+  }
+
+  const loadMoreRuns = async () => {
+    if (loadingMoreRuns || !hasMoreRuns) return
+    
+    setLoadingMoreRuns(true)
+    try {
+      await loadAnalysisRuns(false)
+    } finally {
+      setLoadingMoreRuns(false)
     }
   }
 
@@ -180,7 +210,7 @@ export default function Dashboard() {
       const response = await api.post(`/api/analysis/runs/${runId}/retry?username=${username}`)
       setSuccess(`Analysis retry started! Run ID: ${response.data.run_id}`)
       
-      loadAnalysisRuns()
+      loadAnalysisRuns(true)
       
       const newRunId = response.data.run_id
       await pollAnalysisRun(newRunId)
@@ -208,7 +238,7 @@ export default function Dashboard() {
       setLoading(false)
       
       // Reload analysis runs to show updated status
-      loadAnalysisRuns()
+      loadAnalysisRuns(true)
       
       // Refresh insights and summary
       setTimeout(() => {
@@ -247,6 +277,8 @@ export default function Dashboard() {
       
       const runId = response.data.run_id
       setCurrentRunningRunId(runId)
+      // Reload runs to show the new one
+      loadAnalysisRuns(true)
       await pollAnalysisRun(runId)
       // Clear running run ID after completion
       setCurrentRunningRunId(null)
@@ -365,6 +397,21 @@ export default function Dashboard() {
                     loading={loading}
                     onRetry={handleRetryAnalysis}
                   />
+                  {hasMoreRuns && (
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                      <button
+                        onClick={loadMoreRuns}
+                        className="button"
+                        disabled={loadingMoreRuns}
+                        style={{
+                          padding: '0.75rem 1.5rem',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        {loadingMoreRuns ? 'Loading...' : 'Load More (5 previous runs)'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {senderInsights ? (

@@ -7,11 +7,13 @@ An intelligent email management system that analyzes and categorizes emails base
 ## Features
 
 - **Batch Analysis**: Process thousands of emails by date range
+- **Analysis Control**: Stop running analyses and automatically revert changes
 - **Smart Tracking**: Maintains previously analyzed dates to avoid reprocessing
 - **NLP-Powered**: Uses natural language processing for pattern detection and clustering
 - **Multi-Provider**: Supports Gmail and Yahoo Mail
 - **Secure Storage**: Encrypted local-only storage of metadata and analysis results
 - **Web Dashboard**: Interactive dashboard for insights and visualization
+- **Pagination**: Efficient loading of analysis runs (5 at a time with "Load More")
 
 ## Architecture
 
@@ -127,6 +129,10 @@ python get_gmail_tokens.py
 5. **Monitor progress**: The system shows analysis status
    - Status: `pending` → `processing` → `completed`
    - View number of emails processed
+   - Stop button available to cancel running analyses
+6. **View analysis history**: 
+   - Shows 5 most recent analysis runs
+   - Click "Load More" to see previous runs
 
 ### 3. View Insights
 
@@ -167,8 +173,10 @@ After analysis completes, view:
 
 ### Analysis
 - `POST /api/analysis/batch` - Start batch analysis
-- `GET /api/analysis/runs` - List analysis runs
+- `GET /api/analysis/runs?limit=5&offset=0` - List analysis runs (with pagination)
 - `GET /api/analysis/runs/{id}` - Get run status
+- `POST /api/analysis/runs/{id}/retry` - Retry failed analysis runs
+- `POST /api/analysis/runs/{id}/stop` - Stop running analysis and revert changes
 
 ### Insights
 - `GET /api/insights/summary` - Overall summary

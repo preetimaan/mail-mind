@@ -47,7 +47,7 @@
   - [x] `DELETE /api/emails/accounts/{id}` - Delete account
 - [x] Analysis
   - [x] `POST /api/analysis/batch` - Start batch analysis
-  - [x] `GET /api/analysis/runs` - List analysis runs
+  - [x] `GET /api/analysis/runs` - List analysis runs (with pagination support)
   - [x] `GET /api/analysis/runs/{id}` - Get run status
   - [x] `POST /api/analysis/runs/{id}/retry` - Retry failed analysis runs
   - [x] `POST /api/analysis/runs/{id}/stop` - Stop running analysis and revert changes
@@ -71,6 +71,7 @@
   - [x] Date range picker (with gap pre-filling support)
   - [x] Analysis trigger with loading states
   - [x] Stop analysis button (always visible, disabled when no analysis running)
+  - [x] Analysis runs pagination (shows 5 most recent, "Load More" for previous runs)
   - [x] Account management UI (AddAccountModal)
   - [x] OAuth callback handling
   - [x] Failed run grouping and retry functionality
@@ -342,6 +343,7 @@
 
 **Recent Completions:**
 - ✅ Stop analysis functionality with revert
+- ✅ Analysis runs pagination (5 at a time with "Load More" button)
 - ✅ Copy email functionality for frequent senders
 - ✅ Always show email summary with 0 values
 - ✅ Show all senders feature
