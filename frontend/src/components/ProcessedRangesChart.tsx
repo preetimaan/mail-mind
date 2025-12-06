@@ -24,7 +24,7 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
       return months.map(month => ({
         month: format(month, 'MMM yyyy'),
         year: month.getFullYear().toString(),
-        coverage: 0,
+        processed: 0, // 0 = No, 1 = Yes
         processedDays: 0,
         totalDays: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(),
         emails: 0,
@@ -78,15 +78,17 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
       const totalDaysInMonth = differenceInDays(monthEnd, monthStart) + 1
       const coveragePercent = totalDaysInMonth > 0 ? (processedDays / totalDaysInMonth) * 100 : 0
       const hasGap = coveragePercent < 100 // Any coverage less than 100% is a gap
+      const isProcessed = coveragePercent === 100 ? 1 : 0 // 1 = Yes (fully processed), 0 = No (has gap)
       
       return {
         month: format(month, 'MMM yyyy'),
         year: year.toString(),
-        coverage: Math.min(100, Math.round(coveragePercent)),
+        processed: isProcessed,
         processedDays,
         totalDays: totalDaysInMonth,
         emails: totalEmails,
-        hasGap: hasGap
+        hasGap: hasGap,
+        coveragePercent: Math.min(100, Math.round(coveragePercent)) // Keep for tooltip
       }
     })
   }, [ranges])
@@ -124,20 +126,21 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
             interval={calculateInterval()}
           />
           <YAxis 
-            label={{ value: 'Coverage %', angle: -90, position: 'insideLeft' }}
-            domain={[0, 100]}
+            domain={[0, 1]}
+            ticks={[0, 1]}
+            tickFormatter={(value) => value === 1 ? 'Yes' : 'No'}
           />
           <Tooltip 
             formatter={(value: number, name: string) => {
-              if (name === 'coverage') {
-                return [`${value}%`, 'Coverage']
+              if (name === 'processed') {
+                return [value === 1 ? 'Yes' : 'No', 'Processed']
               }
               return [value, name]
             }}
             labelFormatter={(label) => `Month: ${label}`}
           />
           <Legend />
-          <Bar dataKey="coverage" name="Coverage %" fill="#667eea">
+          <Bar dataKey="processed" name="Processed" fill="#667eea">
             {chartData.map((entry, index) => {
               // Red for gaps (< 100%), green for 100% coverage
               const fillColor = entry.hasGap ? "#dc3545" : "#667eea";
