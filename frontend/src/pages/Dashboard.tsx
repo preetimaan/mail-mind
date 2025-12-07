@@ -10,6 +10,7 @@ import YearlyFrequencyChart from '../components/YearlyFrequencyChart'
 import ProcessedRanges from '../components/ProcessedRanges'
 import AddAccountModal from '../components/AddAccountModal'
 import LoadingSpinner from '../components/LoadingSpinner'
+import AnalysisProgress from '../components/AnalysisProgress'
 import EmptyState from '../components/EmptyState'
 import AnalysisRunsList from '../components/AnalysisRunsList'
 import DashboardHeader from '../components/DashboardHeader'
@@ -69,6 +70,7 @@ export default function Dashboard() {
     loading,
     setLoading,
     pollAnalysisRun,
+    progress,
   } = useAnalysisPolling({
     username,
     selectedAccount,
@@ -367,9 +369,18 @@ export default function Dashboard() {
                 )}
                 <div className="card" style={{ marginTop: '2rem' }}>
                   <h2>Batch Analysis</h2>
-                  {loading && (
+                  {loading && progress && (
                     <div style={{ marginBottom: '1rem' }}>
-                      <LoadingSpinner message="Processing emails..." size="small" />
+                      <AnalysisProgress 
+                        emailsProcessed={progress.emailsProcessed}
+                        totalEmails={progress.totalEmails}
+                        status={progress.status as 'processing' | 'completed' | 'failed'}
+                      />
+                    </div>
+                  )}
+                  {loading && !progress && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <LoadingSpinner message="Starting analysis..." size="small" />
                     </div>
                   )}
                   <DateRangePicker

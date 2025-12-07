@@ -38,11 +38,50 @@ class GmailConnector:
                     ) from e
                 raise
     
+    def get_email_count_by_date_range(
+        self,
+        start_date: datetime,
+        end_date: datetime
+    ) -> int:
+        """
+        Get count of emails in date range without fetching them
+        Returns the total count
+        """
+        query = f'after:{int(start_date.timestamp())} before:{int(end_date.timestamp())}'
+        
+        try:
+            total = 0
+            page_token = None
+            
+            while True:
+                request = self.service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500,
+                    pageToken=page_token
+                )
+                response = request.execute()
+                
+                messages = response.get('messages', [])
+                if not messages:
+                    break
+                
+                total += len(messages)
+                page_token = response.get('nextPageToken')
+                if not page_token:
+                    break
+            
+            return total
+        except Exception as e:
+            logger.error(f"Error getting email count: {e}")
+            raise
+    
     def fetch_emails_by_date_range(
         self, 
         start_date: datetime, 
         end_date: datetime,
-        max_results: int = 5000
+        max_results: int = 5000,
+        progress_callback: callable = None
     ) -> List[Dict]:
         """
         Fetch emails within date range
@@ -103,6 +142,14 @@ class GmailConnector:
                             'thread_id': msg_detail.get('threadId'),
                             'snippet': msg_detail.get('snippet', '')
                         })
+                        
+                        # Call progress callback every 25 emails
+                        if progress_callback and len(emails) % 25 == 0:
+                            try:
+                                progress_callback(len(emails), max_results)
+                            except Exception as e:
+                                print(f"Progress callback failed: {e}")
+                                
                     except Exception as e:
                         print(f"Error fetching message {msg['id']}: {e}")
                         continue

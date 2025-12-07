@@ -154,7 +154,7 @@ export default function SenderChart({ insights, username, accountId }: SenderCha
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: showAll ? '600px' : 'none', overflowY: showAll ? 'auto' : 'visible' }}>
           {displayedSenders.map((sender, index) => (
             <li 
-              key={sender.email} 
+              key={`${sender.email}-${index}`}
               style={{ 
                 padding: '0.75rem', 
                 background: '#f8f9fa', 

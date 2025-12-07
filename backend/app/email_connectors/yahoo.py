@@ -52,11 +52,48 @@ class YahooConnector:
                 pass
             self.imap = None
     
+    def get_email_count_by_date_range(
+        self,
+        start_date: datetime,
+        end_date: datetime
+    ) -> int:
+        """
+        Get count of emails in date range without fetching them
+        Returns the total count
+        """
+        self._connect()
+        
+        try:
+            self.imap.select('INBOX')
+            
+            # Format dates for IMAP search
+            start_str = start_date.strftime("%d-%b-%Y")
+            end_str = end_date.strftime("%d-%b-%Y")
+            search_query = f'(SINCE {start_str} BEFORE {end_str})'
+            
+            try:
+                status, message_uids = self.imap.uid('SEARCH', None, search_query)
+            except socket.timeout:
+                logger.error(f"Timeout during IMAP search for count")
+                raise Exception(f"Search timed out while getting email count.")
+            
+            if status != 'OK':
+                raise Exception(f"IMAP UID search failed: {status}")
+            
+            if not message_uids[0]:
+                return 0
+            
+            email_uids = message_uids[0].split()
+            return len(email_uids)
+        finally:
+            self._disconnect()
+    
     def fetch_emails_by_date_range(
         self, 
         start_date: datetime, 
         end_date: datetime,
-        max_results: int = 5000
+        max_results: int = 5000,
+        progress_callback: callable = None
     ) -> List[Dict]:
         """
         Fetch emails within date range using IMAP UID (stable identifier)
@@ -133,6 +170,12 @@ class YahooConnector:
                     if global_idx > 0 and global_idx % 25 == 0:
                         logger.info(f"Processed {global_idx}/{len(email_uids)} emails...")
                         print(f"[PRINT] Processed {global_idx}/{len(email_uids)} emails...")
+                        # Call progress callback to update database
+                        if progress_callback:
+                            try:
+                                progress_callback(global_idx, len(email_uids))
+                            except Exception as e:
+                                logger.warning(f"Progress callback failed: {e}")
                     
                     try:
                         # Use UID fetch to get only headers (much faster than full RFC822)

@@ -68,6 +68,7 @@ export interface AnalysisRun {
   account_id: number
   status: string
   emails_processed: number
+  total_emails?: number | null
   start_date: string
   end_date: string
   created_at: string

@@ -12,7 +12,26 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/mailmind.db")
 # Create data directory if it doesn't exist
 os.makedirs("data", exist_ok=True)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
+# Configure SQLite for better concurrent access
+if "sqlite" in DATABASE_URL:
+    connect_args = {
+        "check_same_thread": False,
+        "timeout": 20  # Wait up to 20 seconds for locks
+    }
+    # Extract database path for WAL mode setup
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(os.path.dirname(__file__), db_path)
+    
+    # Enable WAL mode for better concurrent read/write access
+    if os.path.exists(db_path):
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.close()
+else:
+    connect_args = {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -72,6 +91,7 @@ class AnalysisRun(Base):
     end_date = Column(DateTime, nullable=False)
     status = Column(String, default="pending")  # pending, processing, completed, failed
     emails_processed = Column(Integer, default=0)
+    total_emails = Column(Integer, nullable=True)  # Total emails to process (null if unknown)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
     error_message = Column(Text, nullable=True)  # Store error details for failed runs

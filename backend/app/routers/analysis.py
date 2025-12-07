@@ -421,10 +421,58 @@ async def get_analysis_run(
     if not analysis_run:
         raise HTTPException(status_code=404, detail="Analysis run not found")
     
+    # Use raw SQLite to read the latest value, completely bypassing SQLAlchemy caching
+    import logging
+    import sqlite3
+    import os
+    logger = logging.getLogger(__name__)
+    
+    # Get database path
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./data/mailmind.db")
+    db_path = db_url.replace("sqlite:///", "")
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), db_path)
+    
+    try:
+        # Use raw SQLite connection to get absolute latest data
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, status, emails_processed, total_emails, start_date, end_date, created_at, completed_at, error_message FROM analysis_runs WHERE id = ?",
+            (run_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            emails_processed = row[2] or 0
+            total_emails = row[3]
+            status = row[1]
+            
+            logger.info(f"API returning run {run_id}: emails_processed={emails_processed}, total_emails={total_emails}, status={status}")
+            print(f"[PRINT] API returning run {run_id}: emails_processed={emails_processed}, total_emails={total_emails}, status={status}")
+            
+            return {
+                "id": row[0],
+                "status": status,
+                "emails_processed": emails_processed,
+                "total_emails": total_emails,
+                "start_date": row[4],
+                "end_date": row[5],
+                "created_at": row[6],
+                "completed_at": row[7],
+                "error_message": row[8]
+            }
+    except Exception as e:
+        logger.error(f"Error reading from raw SQLite: {e}")
+        print(f"[PRINT] Error reading from raw SQLite: {e}")
+    
+    # Fallback to SQLAlchemy
     return {
         "id": analysis_run.id,
         "status": analysis_run.status,
         "emails_processed": analysis_run.emails_processed,
+        "total_emails": analysis_run.total_emails,
         "start_date": analysis_run.start_date.isoformat(),
         "end_date": analysis_run.end_date.isoformat(),
         "created_at": analysis_run.created_at.isoformat(),
@@ -474,6 +522,7 @@ async def list_analysis_runs(
                 "account_id": run.account_id,
                 "status": run.status,
                 "emails_processed": run.emails_processed,
+                "total_emails": run.total_emails,
                 "start_date": run.start_date.isoformat(),
                 "end_date": run.end_date.isoformat(),
                 "created_at": run.created_at.isoformat(),
