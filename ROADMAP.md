@@ -297,12 +297,14 @@
 ## 🐛 Known Issues
 
 1. **Analysis Run ID Bug** - ✅ Fixed
-2. **No progress tracking** - Analysis runs don't show progress percentage during processing
+2. **No progress tracking** - ✅ Fixed (progress bar with X/Y emails during fetching)
 3. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
 4. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
 5. **Duplicate email handling** - ✅ Fixed (composite unique constraint, IntegrityError handling, Yahoo UID support)
 6. **Frontend state persistence** - If page is refreshed, everything resets - including started analysis on the frontend. Need to persist analysis state and restore on page reload.
 7. **Concurrent analysis handling** - Do we handle analysis request when one is already running? Need to prevent multiple simultaneous analyses or queue them properly.
+8. **Frontend timeout mismatch** - Frontend times out after 30s even when backend successfully completes analysis. Need to increase frontend timeout or handle long-running analyses better.
+9. **Processed ranges display inconsistency** - On successful completion, processed ranges chart only shows the area surrounding the latest analysis run. On stop/cancel, it shows the entire processed range. Display should be consistent.
 
 ---
 
