@@ -168,7 +168,7 @@ def main():
         print('  -d \'{"username":"your_username","provider":"gmail","email":"your@gmail.com","credentials":"<PASTE_JSON_HERE>"}\'')
         print()
         print("⚠️  Note: The credentials field must be a JSON string (escape quotes)")
-        print("   Or use the Python/JavaScript examples from ACCOUNT_SETUP.md")
+        print("   Or use the Python/JavaScript examples from USER_GUIDE.md")
         print()
         
     except Exception as e:
