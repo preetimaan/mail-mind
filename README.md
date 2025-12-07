@@ -6,14 +6,16 @@ An intelligent email management system that analyzes and categorizes emails base
 
 ## Features
 
-- **Batch Analysis**: Process thousands of emails by date range
+- **Batch Analysis**: Process thousands of emails by date range with real-time progress tracking
 - **Analysis Control**: Stop running analyses and automatically revert changes
-- **Smart Tracking**: Maintains previously analyzed dates to avoid reprocessing
+- **Smart Tracking**: Maintains previously analyzed dates to avoid reprocessing, can be over-ridden
 - **NLP-Powered**: Uses natural language processing for pattern detection and clustering
 - **Multi-Provider**: Supports Gmail and Yahoo Mail
 - **Secure Storage**: Encrypted local-only storage of metadata and analysis results
-- **Web Dashboard**: Interactive dashboard for insights and visualization
+- **Web Dashboard**: Interactive dashboard with tab-based navigation and modern UI
 - **Pagination**: Efficient loading of analysis runs (5 at a time with "Load More")
+- **Real-time Progress**: Live progress bar showing X/Y emails during analysis
+- **Email Management**: Copy sender emails, view all senders, and manage accounts easily
 
 ## Architecture
 
@@ -62,29 +64,34 @@ npm run dev
 
 ### Step 3: Add Email Account
 
-**📖 See [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) for detailed instructions**
+**📖 See [USER_GUIDE.md](USER_GUIDE.md) for user instructions**
+
+**Important: Two Types of Accounts**
+
+1. **Developer Account (One-Time Setup)**: Google Cloud Project credentials
+   - Required for Gmail API access
+   - Set up once per developer/installation
+   - See [DEVELOPER_ACCOUNT_SETUP.md](DEVELOPER_ACCOUNT_SETUP.md) for Google Cloud Project setup
+
+2. **User Email Accounts (Per User)**: Your actual email accounts to analyze
+   - Gmail: Use OAuth flow in dashboard UI
+   - Yahoo: Enter email and app-specific password in dashboard UI
+   - Add via dashboard "Add Account" button or API (see [USER_GUIDE.md](USER_GUIDE.md))
 
 **Quick Summary:**
-- **Gmail**: Get OAuth tokens using `backend/get_gmail_tokens.py` helper script
-- **Yahoo**: Generate app-specific password from Yahoo Account Security
-- Add account via API (examples in ACCOUNT_SETUP.md)
-
-**Helper Script for Gmail:**
-```bash
-cd backend
-python get_gmail_tokens.py
-# Follow the prompts to get your credentials JSON
-```
+- **Gmail**: OAuth flow handled in dashboard UI
+- **Yahoo**: Enter email and app-specific password in dashboard UI
+- See [USER_GUIDE.md](USER_GUIDE.md) for complete user instructions
 
 ### Step 4: Use the Dashboard
 
 1. Open `http://localhost:3000`
-2. Enter your username
+2. Enter your username (saved in browser)
 3. Select your email account
 4. Pick a date range (e.g., last 30 days)
 5. Click "Analyze"
-6. Wait for processing (status updates automatically)
-7. View insights!
+6. Watch real-time progress (X/Y emails processed)
+7. View insights in organized tabs!
 
 ## Setup Details
 
@@ -92,31 +99,53 @@ python get_gmail_tokens.py
 
 - Python 3.10+
 - Node.js 18+ and npm
-- Gmail: OAuth credentials (for Gmail API)
-- Yahoo: App-specific password (for IMAP)
+- **For Gmail**: Google Cloud Project with OAuth credentials (one-time developer setup)
+- **For Yahoo**: App-specific password (per email account)
 
 ## Usage
 
 ### 1. Configure Email Accounts
 
-**📖 For detailed step-by-step instructions, see [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md)**
+**For Developers:** See [DEVELOPER_ACCOUNT_SETUP.md](DEVELOPER_ACCOUNT_SETUP.md) for Google Cloud Project setup  
+**For Users:** See [USER_GUIDE.md](USER_GUIDE.md) for adding your email accounts
+
+#### Understanding Account Types
+
+**Developer Account (One-Time Setup - For Gmail Only):**
+- **What**: Google Cloud Project with OAuth Client ID/Secret
+- **Who**: Developer/admin setting up Mail Mind
+- **When**: Once, before any users can add Gmail accounts
+- **Purpose**: Enables Mail Mind to connect to Gmail API
+- **Result**: Mail Mind can now authenticate with Gmail (but can't access emails yet)
+- **See**: [DEVELOPER_ACCOUNT_SETUP.md](DEVELOPER_ACCOUNT_SETUP.md)
+
+**User Email Accounts (Per User, Per Email):**
+- **What**: Your actual email accounts (Gmail or Yahoo) to analyze
+- **Who**: Each end user who wants to analyze their emails
+- **When**: Every time a user wants to add an email account
+- **Purpose**: Connect YOUR specific email account to Mail Mind
+- **Result**: Mail Mind can now access and analyze THAT USER'S emails
+- **See**: [USER_GUIDE.md](USER_GUIDE.md)
 
 #### Quick Overview
 
-**Gmail Setup:**
-1. Create Google Cloud Project and enable Gmail API
-2. Create OAuth 2.0 credentials
-3. Get OAuth tokens (use `backend/get_gmail_tokens.py` helper script)
-4. Add account via API with credentials JSON
+**Gmail Setup (Two Steps):**
+1. **Developer Setup** (one-time): Create Google Cloud Project, enable Gmail API, create OAuth credentials
+   - See [DEVELOPER_ACCOUNT_SETUP.md](DEVELOPER_ACCOUNT_SETUP.md)
+2. **User Setup** (per account): Add your Gmail account via dashboard UI (OAuth flow) or API
+   - See [USER_GUIDE.md](USER_GUIDE.md)
 
 **Yahoo Setup:**
 1. Enable 2-Step Verification
 2. Generate App-Specific Password from Yahoo Account Security
-3. Add account via API with email and app password
+3. Add account via dashboard UI or API
+   - See [USER_GUIDE.md](USER_GUIDE.md)
 
 **Adding Accounts:**
-- Currently accounts must be added via API (UI coming soon)
-- See [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) for complete instructions and examples
+- **Recommended**: Use the "Add Account" button in the dashboard UI
+- **Gmail**: OAuth flow handled directly in the browser (uses developer's Google Cloud credentials)
+- **Yahoo**: Enter email and app-specific password
+- **Alternative**: Add via API (see [USER_GUIDE.md](USER_GUIDE.md) for examples)
 
 ### 2. Run Batch Analysis
 
@@ -127,12 +156,14 @@ python get_gmail_tokens.py
    - Select start and end dates
    - Click "Analyze"
 5. **Monitor progress**: The system shows analysis status
+   - Real-time progress bar: "Processing X/Y emails..."
    - Status: `pending` → `processing` → `completed`
    - View number of emails processed
-   - Stop button available to cancel running analyses
+   - Stop button available to cancel running analyses (with automatic revert)
 6. **View analysis history**: 
    - Shows 5 most recent analysis runs
    - Click "Load More" to see previous runs
+   - Failed runs grouped together with retry option
 
 ### 3. View Insights
 
@@ -145,7 +176,9 @@ After analysis completes, view:
   - Daily averages
   - Hourly distribution (peak hours)
   - Weekday patterns
-- **Processed Ranges**: Visual timeline showing which months are fully processed (Yes/No) - helps identify gaps in analysis
+  - Yearly trends (year-over-year comparison)
+- **Processed Ranges**: Visual timeline showing which months are fully processed (Yes/No visualization) - helps identify gaps in analysis
+- **Top Senders**: View all senders with copy-to-clipboard functionality
 
 ### 4. Key Features
 
@@ -194,7 +227,7 @@ After analysis completes, view:
 → Make sure backend is running on port 8000
 
 **"No accounts found"**
-→ Add an account first using the API endpoints (see ACCOUNT_SETUP.md)
+→ Add an account first via dashboard UI or API (see USER_GUIDE.md)
 
 **Database issues**:
 - Database is created automatically in `backend/data/mailmind.db`
@@ -210,6 +243,6 @@ See [ROADMAP.md](ROADMAP.md) for detailed development roadmap and priorities.
 
 ## Documentation
 
-- **[ACCOUNT_SETUP.md](ACCOUNT_SETUP.md)** - Complete account setup guide (Gmail & Yahoo, developer vs user setup, security)
-- **[DASHBOARD_GUIDE.md](DASHBOARD_GUIDE.md)** - Understanding the dashboard UI and data sources
+- **[DEVELOPER_ACCOUNT_SETUP.md](DEVELOPER_ACCOUNT_SETUP.md)** - Developer guide for setting up Google Cloud Project (Gmail API)
+- **[USER_GUIDE.md](USER_GUIDE.md)** - User guide for adding email accounts and using the dashboard
 - **[ROADMAP.md](ROADMAP.md)** - Development roadmap and UX improvements
