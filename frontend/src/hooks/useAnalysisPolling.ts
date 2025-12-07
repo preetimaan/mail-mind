@@ -56,37 +56,37 @@ export function useAnalysisPolling({
             setLoading(false)
             setProgress(null)
           
-            if (run.status === 'completed') {
-              const emailCount = run.emails_processed ?? 0
-              onSuccess(`Analysis completed! Processed ${emailCount} emails.`)
-              onComplete()
-            } else if (run.status === 'cancelled') {
-              onSuccess('Analysis stopped successfully.')
-              onComplete()
-            } else {
-              // Check if account is inactive (token expired)
-              if (checkAccountStatus && selectedAccount) {
-                const isActive = await checkAccountStatus(selectedAccount)
-                if (!isActive) {
-                  onError('Analysis failed: Your email account credentials have expired or been revoked. Please reconnect your account using the "Reconnect" button, then try again.')
-                } else {
-                  const errorMsg = run.error_message || 'Analysis failed. Possible causes: Expired credentials, network issues, or email service unavailable. Check your account status and try again, or use the "Retry" button.'
-                  onError(errorMsg)
-                }
+          if (run.status === 'completed') {
+            const emailCount = run.emails_processed ?? 0
+            onSuccess(`Analysis completed! Processed ${emailCount} emails.`)
+            onComplete()
+          } else if (run.status === 'cancelled') {
+            onSuccess('Analysis stopped successfully.')
+            onComplete()
+          } else {
+            // Check if account is inactive (token expired)
+            if (checkAccountStatus && selectedAccount) {
+              const isActive = await checkAccountStatus(selectedAccount)
+              if (!isActive) {
+                onError('Analysis failed: Your email account credentials have expired or been revoked. Please reconnect your account using the "Reconnect" button, then try again.')
               } else {
-                const errorMsg = run.error_message || 'Analysis failed. Please check your account credentials and try again.'
+                const errorMsg = run.error_message || 'Analysis failed. Possible causes: Expired credentials, network issues, or email service unavailable. Check your account status and try again, or use the "Retry" button.'
                 onError(errorMsg)
               }
+            } else {
+              const errorMsg = run.error_message || 'Analysis failed. Please check your account credentials and try again.'
+              onError(errorMsg)
             }
-            resolve()
           }
-        } catch (err) {
-          clearInterval(pollInterval)
-          setLoading(false)
-          setProgress(null)
-          onError('Failed to check analysis status')
           resolve()
         }
+      } catch (err) {
+        clearInterval(pollInterval)
+        setLoading(false)
+          setProgress(null)
+        onError('Failed to check analysis status')
+        resolve()
+      }
     }, 2000)
     })
   }

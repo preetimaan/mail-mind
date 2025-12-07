@@ -12,26 +12,24 @@ export default function UsernameForm({
   onUsernameKeyPress,
 }: UsernameFormProps) {
   return (
-    <div className="card">
-      <div className="form-group">
-        <label className="label">Username</label>
-        <div className="username-form">
-          <input
-            type="text"
-            className="input username-input"
-            value={usernameInput}
-            onChange={(e) => onUsernameInputChange(e.target.value)}
-            onKeyPress={onUsernameKeyPress}
-            placeholder="Enter your username"
-          />
-          <button
-            onClick={onUsernameSubmit}
-            className="submit-button"
-            disabled={!usernameInput.trim()}
-          >
-            Load
-          </button>
-        </div>
+    <div className="form-group">
+      <label className="label">Username</label>
+      <div className="username-form">
+        <input
+          type="text"
+          className="input username-input"
+          value={usernameInput}
+          onChange={(e) => onUsernameInputChange(e.target.value)}
+          onKeyPress={onUsernameKeyPress}
+          placeholder="Enter your username"
+        />
+        <button
+          onClick={onUsernameSubmit}
+          className="submit-button"
+          disabled={!usernameInput.trim()}
+        >
+          Load
+        </button>
       </div>
     </div>
   )

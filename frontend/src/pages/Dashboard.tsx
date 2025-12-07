@@ -25,9 +25,7 @@ import { useAnalysisPolling } from '../hooks/useAnalysisPolling'
 import './Dashboard.css'
 
 export default function Dashboard() {
-  // Check localStorage to determine initial tab
-  const hasSavedUsername = typeof window !== 'undefined' && localStorage.getItem('mailmind_username')
-  const [currentTab, setCurrentTab] = useState<TabType>(hasSavedUsername ? 'analysis' : 'settings')
+  const [currentTab, setCurrentTab] = useState<TabType>('analysis')
   const [showAddAccountModal, setShowAddAccountModal] = useState(false)
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([])
   const [analysisRunsOffset, setAnalysisRunsOffset] = useState(0)
@@ -314,17 +312,14 @@ export default function Dashboard() {
     }, 100)
   }
 
-  // Auto-switch to settings tab only if no username (after load) or no accounts
+  // Auto-switch to settings tab only if logged in but no accounts
   useEffect(() => {
-    // Only switch to settings if there's truly no username (check after a brief delay to allow localStorage load)
-    if (!username) {
-      const savedUsername = localStorage.getItem('mailmind_username')
-      if (!savedUsername) {
-        setCurrentTab('settings')
-      }
-    } else if (username && accounts.length === 0 && currentTab !== 'settings') {
+    if (username && accounts.length === 0) {
       // Switch to settings if logged in but no accounts
       setCurrentTab('settings')
+    } else if (username && accounts.length > 0 && currentTab === 'settings') {
+      // Switch back to analysis if accounts are added
+      setCurrentTab('analysis')
     }
   }, [username, accounts.length])
 
@@ -371,16 +366,32 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* Tabs - always visible so users can access Settings */}
-        <Tabs
-          currentTab={currentTab}
-          onTabChange={setCurrentTab}
-          hasAccounts={accounts.length > 0}
-        />
+        {/* Login form - shown when not logged in */}
+        {!username && (
+          <div className="card" style={{ marginTop: '1.5rem', maxWidth: '700px', margin: '1.5rem auto 0' }}>
+            <h2>Login</h2>
+            {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
+            <UsernameForm
+              usernameInput={usernameInput}
+              onUsernameInputChange={setUsernameInput}
+              onUsernameSubmit={handleUsernameSubmit}
+              onUsernameKeyPress={handleUsernameKeyPress}
+            />
+          </div>
+        )}
+
+        {/* Tabs - only visible when logged in */}
+        {username && (
+          <Tabs
+            currentTab={currentTab}
+            onTabChange={setCurrentTab}
+            hasAccounts={accounts.length > 0}
+          />
+        )}
 
         {/* Tab-specific content */}
         {username && (
-          <>
+              <>
             {currentTab === 'analysis' && selectedAccount && (
               <>
 
@@ -500,16 +511,16 @@ export default function Dashboard() {
                 {frequencyInsights ? (
                   frequencyInsights.total_emails > 0 ? (
                     <>
-                      <div className="card" style={{ marginTop: '1.5rem' }}>
-                        <h2>Email Frequency</h2>
-                        <FrequencyChart insights={frequencyInsights} />
-                      </div>
                       {yearlyFrequencyInsights && yearlyFrequencyInsights.years && yearlyFrequencyInsights.years.length > 0 && (
                         <div className="card" style={{ marginTop: '1.5rem' }}>
                           <h2>Yearly Frequency Analysis</h2>
                           <YearlyFrequencyChart insights={yearlyFrequencyInsights} />
                         </div>
                       )}
+                      <div className="card" style={{ marginTop: '1.5rem' }}>
+                        <h2>Email Frequency</h2>
+                        <FrequencyChart insights={frequencyInsights} />
+                      </div>
                     </>
                   ) : (
                     <div className="card" style={{ marginTop: '1.5rem' }}>
@@ -536,60 +547,35 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* Settings tab - accessible without username for login */}
-        {currentTab === 'settings' && (
+        {/* Settings tab */}
+        {username && currentTab === 'settings' && (
           <div className="card" style={{ marginTop: '1.5rem' }}>
             <h2>Settings</h2>
             
-            {!username && (
-              <>
-                <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Login</h3>
-                {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
-                <UsernameForm
-                  usernameInput={usernameInput}
-                  onUsernameInputChange={setUsernameInput}
-                  onUsernameSubmit={handleUsernameSubmit}
-                  onUsernameKeyPress={handleUsernameKeyPress}
-                />
-              </>
+            {/* All Accounts Summary */}
+            {accounts.length > 0 && (
+              <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                <AllAccountsSummary summary={summary} />
+              </div>
             )}
 
-            {username && (
-              <>
-                {/* All Accounts Summary */}
-                {accounts.length > 0 && (
-                  <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-                    <AllAccountsSummary summary={summary} />
-                  </div>
-                )}
-
-                <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Account Management</h3>
-                {accountsLoading && <div style={{ marginBottom: '1rem', color: '#666' }}>Loading accounts...</div>}
-                {accountsError && <div className="error" style={{ marginBottom: '1rem' }}>{accountsError}</div>}
-                <AccountSelector
-                  accounts={accounts}
-                  selectedAccount={selectedAccount}
-                  onSelect={setSelectedAccount}
-                  onAddAccount={() => setShowAddAccountModal(true)}
-                  onDeleteAccount={handleDeleteAccount}
-                  onReconnectAccount={(accountId) => {
-                    setSelectedAccount(accountId)
-                    setShowAddAccountModal(true)
-                  }}
-                />
-              </>
-            )}
+            <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Account Management</h3>
+            {accountsLoading && <div style={{ marginBottom: '1rem', color: '#666' }}>Loading accounts...</div>}
+            {accountsError && <div className="error" style={{ marginBottom: '1rem' }}>{accountsError}</div>}
+            <AccountSelector
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onSelect={setSelectedAccount}
+              onAddAccount={() => setShowAddAccountModal(true)}
+              onDeleteAccount={handleDeleteAccount}
+              onReconnectAccount={(accountId) => {
+                setSelectedAccount(accountId)
+                setShowAddAccountModal(true)
+              }}
+            />
           </div>
         )}
 
-        {/* Message for non-logged-in users on other tabs */}
-        {!username && currentTab !== 'settings' && (
-          <div className="card" style={{ marginTop: '1.5rem' }}>
-            <p style={{ color: '#666', margin: '1rem 0' }}>
-              Please go to <strong>Settings</strong> to log in.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )

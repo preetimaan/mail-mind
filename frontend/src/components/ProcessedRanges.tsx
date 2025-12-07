@@ -107,14 +107,14 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
       
       {/* Chart showing coverage and gaps */}
       <div style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: '#555' }}>Coverage Timeline</h3>
+        <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Coverage Timeline</h3>
         <ProcessedRangesChart ranges={ranges} />
       </div>
       
       {/* Gaps section - unprocessed date ranges */}
       {gaps.length > 0 && (
         <div style={{ marginBottom: '2rem' }}>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: '#555' }}>Unprocessed Gaps ({gaps.length})</h3>
+          <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Unprocessed Gaps ({gaps.length})</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {gaps.map((gap, idx) => (
               <div
@@ -178,7 +178,7 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
       
       {/* Table with processed ranges */}
       <div>
-        <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: '#555' }}>Processed Ranges</h3>
+        <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Processed Ranges</h3>
         <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>

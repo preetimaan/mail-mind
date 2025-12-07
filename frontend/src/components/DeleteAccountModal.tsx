@@ -100,17 +100,15 @@ export default function DeleteAccountModal({
                 onClick={handleClose}
                 disabled={loading}
                 type="button"
+                className="btn"
                 style={{
                   background: 'none',
                   border: '1px solid #ddd',
                   color: '#333',
-                  padding: '0.75rem 1.5rem',
                   borderRadius: '4px',
                   fontSize: '1rem',
-                  cursor: loading ? 'not-allowed' : 'pointer',
                   fontWeight: '500',
-                  transition: 'all 0.2s',
-                  opacity: loading ? 0.5 : 1,
+                  opacity: loading ? 0.6 : 1,
                 }}
                 onMouseEnter={(e) => {
                   if (!loading) {

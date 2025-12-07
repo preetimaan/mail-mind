@@ -32,7 +32,7 @@ export default function YearlyFrequencyChart({ insights }: YearlyFrequencyChartP
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <h3>Year-over-Year Comparison</h3>
+        <h3 style={{ marginBottom: '1rem' }}>Year-over-Year Comparison</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={yearOverYearData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -88,7 +88,7 @@ export default function YearlyFrequencyChart({ insights }: YearlyFrequencyChartP
 
       {insights.years.length > 0 && (
         <div>
-          <h3>Monthly Distribution by Year</h3>
+          <h3 style={{ marginBottom: '1rem' }}>Monthly Distribution by Year</h3>
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -111,23 +111,6 @@ export default function YearlyFrequencyChart({ insights }: YearlyFrequencyChartP
           </ResponsiveContainer>
         </div>
       )}
-
-      <div style={{ marginTop: '2rem', padding: '1rem', background: '#f8f9fa', borderRadius: '4px' }}>
-        <h4>Data Completeness</h4>
-        {insights.years.map(year => {
-          const stats = insights.yearly_stats[year]
-          return (
-            <div key={year} style={{ marginBottom: '0.5rem' }}>
-              <strong>{year}:</strong> {stats.months_with_data} of 12 months have data
-              {stats.peak_month && (
-                <span style={{ marginLeft: '1rem', color: '#666' }}>
-                  Peak month: {new Date(2000, stats.peak_month - 1).toLocaleString('default', { month: 'long' })}
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }

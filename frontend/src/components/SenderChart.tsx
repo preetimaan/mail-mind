@@ -214,7 +214,7 @@ export default function SenderChart({ insights, username, accountId }: SenderCha
       </div>
       
       <div style={{ marginTop: '2rem' }}>
-        <h3>Top Domains</h3>
+        <h3 style={{ marginBottom: '1rem' }}>Top Domains</h3>
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {insights.top_domains.map((domain) => (
             <li key={domain.domain} style={{ padding: '0.5rem', background: '#f8f9fa', marginBottom: '0.5rem', borderRadius: '4px' }}>

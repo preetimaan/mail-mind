@@ -27,7 +27,7 @@ export default function FrequencyChart({ insights }: FrequencyChartProps) {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <h3>Daily Average: {insights.daily_average.toFixed(2)} emails/day</h3>
+        <h3 style={{ marginBottom: '1rem' }}>Daily Average: {insights.daily_average.toFixed(2)} emails/day</h3>
         <p>Total: {insights.total_emails} emails over {insights.unique_days} days</p>
         {insights.peak_hour !== null && (
           <p>Peak Hour: {insights.peak_hour}:00</p>
@@ -35,7 +35,7 @@ export default function FrequencyChart({ insights }: FrequencyChartProps) {
       </div>
 
       <div style={{ marginBottom: '2rem' }}>
-        <h3>Hourly Distribution</h3>
+        <h3 style={{ marginBottom: '1rem' }}>Hourly Distribution</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={hourlyData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -49,7 +49,7 @@ export default function FrequencyChart({ insights }: FrequencyChartProps) {
       </div>
 
       <div>
-        <h3>Weekday Distribution</h3>
+        <h3 style={{ marginBottom: '1rem' }}>Weekday Distribution</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={weekdayData}>
             <CartesianGrid strokeDasharray="3 3" />

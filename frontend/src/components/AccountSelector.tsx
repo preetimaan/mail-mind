@@ -29,14 +29,10 @@ export default function AccountSelector({
             onClick={onAddAccount} 
             className="btn btn-primary"
             style={{ 
-              padding: '0.75rem 1.5rem',
               fontSize: '1rem',
               fontWeight: '600',
-              display: 'inline-flex',
-              alignItems: 'center',
               gap: '0.5rem',
-              minWidth: '140px',
-              justifyContent: 'center'
+              minWidth: '140px'
             }}
             type="button"
           >
@@ -69,14 +65,10 @@ export default function AccountSelector({
             onClick={onAddAccount}
             className="btn btn-primary"
             style={{
-              padding: "0.75rem 1.5rem",
               fontSize: "1rem",
               fontWeight: "600",
-              display: "inline-flex",
-              alignItems: "center",
               gap: "0.5rem",
               minWidth: "140px",
-              justifyContent: "center",
             }}
             type="button"
           >
@@ -85,18 +77,14 @@ export default function AccountSelector({
           <button
             onClick={() => setDeleteModalOpen(true)}
             type="button"
+            className="btn"
             style={{
               background: "none",
               border: "1px solid #ddd",
               color: "#333",
-              padding: "0.75rem 1.5rem",
               borderRadius: "4px",
               fontSize: "1rem",
-              cursor: "pointer",
               fontWeight: "500",
-              transition: "all 0.2s",
-              display: "inline-flex",
-              alignItems: "center",
               gap: "0.5rem",
             }}
             onMouseEnter={(e) => {
@@ -108,7 +96,7 @@ export default function AccountSelector({
               e.currentTarget.style.borderColor = "#ddd";
             }}
           >
-            🗑️ Delete Account
+            Delete Account
           </button>
         </div>
       </div>
@@ -146,7 +134,6 @@ export default function AccountSelector({
                       }
                       className="btn btn-primary"
                       style={{
-                        padding: "0.75rem 1.5rem",
                         fontSize: "0.9rem",
                         fontWeight: "500",
                         whiteSpace: "nowrap",
