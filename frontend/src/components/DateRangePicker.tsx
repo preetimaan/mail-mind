@@ -29,6 +29,66 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
     }
   }, [initialStartDate, initialEndDate])
 
+  const validateDateInput = (value: string, currentValue: string): string => {
+    // Empty value is allowed
+    if (!value) {
+      return value
+    }
+    
+    // If the value is in YYYY-MM-DD format, check if year exceeds 4 digits
+    const isoMatch = value.match(/^(\d+)-(\d{2})-(\d{2})$/)
+    if (isoMatch) {
+      const year = isoMatch[1]
+      // If year is longer than 4 digits, reject the input (return previous value)
+      if (year.length > 4) {
+        return currentValue
+      }
+    }
+    
+    // Check for partial input patterns
+    // Pattern: YYYY-MM (year might be too long)
+    const partialWithMonth = value.match(/^(\d+)-(\d{1,2})$/)
+    if (partialWithMonth) {
+      const year = partialWithMonth[1]
+      if (year.length > 4) {
+        return currentValue
+      }
+    }
+    
+    // Pattern: YYYY- (just year and dash)
+    const partialWithDash = value.match(/^(\d+)-$/)
+    if (partialWithDash) {
+      const year = partialWithDash[1]
+      if (year.length > 4) {
+        return currentValue
+      }
+    }
+    
+    // Pattern: Just digits (user typing year)
+    const justDigits = value.match(/^(\d+)$/)
+    if (justDigits) {
+      const year = justDigits[1]
+      // If more than 4 digits, reject
+      if (year.length > 4) {
+        return currentValue
+      }
+    }
+    
+    return value
+  }
+
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    const validated = validateDateInput(value, startDate)
+    setStartDate(validated)
+  }
+
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    const validated = validateDateInput(value, endDate)
+    setEndDate(validated)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!startDate || !endDate) {
@@ -56,9 +116,10 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
             type="date"
             className="input"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={handleStartDateChange}
             disabled={disabled}
             required
+            max="9999-12-31"
           />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
@@ -67,9 +128,10 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
             type="date"
             className="input"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={handleEndDateChange}
             disabled={disabled}
             required
+            max="9999-12-31"
           />
         </div>
         <button
