@@ -1,19 +1,49 @@
+import HeaderAccountSelector from './HeaderAccountSelector'
+import { EmailAccount } from '../api/client'
+
 interface DashboardHeaderProps {
   username: string | null
   onLogout: () => void
+  accounts: EmailAccount[]
+  selectedAccount: number | null
+  onSelectAccount: (accountId: number) => void
+  onReload?: () => void
+  reloading?: boolean
 }
 
-export default function DashboardHeader({ username, onLogout }: DashboardHeaderProps) {
+export default function DashboardHeader({ 
+  username, 
+  onLogout,
+  accounts,
+  selectedAccount,
+  onSelectAccount,
+  onReload,
+  reloading = false
+}: DashboardHeaderProps) {
   return (
     <header className="dashboard-header">
       <div className="header-content">
-        <div>
+        <div className="header-title">
           <h1>Mail Mind</h1>
-          <p>Email Analysis and Classifier Tool</p>
         </div>
         {username && (
           <div className="user-info">
-            <span className="current-user">Logged in as: <strong>{username}</strong></span>
+            <HeaderAccountSelector
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onSelect={onSelectAccount}
+              username={username}
+            />
+            {onReload && (
+              <button 
+                onClick={onReload} 
+                className="reload-button"
+                title="Reload user data"
+                disabled={reloading}
+              >
+                ↻
+              </button>
+            )}
             <button 
               onClick={onLogout} 
               className="logout-button"
