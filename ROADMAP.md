@@ -101,7 +101,8 @@
 
 ### Documentation
 - [x] README.md with setup instructions
-- [x] QUICKSTART.md guide
+- [x] DEVELOPER_SETUP.md guide
+- [x] USER_GUIDE.md guide
 - [x] API documentation (via FastAPI Swagger UI)
 
 ### Error Handling & Observability
@@ -142,21 +143,6 @@
 - [x] Error handling for invalid credentials
 - [ ] Connection testing button
 - [ ] Account reconnection for expired tokens
-
-#### 1a. Improve Duplicate Email Handling
-**Status**: ✅ Completed  
-**Priority**: Medium-High  
-**Description**: Fixed duplicate email handling issues to prevent data integrity problems.
-
-**Completed Fixes**:
-- ✅ Changed `message_id` unique constraint to composite unique on `(account_id, message_id)`
-- ✅ Added error handling for `IntegrityError` in email storage to gracefully handle race conditions
-- ✅ Updated Yahoo connector to use IMAP UID (stable identifier) instead of sequence numbers
-- ✅ Yahoo now uses Message-ID header when available for maximum stability
-- ✅ Created migration script to update existing databases
-
-**Remaining Tasks**:
-- [ ] Add tests for duplicate email scenarios (same email in overlapping date ranges, race conditions)
 
 ### Medium Priority
 
@@ -300,15 +286,11 @@
 
 ## 🐛 Known Issues
 
-1. **Analysis Run ID Bug** - ✅ Fixed
-2. **No progress tracking** - ✅ Fixed (progress bar with X/Y emails during fetching)
-3. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
-4. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
-5. **Duplicate email handling** - ✅ Fixed (composite unique constraint, IntegrityError handling, Yahoo UID support)
-6. **Processed ranges display inconsistency** - ✅ Fixed (simplified to Yes/No visualization for consistency)
-7. **Frontend state persistence** - If page is refreshed, everything resets - including started analysis on the frontend. Need to persist analysis state and restore on page reload.
-8. **Concurrent analysis handling** - Do we handle analysis request when one is already running? Need to prevent multiple simultaneous analyses or queue them properly.
-9. **Frontend timeout mismatch** - Frontend times out after 30s even when backend successfully completes analysis. Need to increase frontend timeout or handle long-running analyses better.
+1. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
+2. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
+3. **Frontend state persistence** - Page refresh resets state including running analysis
+4. **Concurrent analysis handling** - No prevention of multiple simultaneous analyses
+5. **Frontend timeout mismatch** - Frontend times out after 30s even when backend succeeds
 
 ---
 
@@ -316,186 +298,26 @@
 
 | Feature | Priority | Effort | Impact | Status |
 |---------|----------|--------|--------|--------|
-| Account Management UI | High | Medium | High | ✅ Completed |
-| OAuth Callback | High | Low | High | ✅ Completed |
-| Error Handling | High | Medium | High | ✅ Completed |
-| Duplicate Email Handling | Medium-High | Low | High | ✅ Completed |
-| Yearly Frequency Analysis | Medium | Medium | Medium | ✅ Completed |
-| Gap Detection & Visualization | Medium | Medium | Medium | ✅ Completed |
 | UI/UX Enhancements | Medium | Medium | Medium | Partially Complete |
 | Export Functionality | Medium | Low | Medium | Not Started |
-| Email Filtering | Medium | Medium | Medium | Not Started |
-| Advanced Analytics | Medium | High | Medium | Not Started |
+| Email Filtering & Search | Medium | Medium | Medium | Not Started |
 | Testing | Medium | High | High | Not Started |
+| Deployment & DevOps | Medium | Medium | High | Not Started |
+| Advanced Analytics | Medium | High | Medium | Not Started |
 | Multi-Account Comparison | Low | Medium | Low | Not Started |
 | Content Analysis | Low | High | Low | Not Started |
 | Performance Optimization | Low | High | Medium | Not Started |
 
 ---
 
-## 🎯 Current Sprint Goals
+## 🎯 Next Focus Areas
 
-1. ✅ Fix analysis_run_id bug
-2. ✅ Implement account management UI
-3. ✅ Add OAuth callback handler
-4. ✅ Improve error handling (error messages, retry, grouping)
-5. ✅ Add loading spinner and UI improvements
-6. ✅ Implement yearly frequency analysis
-7. ✅ Add gap detection and visualization
-8. ✅ Add comprehensive logging
-9. ✅ Fix timezone handling in date tracking
-
-**Next Sprint Focus:**
-- Frontend state persistence
-- Concurrent analysis handling
-- Enhanced account management (edit/delete, connection testing)
-- Export functionality
+- Frontend state persistence (restore analysis state on refresh)
+- Concurrent analysis handling (prevent/queue multiple analyses)
+- Export functionality (CSV/JSON)
 - Email filtering & search
 - Testing infrastructure
-
-**Recent Completions:**
-- ✅ Stop analysis functionality with revert
-- ✅ Analysis runs pagination (5 at a time with "Load More" button)
-- ✅ Copy email functionality for frequent senders
-- ✅ Always show email summary with 0 values
-- ✅ Show all senders feature
-- ✅ Improved timeout handling and Yahoo credential support
-- ✅ Improved processed range gap detection
-- ✅ Real-time progress bar for email analysis
-- ✅ Tab-based navigation and improved layout structure
-- ✅ UI improvements (button heights, spacing, colors, layout fixes)
-- ✅ Date input validation improvements
-- ✅ Simplified processed ranges chart (Yes/No visualization)
-
----
-
-## 🎨 User Experience Improvements
-
-### Phase 1: Quick Wins (Easy to Implement)
-
-#### 1. **Auto-Detect Username from Email**
-- When adding account, suggest username based on email
-- Example: `john@gmail.com` → suggest username `john`
-- Still allow manual override
-
-#### 2. **Remember Username in Browser**
-- Store username in `localStorage`
-- Auto-fill on page load
-- "Remember me" checkbox
-
-#### 3. **Username Validation & Help Text**
-- Add placeholder: "e.g., your_name or email_prefix"
-- Show help text: "This groups your accounts together"
-- Validate format (alphanumeric + underscore)
-
-#### 4. **Show Username in Account List**
-- Display which username each account belongs to
-- Help users remember what they used
-
-### Phase 2: Account Management UI (Medium Effort)
-
-#### 1. **Add Account Button in Dashboard**
-- Button: "Add Email Account"
-- Opens modal/form
-- Two tabs: "Gmail" and "Yahoo"
-
-#### 2. **Gmail OAuth Flow in UI**
-- **Step 1**: Enter Gmail address
-- **Step 2**: Click "Connect Gmail"
-- **Step 3**: Redirect to Google OAuth (or popup)
-- **Step 4**: User authorizes
-- **Step 5**: Callback handles token exchange
-- **Step 6**: Account added automatically
-
-**Backend Changes Needed:**
-- Add `/api/oauth/authorize` endpoint (generates OAuth URL)
-- Add `/api/oauth/callback` endpoint (handles OAuth callback)
-- Store OAuth state in session/cache
-
-#### 3. **Yahoo Account Form**
-- Simple form: Email + App Password
-- Instructions inline: "How to get app password"
-- Validate credentials before saving
-
-#### 4. **Account Management**
-- List all accounts in dashboard
-- Edit account (update credentials)
-- Delete account
-- Test connection button
-
-### Phase 3: Better User Experience (More Complex)
-
-#### 1. **Session-Based Authentication**
-- Replace username with session tokens
-- Auto-login after adding first account
-- "Switch User" option
-
-#### 2. **Email-Based Username**
-- Use email as primary identifier
-- Username becomes optional alias
-- Easier to remember
-
-#### 3. **Account Groups/Profiles**
-- Create "profiles" (work, personal, etc.)
-- Group accounts by profile
-- Switch between profiles
-
-#### 4. **Simplified First-Time Setup**
-- Onboarding wizard:
-  1. Welcome screen
-  2. "Add your first email account"
-  3. Guided OAuth flow
-  4. Quick analysis of recent emails
-  5. Show results
-
-### Current User Journey vs. Improved Journey
-
-**Current Journey (Complex):**
-```
-1. Read DEVELOPER_ACCOUNT_SETUP.md (10 min)
-2. Set up Google Cloud Project (5 min)
-3. Get OAuth tokens via script (5 min)
-4. Add to .env file (2 min)
-5. Run add_gmail_account.py (1 min)
-6. Open dashboard
-7. Enter username (hope you remember it!)
-8. Select account
-9. Analyze
-```
-**Total: ~25 minutes, technical knowledge required**
-
-**Improved Journey (Simple):**
-```
-1. Open dashboard
-2. Click "Add Account"
-3. Select "Gmail"
-4. Enter email
-5. Click "Connect" → OAuth popup
-6. Authorize → Done!
-7. Account appears automatically
-8. Click "Analyze"
-```
-**Total: ~2 minutes, no technical knowledge**
-
-### Priority Recommendations
-
-**Must Have (P0):**
-1. ✅ Remember username in browser
-2. ✅ Add account UI (at least for Yahoo)
-3. ✅ OAuth callback endpoint for Gmail
-4. ✅ Better error messages
-5. ✅ Retry functionality for failed runs
-
-**Should Have (P1):**
-1. Account list with edit/delete
-2. Connection testing
-3. Export functionality
-4. Email filtering & search
-
-**Nice to Have (P2):**
-1. Onboarding wizard
-2. Profile system
-3. Session management
+- Account edit/delete and connection testing
 
 ---
 
