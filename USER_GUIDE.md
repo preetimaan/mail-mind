@@ -1,91 +1,49 @@
 # Mail Mind User Guide
 
-Welcome to Mail Mind! This guide will help you understand and use the dashboard to gain insights into your email patterns.
+This guide helps you add email accounts and use the dashboard to gain insights into your email patterns.
 
-## Quick Start
-
-### Setting Up a New User Account
-
-**Good news:** There's no separate "create user account" step! User accounts are created automatically.
-
-**Process:**
-1. Open the dashboard: `http://localhost:3000`
-2. Enter a new username (one you haven't used before)
-3. Add your first email account (see below)
-4. **The user account is created automatically** when you add the first email account
-
-**Example:**
-- Username: `john_doe` (first time)
-- Add Gmail account: `john@gmail.com`
-- → User account "john_doe" is automatically created
-- → Email account "john@gmail.com" is added to "john_doe"
-
-**Important:**
-- Usernames must be unique (each username = one user account)
-- Use the same username for all email accounts you want grouped together
-- Different usernames = separate user accounts with separate data
-
-### Adding Your First Email Account
-
-When you add your first email account, the user account is created automatically.
-
-**Option A: Gmail (Recommended)**
-1. Click "Add Account" button
-2. Select "Gmail"
-3. You'll be redirected to Google to authorize
-4. Sign in and grant permissions
-5. You'll be redirected back to the dashboard
-6. Account appears automatically
-
-**Option B: Yahoo**
-1. Generate app-specific password from [Yahoo Account Security](https://login.yahoo.com/account/security)
-2. Click "Add Account" button
-3. Select "Yahoo"
-4. Enter your email and app-specific password
-5. Click "Add Account"
-6. Account appears automatically
-
-**Result:**
-- ✅ User account is created automatically (username you entered)
-- ✅ Email account is added to your user account
-- ✅ You can now analyze emails!
-
-### Adding Additional Email Accounts
-
-**If you already have a user account** (you've added at least one email account):
-
-1. **Enter your existing username** in the dashboard
-2. **Click "Add Account"** button
-3. Follow the same steps as above (Gmail or Yahoo)
-
-**You can add multiple email accounts to the same username:**
-- All accounts with the same username are grouped together
-- Each account's data is kept separate
-- You can switch between accounts using the account selector
-
-### Start Analyzing
-
-1. Select your email account from the dropdown
-2. Choose a date range to analyze (e.g., last 30 days, last year)
-3. Click "Analyze" and watch the progress!
+**Note:** This guide is for end users. If you're setting up Mail Mind for the first time (developer/admin), see [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md).
 
 ---
 
-## Getting Started
+## Quick Start
 
-### Understanding User Accounts vs Email Accounts
+### 1. Add Your Email Account
 
-**Important:** Mail Mind uses a simple username system - there's no separate "user account" creation step!
+**Gmail:**
+1. Open the dashboard at `http://localhost:3000`
+2. Enter a username (e.g., `john_doe`)
+3. Click "Add Account" → Select "Gmail"
+4. Sign in with Google and grant permissions
+5. Account appears automatically
 
-- **Username**: A name you choose to group your email accounts together (e.g., "john_doe", "work", "personal")
-- **User Account**: Created automatically when you add your first email account
-- **Email Account**: Your actual Gmail or Yahoo account that you want to analyze
+**Yahoo:**
+1. First, generate an app-specific password from [Yahoo Account Security](https://login.yahoo.com/account/security)
+2. Open the dashboard and enter a username
+3. Click "Add Account" → Select "Yahoo"
+4. Enter your email and app-specific password
+5. Account appears automatically
 
-**How it works:**
-1. You enter a username in the dashboard
-2. When you add your first email account, Mail Mind automatically creates your user account
-3. All email accounts added with the same username are grouped together
-4. You can add multiple email accounts to the same username
+### 2. Run Your First Analysis
+
+1. Select your email account from the dropdown
+2. Choose a date range (e.g., last 30 days)
+3. Click "Analyze" and watch the progress
+4. View insights in the organized tabs
+
+---
+
+## Managing Accounts
+
+### Understanding Usernames
+
+- **Username**: Groups your email accounts together (e.g., "john_doe", "work")
+- **User account**: Created automatically when you add your first email
+- **Email account**: Your actual Gmail or Yahoo account to analyze
+
+**Tips:**
+- Use the same username for all accounts you want grouped together
+- Different usernames = separate data
 
 ---
 
@@ -148,11 +106,6 @@ The dashboard is organized into tabs for easy navigation. Here's what each secti
 - Helps you understand if you're getting mostly automated emails vs. personal
 - Percentage shows what portion of your inbox each category represents
 
-**Tips:**
-- High "Newsletters" percentage? → Consider unsubscribing from unused subscriptions
-- High "Work" percentage? → Work-heavy email usage
-- High "Personal" percentage? → Lots of direct communication
-
 ---
 
 ### ⏰ Email Frequency
@@ -171,11 +124,6 @@ The dashboard is organized into tabs for easy navigation. Here's what each secti
 - **Peak Hour**: Best time to check email (when most arrive)
 - **Hourly Pattern**: Shows if emails come throughout the day or in bursts
 - **Weekday Pattern**: Shows if weekends are quieter or work emails cluster on weekdays
-
-**Tips:**
-- Peak hour at 9 AM? → Check email in the morning
-- High weekday, low weekend? → Work-related email pattern
-- Even distribution? → Consistent email flow throughout
 
 ---
 
@@ -252,466 +200,125 @@ The dashboard is organized into tabs for easy navigation. Here's what each secti
 
 ---
 
-## Managing Your Accounts
+### Adding a Gmail Account (Details)
 
-### Setting Up a New User Account
+1. Click "Add Account" → Select "Gmail"
+2. Sign in with your Google account
+3. Grant permissions to Mail Mind (read-only access)
+4. You'll be redirected back - account appears automatically
 
-**How to create a new user account:**
-
-There's no separate "create user account" step! User accounts are created automatically.
-
-**Process:**
-1. Open the dashboard at `http://localhost:3000`
-2. Enter a new username (one you haven't used before)
-3. Add your first email account (see below)
-4. **The user account is created automatically** when you add the first email account
-
-**Example:**
-- Username: `john_doe` (first time)
-- Add Gmail account: `john@gmail.com`
-- → User account "john_doe" is automatically created
-- → Email account "john@gmail.com" is added to "john_doe"
-
-**Important:**
-- Usernames must be unique (each username = one user account)
-- Use the same username for all email accounts you want grouped together
-- Different usernames = separate user accounts with separate data
-
-### Adding a New Email Account to an Existing User
-
-**If you already have a user account** (you've added at least one email account before):
-
-1. **Enter your existing username** in the dashboard
-2. **Click "Add Account"** button
-3. Follow the steps below to add Gmail or Yahoo
-
-**If this is your first email account:**
-- The user account will be created automatically when you add the email account
-
-### Understanding What You're Adding
-
-**What You're Adding:**
-- Your **email account** (Gmail or Yahoo) that you want to analyze
-- This is different from a "developer account" (Google Cloud Project)
-- You're connecting YOUR email to Mail Mind, not setting up developer credentials
-
-**Important:**
-- Each email account you add is separate
-- You can add multiple email accounts to the same username
-- Each account's data is kept separate
-- You're not sharing accounts with other users
-
----
-
-### Adding a Gmail Account
-
-#### Option A: Via Dashboard UI (Recommended)
-
-1. Click "Add Account" button
-2. Select "Gmail"
-3. You'll be redirected to Google to authorize access
-4. Sign in with your Google account
-5. Grant permissions to Mail Mind
-6. You'll be redirected back to the dashboard
-7. Account appears automatically once added
-
-**What happens:**
-- This uses OAuth (secure, no password needed)
-- You're giving Mail Mind permission to read YOUR emails (read-only)
-- The developer/admin must have set up Google Cloud Project first (one-time setup)
-- Your OAuth tokens are encrypted and stored securely
-
-**Gmail Account Requirements:**
-- **2-Step Verification** must be enabled on your Gmail account
-- The app only requests **read-only** access to your emails
+**Requirements:**
+- 2-Step Verification must be enabled on your Gmail account
 - You can revoke access anytime at [Google Account Security](https://myaccount.google.com/permissions)
 
-#### Option B: Via API (Advanced)
-
-If you prefer to add accounts via API, see the [Adding Accounts via API](#adding-accounts-via-api) section below.
+**Note:** If you see "Access blocked" error, contact your admin to add your email as a test user in Google Cloud Console.
 
 ---
 
-### Adding a Yahoo Account
-
-#### Option A: Via Dashboard UI (Recommended)
-
-**Before you start:** You need to generate an app-specific password first.
+### Adding a Yahoo Account (Details)
 
 **Step 1: Generate App-Specific Password**
 
-Yahoo requires an **app-specific password** (not your regular password) for IMAP access.
+Yahoo requires an app-specific password (not your regular password):
 
 1. Go to [Yahoo Account Security](https://login.yahoo.com/account/security)
-2. Sign in to your Yahoo account
-3. Scroll down to **"App passwords"** section
-4. Click **"Generate app password"** or **"Manage app passwords"**
-5. If prompted, verify your identity
-6. Select **"Mail"** as the app type
-7. Enter a name (e.g., "Mail Mind")
-8. Click **"Generate"**
-9. **IMPORTANT**: Copy the 16-character password immediately (you won't see it again!)
-   - Format: `xxxx xxxx xxxx xxxx` (remove spaces when using)
-
-**Note**: If you don't see "App passwords" option:
-- You may need to enable **2-Step Verification** first
-- Go to **"Two-step verification"** and enable it
-- Then return to App passwords
+2. Enable **2-Step Verification** if not already enabled
+3. Scroll to **"App passwords"** → Click **"Generate app password"**
+4. Select **"Mail"** as the app type, name it "Mail Mind"
+5. **Copy the 16-character password** (you won't see it again!)
 
 **Step 2: Add Account in Dashboard**
 
-1. Open Mail Mind dashboard
-2. Click "Add Account" button
-3. Select "Yahoo"
-4. Enter your email address
-5. Enter your app-specific password (16 characters, no spaces)
-6. Click "Add Account"
-7. Account is added automatically
+1. Click "Add Account" → Select "Yahoo"
+2. Enter your email address
+3. Enter the 16-character app-specific password (no spaces)
+4. Click "Add Account"
 
-**Yahoo Account Requirements:**
-- ✅ **2-Step Verification** must be enabled
-- ✅ **App-specific password** must be generated (not your regular password)
-- ✅ IMAP access is enabled by default for Yahoo Mail
-
-#### Option B: Via API (Advanced)
-
-If you prefer to add accounts via API, see the [Adding Accounts via API](#adding-accounts-via-api) section below.
-
----
-
-### Adding Accounts via API
-
-If you prefer to add accounts programmatically or via command line, you can use the API.
-
-#### API Endpoint
-
-```
-POST http://localhost:8000/api/emails/accounts
-```
-
-#### Request Body
-
-```json
-{
-  "username": "string",
-  "provider": "gmail" | "yahoo",
-  "email": "string",
-  "credentials": "string (JSON)"
-}
-```
-
-#### Gmail Example (using curl)
-
-**First, get OAuth tokens** (see helper script method below), then:
-
-```bash
-curl -X POST http://localhost:8000/api/emails/accounts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "your_username",
-    "provider": "gmail",
-    "email": "your@gmail.com",
-    "credentials": "{\"token\":\"ya29.xxx\",\"refresh_token\":\"1//xxx\",\"token_uri\":\"https://oauth2.googleapis.com/token\",\"client_id\":\"your-client-id\",\"client_secret\":\"your-secret\",\"scopes\":[\"https://www.googleapis.com/auth/gmail.readonly\"]}"
-  }'
-```
-
-**Getting Gmail OAuth Tokens:**
-
-**Option 1: Using Helper Script (Recommended)**
-
-```bash
-cd backend
-pip install google-auth-oauthlib google-auth-httplib2
-python get_gmail_tokens.py
-```
-
-Follow the prompts:
-1. Enter Client ID and Client Secret (from developer's `.env` file)
-2. Open the authorization URL in your browser
-3. Sign in and grant permissions
-4. You'll see a "Not Found" error - **this is normal!**
-5. Copy the URL from your browser's address bar
-6. Paste it into the script
-7. Get your credentials JSON - use this in the API call above
-
-**Option 2: Using Google OAuth Playground**
-
-1. Go to [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/)
-2. Click the gear icon (⚙️) in top right
-3. Check **"Use your own OAuth credentials"**
-4. Enter **Client ID** and **Client Secret** (from developer)
-5. In left panel, find **"Gmail API v1"**
-6. Select **"https://www.googleapis.com/auth/gmail.readonly"**
-7. Click **"Authorize APIs"**
-8. Sign in and grant permissions
-9. Click **"Exchange authorization code for tokens"**
-10. Copy the tokens and format as JSON (see example above)
-
-#### Yahoo Example (using curl)
-
-```bash
-curl -X POST http://localhost:8000/api/emails/accounts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "your_username",
-    "provider": "yahoo",
-    "email": "your@yahoo.com",
-    "credentials": "{\"email\":\"your@yahoo.com\",\"password\":\"xxxxxxxxxxxxxxxx\"}"
-  }'
-```
-
-**Important Notes:**
-- Replace `your_username` with your Mail Mind username
-- Replace `your@yahoo.com` with your Yahoo email
-- Replace `xxxxxxxxxxxxxxxx` with your **16-character app-specific password** (no spaces)
-- The `credentials` field must be a **JSON string** (escaped quotes)
-
-#### Using Python requests
-
-```python
-import requests
-import json
-
-# Gmail
-gmail_credentials = {
-    "token": "ya29.xxx...",
-    "refresh_token": "1//xxx...",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "client_id": "your-client-id",
-    "client_secret": "your-secret",
-    "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
-}
-
-response = requests.post(
-    "http://localhost:8000/api/emails/accounts",
-    json={
-        "username": "john_doe",
-        "provider": "gmail",
-        "email": "john@gmail.com",
-        "credentials": json.dumps(gmail_credentials)
-    }
-)
-print(response.json())
-
-# Yahoo
-yahoo_credentials = {
-    "email": "john@yahoo.com",
-    "password": "abcdabcdabcdabcd"  # App-specific password
-}
-
-response = requests.post(
-    "http://localhost:8000/api/emails/accounts",
-    json={
-        "username": "john_doe",
-        "provider": "yahoo",
-        "email": "john@yahoo.com",
-        "credentials": json.dumps(yahoo_credentials)
-    }
-)
-print(response.json())
-```
-
-#### Verify Account Was Added
-
-```bash
-curl "http://localhost:8000/api/emails/accounts?username=your_username"
-```
+**Requirements:**
+- 2-Step Verification must be enabled
+- Use app-specific password, not your regular password
 
 ---
 
 ### Deleting an Account
 
 1. Click "Delete Account" button
-2. Select the account you want to remove
+2. Select the account to remove
 3. Confirm deletion
-4. All data for that account is removed
 
-**Note:** This permanently deletes:
-- The account connection
-- All stored email metadata for that account
-- All analysis results for that account
+**Note:** This permanently deletes the account, all email metadata, and analysis results for that account.
 
 ---
 
-## Tips & Best Practices
+### Adding Accounts via API (Advanced)
 
-### Understanding Your Results
+For programmatic account management, use the API:
 
-**High Newsletter Percentage?**
-- Consider unsubscribing from unused subscriptions
-- Use email filters to organize newsletters
+```bash
+# Yahoo account
+curl -X POST http://localhost:8000/api/emails/accounts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "your_username",
+    "provider": "yahoo",
+    "email": "your@yahoo.com",
+    "credentials": "{\"email\":\"your@yahoo.com\",\"password\":\"your-app-password\"}"
+  }'
 
-**One Sender Dominating?**
-- Check if it's important (colleague) or spam
-- Consider filtering if it's noise
+# List accounts
+curl "http://localhost:8000/api/emails/accounts?username=your_username"
+```
 
-**Low Personal Email?**
-- Most emails are automated/notifications
-- Consider if you need to reduce subscriptions
-
-**Many Processed Ranges?**
-- System is working efficiently
-- Won't re-process the same dates
-- Safe to re-run analysis on same ranges
-
-### Getting the Most Out of Mail Mind
-
-1. **Start Small**: Analyze a recent date range first (e.g., last 30 days)
-2. **Expand Gradually**: Once comfortable, analyze longer ranges
-3. **Compare Accounts**: Add multiple accounts to see differences
-4. **Track Trends**: Analyze different time periods to see how patterns change
-5. **Use Insights**: Take action based on what you learn (unsubscribe, filter, organize)
+For Gmail via API, you'll need OAuth tokens. See the backend helper script: `python backend/get_gmail_tokens.py`
 
 ---
 
 ## Common Questions
 
-**Q: Why do I see 0 emails?**
-- You haven't analyzed any date ranges yet
-- Click "Analyze" to process emails
-
-**Q: Why are some categories missing?**
-- Categories only appear if you have emails in that category
-- Empty categories don't show in the pie chart
-
-**Q: Can I analyze the same dates twice?**
-- Yes! But it only processes new/unprocessed emails
-- Processed ranges prevent duplicate work
-- Safe to re-run - won't waste time or resources
-
-**Q: What if analysis fails?**
-- Check the error message (displayed in the UI)
-- Failed runs are grouped together with a "Retry All" button
-- Common issues: Invalid credentials, network problems, API limits
-- Individual retry available for each failed run
-
-**Q: Can I cancel a running analysis?**
-- Yes! Use the "Stop" button (always visible in the header)
-- Canceling automatically reverts all changes made during that analysis
-- Safe to cancel at any time - no data corruption
-
-**Q: How do I know which dates need analysis?**
-- Check the Processed Date Ranges section
-- Red months in the timeline chart indicate gaps
-- The system can auto-fill date ranges to cover gaps
-
-**Q: Is my data secure?**
-- Yes! All data is stored locally on your computer
-- Email metadata is encrypted
-- No data is sent to external servers (except to fetch emails from Gmail/Yahoo)
-
-**Q: Can I use multiple accounts?**
-- Yes! Add as many email accounts as you want
-- Switch between accounts using the account selector
-- Each account's data is kept separate
-
-**Q: What's the difference between a "developer account" and my email account?**
-- **Developer Account** (Google Cloud Project): Set up once by the developer/admin to enable Gmail API access. You don't need to worry about this - it's already configured.
-- **Your Email Account**: The Gmail or Yahoo account YOU add to analyze YOUR emails. This is what you add using the "Add Account" button.
-- **You only need to add your email accounts** - the developer account is already set up!
+| Question | Answer |
+|----------|--------|
+| Why do I see 0 emails? | You haven't analyzed any date ranges yet. Click "Analyze" to process emails. |
+| Why are some categories missing? | Categories only appear if you have emails in that category. |
+| Can I analyze the same dates twice? | Yes! It only processes new/unprocessed emails. Safe to re-run. |
+| Can I cancel a running analysis? | Yes! Use the "Stop" button. All changes are automatically reverted. |
+| How do I know which dates need analysis? | Check "Processed Date Ranges" - red months indicate gaps. |
+| Is my data secure? | Yes! All data is stored locally and encrypted. Only email fetching contacts external servers. |
+| Can I use multiple accounts? | Yes! Add as many accounts as you want and switch between them. |
 
 ---
 
 ## Troubleshooting
 
-### Account Setup Issues
+### Gmail Issues
 
-#### Gmail Account Issues
+| Issue | Solution |
+|-------|----------|
+| "Invalid credentials" | Remove and re-add the account via dashboard |
+| "Access blocked" | Contact admin to add your email as a test user |
+| "Gmail API disabled" | Contact admin to enable Gmail API |
 
-**"Invalid credentials" error**
-- Your OAuth tokens may have expired
-- **Solution**: Remove the account and add it again via dashboard
-- The OAuth flow will get fresh tokens
+### Yahoo Issues
 
-**"Access blocked: This app's request is invalid"**
-- The developer may need to add your email as a test user
-- **Solution**: Contact the developer/admin to add your Gmail to the OAuth consent screen test users
-
-**"Not Found" error after granting Gmail permissions**
-- This is normal if using the helper script method
-- **Solution**: Copy the URL from your browser's address bar and paste it into the script
-
-**"Gmail API has not been used in project X before or it is disabled"**
-- The developer hasn't enabled Gmail API yet
-- **Solution**: Contact the developer/admin to enable Gmail API in Google Cloud Console
-
-#### Yahoo Account Issues
-
-**"Invalid credentials" or "Login failed"**
-- **Check**: Are you using an **app-specific password** (not your regular password)?
-- **Solution**: Generate a new app-specific password from Yahoo Account Security
-- **Check**: Remove any spaces from the password when copying
-
-**"IMAP access denied"**
-- **Check**: Is 2-Step Verification enabled?
-- **Solution**: Enable 2-Step Verification, then generate app password
-
-**"Connection timeout"**
-- **Check**: Firewall or network blocking IMAP port 993
-- **Solution**: Ensure port 993 (IMAP SSL) is not blocked
-
-**"Too many login attempts"**
-- **Solution**: Wait 15-30 minutes, then try again
-- **Check**: Make sure you're using the correct app-specific password
+| Issue | Solution |
+|-------|----------|
+| "Invalid credentials" / "Login failed" | Use app-specific password (not regular password). Remove spaces. |
+| "IMAP access denied" | Enable 2-Step Verification, then generate app password |
+| "Too many login attempts" | Wait 15-30 minutes, then retry |
 
 ### Analysis Issues
 
-#### Analysis Not Starting
-- Check that your account credentials are valid
-- Make sure the backend server is running
-- Try refreshing the page
-
-#### Analysis Failing
-- Check error message in the UI
-- Verify account credentials are correct
-- For Gmail: Make sure OAuth authorization is valid (try removing and re-adding account)
-- For Yahoo: Make sure you're using an app-specific password (not your regular password)
-- Check that your account appears in the account selector
-
-#### No Data Showing
-- Make sure you've completed at least one analysis
-- Check that the date range you analyzed contains emails
-- Try analyzing a different date range
-- Verify your account is selected in the account selector
-
-#### Slow Performance
-- Large date ranges take longer to process
-- Check the progress bar for real-time updates
-- Be patient - the system processes emails efficiently
-- 10,000+ emails can take 10+ minutes
-
-### General Issues
-
-#### "User not found"
-- The username will be created automatically on first account add
-- **Solution**: Use the same username for all accounts you want to group together
-
-#### Account added but analysis fails
-- **Check**: Verify credentials are correct
-- **Solution**: Delete and re-add the account with fresh credentials
-- For Gmail: Re-run OAuth flow to get new tokens
-- For Yahoo: Generate a new app-specific password
-
----
-
-## Next Steps
-
-After viewing your insights:
-
-1. **Identify Patterns**: Notice trends in senders, categories, frequency
-2. **Take Action**: Unsubscribe, filter, or organize based on insights
-3. **Analyze More**: Process different date ranges to see trends over time
-4. **Compare Accounts**: Add multiple accounts to see differences
-5. **Track Changes**: Re-analyze periodically to see how patterns evolve
+| Issue | Solution |
+|-------|----------|
+| Analysis not starting | Check credentials are valid, backend is running |
+| Analysis failing | Check error message. Try removing and re-adding account. |
+| No data showing | Run an analysis first. Check date range contains emails. |
+| Slow performance | Large date ranges take longer. 10,000+ emails can take 10+ minutes. |
 
 ---
 
 ## Need Help?
 
-- Check the [README.md](README.md) for setup instructions
-- Review the [ROADMAP.md](ROADMAP.md) for upcoming features
-- Make sure your backend server is running on port 8000
-- Check browser console for any error messages
-
-Happy analyzing! 📧✨
+- **Setup issues**: See [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md)
+- **General info**: See [README.md](README.md)
+- **Backend not running**: Make sure `uvicorn main:app --reload` is running in the backend folder
 
