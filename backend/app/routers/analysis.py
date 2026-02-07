@@ -171,12 +171,45 @@ def process_batch_analysis(
         analysis_run.status = "processing"
         db.commit()
         
-        # If force_reanalysis is True, remove processed date ranges for this range
+        # If force_reanalysis is True, remove existing data for this range
         if force_reanalysis:
-            logger.info(f"Force reanalysis requested - removing processed date ranges for {start_date} to {end_date}")
-            print(f"[PRINT] Force reanalysis requested - removing processed date ranges for {start_date} to {end_date}")
-            # Remove any processed ranges that overlap with the requested range
-            from app.database import ProcessedDateRange
+            logger.info(f"Force reanalysis requested - removing existing data for {start_date} to {end_date}")
+            print(f"[PRINT] Force reanalysis requested - removing existing data for {start_date} to {end_date}")
+            
+            from app.database import ProcessedDateRange, EmailMetadata, AnalysisResult
+            
+            # 1. Find all emails in the date range for this account
+            emails_in_range = db.query(EmailMetadata).filter(
+                EmailMetadata.account_id == account_id,
+                EmailMetadata.date_received >= start_date,
+                EmailMetadata.date_received <= end_date
+            ).all()
+            
+            if emails_in_range:
+                email_ids = [e.id for e in emails_in_range]
+                logger.info(f"Found {len(email_ids)} emails to delete for re-analysis")
+                print(f"[PRINT] Found {len(email_ids)} emails to delete for re-analysis")
+                
+                # 2. Delete associated AnalysisResult records first (foreign key constraint)
+                deleted_results = db.query(AnalysisResult).filter(
+                    AnalysisResult.email_id.in_(email_ids)
+                ).delete(synchronize_session=False)
+                logger.info(f"Deleted {deleted_results} analysis results")
+                print(f"[PRINT] Deleted {deleted_results} analysis results")
+                
+                # 3. Delete EmailMetadata records
+                deleted_emails = db.query(EmailMetadata).filter(
+                    EmailMetadata.id.in_(email_ids)
+                ).delete(synchronize_session=False)
+                logger.info(f"Deleted {deleted_emails} email metadata records")
+                print(f"[PRINT] Deleted {deleted_emails} email metadata records")
+                
+                db.commit()
+            else:
+                logger.info(f"No existing emails found in date range")
+                print(f"[PRINT] No existing emails found in date range")
+            
+            # 4. Remove processed date ranges that overlap with the requested range
             overlapping_ranges = db.query(ProcessedDateRange).filter(
                 ProcessedDateRange.account_id == account_id,
                 ProcessedDateRange.start_date < end_date,
@@ -184,18 +217,21 @@ def process_batch_analysis(
             ).all()
             
             if overlapping_ranges:
-                logger.info(f"Found {len(overlapping_ranges)} processed date ranges to remove for re-analysis:")
+                logger.info(f"Found {len(overlapping_ranges)} processed date ranges to remove:")
                 print(f"[PRINT] Found {len(overlapping_ranges)} processed date ranges to remove:")
                 for range_obj in overlapping_ranges:
                     logger.info(f"  - Removing range: {range_obj.start_date} to {range_obj.end_date} ({range_obj.emails_count} emails)")
                     print(f"[PRINT]   Removing range: {range_obj.start_date} to {range_obj.end_date} ({range_obj.emails_count} emails)")
                     db.delete(range_obj)
                 db.commit()
-                logger.info(f"Successfully removed {len(overlapping_ranges)} processed date ranges - will re-fetch and re-analyze")
-                print(f"[PRINT] Successfully removed {len(overlapping_ranges)} processed date ranges - will re-fetch and re-analyze")
+                logger.info(f"Successfully removed {len(overlapping_ranges)} processed date ranges")
+                print(f"[PRINT] Successfully removed {len(overlapping_ranges)} processed date ranges")
             else:
-                logger.info(f"No processed date ranges found to remove (range may not have been processed yet)")
+                logger.info(f"No processed date ranges found to remove")
                 print(f"[PRINT] No processed date ranges found to remove")
+            
+            logger.info(f"Force reanalysis cleanup complete - will re-fetch and re-analyze fresh data")
+            print(f"[PRINT] Force reanalysis cleanup complete - will re-fetch and re-analyze fresh data")
         
         # Get account
         account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()

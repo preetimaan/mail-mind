@@ -535,3 +535,84 @@ async def get_processed_range_gaps(
         for gap_start, gap_end in filtered_gaps
     ]
 
+@router.get("/diagnostic")
+async def get_diagnostic_info(
+    username: str,
+    account_id: int,
+    db: Session = Depends(get_db)
+):
+    """Diagnostic endpoint to check data integrity between emails and analysis results"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Count emails
+    email_count = db.query(EmailMetadata).filter(
+        EmailMetadata.account_id == account_id
+    ).count()
+    
+    # Count analysis results (via join with emails)
+    analysis_count = db.query(AnalysisResult).join(
+        EmailMetadata
+    ).filter(
+        EmailMetadata.account_id == account_id
+    ).count()
+    
+    # Count unique emails with analysis results
+    emails_with_analysis = db.query(EmailMetadata.id).join(
+        AnalysisResult
+    ).filter(
+        EmailMetadata.account_id == account_id
+    ).distinct().count()
+    
+    # Count emails WITHOUT analysis results
+    from sqlalchemy import outerjoin
+    emails_without_analysis = db.query(EmailMetadata).outerjoin(
+        AnalysisResult
+    ).filter(
+        EmailMetadata.account_id == account_id,
+        AnalysisResult.id == None
+    ).count()
+    
+    # Get processed ranges summary
+    processed_ranges = db.query(ProcessedDateRange).filter(
+        ProcessedDateRange.account_id == account_id
+    ).all()
+    
+    total_processed_emails = sum(r.emails_count for r in processed_ranges)
+    
+    # Category breakdown
+    category_counts = db.query(
+        AnalysisResult.category,
+        func.count(AnalysisResult.id).label('count')
+    ).join(
+        EmailMetadata
+    ).filter(
+        EmailMetadata.account_id == account_id
+    ).group_by(
+        AnalysisResult.category
+    ).all()
+    
+    return {
+        'email_metadata_count': email_count,
+        'analysis_results_count': analysis_count,
+        'emails_with_analysis': emails_with_analysis,
+        'emails_without_analysis': emails_without_analysis,
+        'processed_ranges_count': len(processed_ranges),
+        'processed_ranges_email_total': total_processed_emails,
+        'categories': {cat: count for cat, count in category_counts},
+        'data_integrity': {
+            'emails_match_analysis': email_count == emails_with_analysis,
+            'all_emails_have_analysis': emails_without_analysis == 0,
+            'analysis_per_email': round(analysis_count / email_count, 2) if email_count > 0 else 0
+        }
+    }
+
