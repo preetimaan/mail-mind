@@ -19,48 +19,39 @@ export default function CurrentAccountSummary({ summary, selectedAccount, accoun
     ? safeSummary.accounts.find((a) => a.id === selectedAccount)
     : null
 
-  // Get account email from accounts list if not in summary
-  const accountFromList = selectedAccount
-    ? accounts.find((a) => a.id === selectedAccount)
-    : null
-
-  // Current account stats (if account is selected)
-  const accountStats = selectedAccount
-    ? [
-        {
-          label: 'Current Account Emails',
-          value: account ? account.email_count.toLocaleString() : '0',
-        },
-        {
-          label: 'Current Account Senders',
-          value: account ? account.sender_count.toLocaleString() : '0',
-        },
-        {
-          label: 'Processed Ranges',
-          value: account ? account.processed_ranges : 0,
-        },
-      ]
-    : []
-
-  // Get account email for display (from summary, accounts list, or fallback)
-  const accountEmail = account?.email || accountFromList?.email || (selectedAccount ? `Account #${selectedAccount}` : null)
-
   if (!selectedAccount) {
     return null
   }
 
+  const emails = account ? account.email_count.toLocaleString() : '0'
+  const senders = account ? account.sender_count.toLocaleString() : '0'
+  const ranges = account ? account.processed_ranges : 0
+
   return (
-    <div>
-      <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', fontWeight: '600' }}>
-        Current Email Summary
-      </h2>
-      <div className="grid">
-        {accountStats.map((stat) => (
-          <div key={stat.label} className="stat-card">
-            <h3>{stat.label}</h3>
-            <div className="value">{stat.value}</div>
-          </div>
-        ))}
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: '1rem',
+    }}>
+      <span style={{ fontWeight: '600', color: '#333' }}>
+        Email Summary
+      </span>
+      <div style={{
+        display: 'flex',
+        gap: '1.5rem',
+        flexWrap: 'wrap',
+      }}>
+        <span style={{ color: '#555' }}>
+          <strong style={{ color: '#667eea' }}>{emails}</strong> emails
+        </span>
+        <span style={{ color: '#555' }}>
+          <strong style={{ color: '#667eea' }}>{senders}</strong> senders
+        </span>
+        <span style={{ color: '#555' }}>
+          <strong style={{ color: '#667eea' }}>{ranges}</strong> processed ranges
+        </span>
       </div>
     </div>
   )

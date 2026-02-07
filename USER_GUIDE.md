@@ -51,18 +51,15 @@ This guide helps you add email accounts and use the dashboard to gain insights i
 
 The dashboard is organized into tabs for easy navigation. Here's what each section shows:
 
-### 📊 Summary Statistics
+### 📊 Account Summary Bar
 
 **What you'll see:**
-- **Total Accounts**: How many email accounts you've added
-- **Total Emails**: Total emails analyzed across all accounts
-- **Total Senders**: Number of unique people/organizations emailing you
-- **Account-specific stats**: Breakdown for the currently selected account
+A compact bar showing stats for your currently selected account:
+- **Emails**: Total emails analyzed
+- **Senders**: Number of unique senders
+- **Processed ranges**: Number of date ranges analyzed
 
-**What it means:**
-- Quick overview of your email volume
-- Helps you understand the scale of your email data
-- Shows how much analysis has been completed
+**Note:** Tabs are sticky - they stay visible when you scroll, so you can easily switch between Analysis and Insights.
 
 ---
 

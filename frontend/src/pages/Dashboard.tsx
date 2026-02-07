@@ -357,9 +357,9 @@ export default function Dashboard() {
               } : undefined}
             />
 
-            {/* Current Account Summary - always visible above tabs */}
+            {/* Current Account Summary - compact bar above tabs */}
             {selectedAccount && (
-              <div className="card" style={{ marginTop: '0.75rem' }}>
+              <div className="card" style={{ marginTop: '0.75rem', padding: '0.75rem 1rem' }}>
                 <CurrentAccountSummary summary={summary} selectedAccount={selectedAccount} accounts={accounts} />
               </div>
             )}
