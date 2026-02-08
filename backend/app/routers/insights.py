@@ -535,6 +535,71 @@ async def get_processed_range_gaps(
         for gap_start, gap_end in filtered_gaps
     ]
 
+@router.post("/cleanup-duplicates")
+async def cleanup_duplicate_analysis_results(
+    username: str,
+    account_id: int,
+    db: Session = Depends(get_db)
+):
+    """Remove duplicate AnalysisResult records, keeping only the most recent per email"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Find emails with multiple analysis results
+    from sqlalchemy import func as sql_func
+    
+    # Subquery to find emails with duplicates
+    duplicate_emails = db.query(
+        AnalysisResult.email_id,
+        sql_func.count(AnalysisResult.id).label('count')
+    ).join(
+        EmailMetadata
+    ).filter(
+        EmailMetadata.account_id == account_id
+    ).group_by(
+        AnalysisResult.email_id
+    ).having(
+        sql_func.count(AnalysisResult.id) > 1
+    ).all()
+    
+    if not duplicate_emails:
+        return {
+            'message': 'No duplicate analysis results found',
+            'emails_affected': 0,
+            'duplicates_removed': 0
+        }
+    
+    total_removed = 0
+    emails_affected = len(duplicate_emails)
+    
+    for email_id, count in duplicate_emails:
+        # Get all analysis results for this email, ordered by id (most recent last)
+        results = db.query(AnalysisResult).filter(
+            AnalysisResult.email_id == email_id
+        ).order_by(AnalysisResult.id.desc()).all()
+        
+        # Keep the first one (most recent), delete the rest
+        for result in results[1:]:
+            db.delete(result)
+            total_removed += 1
+    
+    db.commit()
+    
+    return {
+        'message': f'Successfully cleaned up duplicate analysis results',
+        'emails_affected': emails_affected,
+        'duplicates_removed': total_removed
+    }
+
 @router.get("/diagnostic")
 async def get_diagnostic_info(
     username: str,
@@ -615,4 +680,3 @@ async def get_diagnostic_info(
             'analysis_per_email': round(analysis_count / email_count, 2) if email_count > 0 else 0
         }
     }
-

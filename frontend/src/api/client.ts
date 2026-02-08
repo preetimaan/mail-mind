@@ -165,3 +165,8 @@ export interface TestConnectionResponse {
   message: string
 }
 
+export interface CleanupResult {
+  message: string
+  emails_affected: number
+  duplicates_removed: number
+}

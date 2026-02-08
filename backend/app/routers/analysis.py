@@ -178,11 +178,47 @@ def process_batch_analysis(
             
             from app.database import ProcessedDateRange, EmailMetadata, AnalysisResult
             
-            # 1. Find all emails in the date range for this account
+            # Normalize dates for comparison (handle timezone differences)
+            def normalize_datetime(dt):
+                if dt is None:
+                    return dt
+                if dt.tzinfo is not None:
+                    from dateutil import tz as dateutil_tz
+                    utc_dt = dt.astimezone(dateutil_tz.UTC)
+                    return utc_dt.replace(tzinfo=None)
+                return dt
+            
+            norm_start = normalize_datetime(start_date)
+            norm_end = normalize_datetime(end_date)
+            
+            # Adjust dates to be inclusive of full days
+            from datetime import timedelta
+            # Start at beginning of day
+            norm_start = norm_start.replace(hour=0, minute=0, second=0, microsecond=0)
+            # End at end of day (23:59:59.999999)
+            norm_end = norm_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
+            # Add a 1-day buffer on each side to catch timezone edge cases
+            buffer_start = norm_start - timedelta(days=1)
+            buffer_end = norm_end + timedelta(days=1)
+            
+            logger.info(f"Normalized date range: {norm_start} to {norm_end}")
+            logger.info(f"With buffer for deletion: {buffer_start} to {buffer_end}")
+            print(f"[PRINT] Normalized date range: {norm_start} to {norm_end}")
+            print(f"[PRINT] With buffer for deletion: {buffer_start} to {buffer_end}")
+            
+            # Check total emails for this account first
+            total_account_emails = db.query(EmailMetadata).filter(
+                EmailMetadata.account_id == account_id
+            ).count()
+            logger.info(f"Total emails for account {account_id}: {total_account_emails}")
+            print(f"[PRINT] Total emails for account {account_id}: {total_account_emails}")
+            
+            # 1. Find all emails in the date range for this account (with buffer)
             emails_in_range = db.query(EmailMetadata).filter(
                 EmailMetadata.account_id == account_id,
-                EmailMetadata.date_received >= start_date,
-                EmailMetadata.date_received <= end_date
+                EmailMetadata.date_received >= buffer_start,
+                EmailMetadata.date_received <= buffer_end
             ).all()
             
             if emails_in_range:
@@ -205,6 +241,32 @@ def process_batch_analysis(
                 print(f"[PRINT] Deleted {deleted_emails} email metadata records")
                 
                 db.commit()
+            elif total_account_emails > 0:
+                # Fallback: no emails found in date range but account has emails
+                # This can happen due to timezone mismatches - delete ALL emails for account
+                logger.warning(f"No emails found in date range but account has {total_account_emails} emails - deleting all for clean re-analysis")
+                print(f"[PRINT] WARNING: No emails in date range but account has {total_account_emails} - deleting all")
+                
+                # Get all email IDs for this account
+                all_email_ids = [e.id for e in db.query(EmailMetadata.id).filter(
+                    EmailMetadata.account_id == account_id
+                ).all()]
+                
+                # Delete all analysis results
+                deleted_results = db.query(AnalysisResult).filter(
+                    AnalysisResult.email_id.in_(all_email_ids)
+                ).delete(synchronize_session=False)
+                logger.info(f"Deleted {deleted_results} analysis results (all)")
+                print(f"[PRINT] Deleted {deleted_results} analysis results (all)")
+                
+                # Delete all email metadata
+                deleted_emails = db.query(EmailMetadata).filter(
+                    EmailMetadata.account_id == account_id
+                ).delete(synchronize_session=False)
+                logger.info(f"Deleted {deleted_emails} email metadata records (all)")
+                print(f"[PRINT] Deleted {deleted_emails} email metadata records (all)")
+                
+                db.commit()
             else:
                 logger.info(f"No existing emails found in date range")
                 print(f"[PRINT] No existing emails found in date range")
@@ -212,8 +274,8 @@ def process_batch_analysis(
             # 4. Remove processed date ranges that overlap with the requested range
             overlapping_ranges = db.query(ProcessedDateRange).filter(
                 ProcessedDateRange.account_id == account_id,
-                ProcessedDateRange.start_date < end_date,
-                ProcessedDateRange.end_date > start_date
+                ProcessedDateRange.start_date < norm_end,
+                ProcessedDateRange.end_date > norm_start
             ).all()
             
             if overlapping_ranges:

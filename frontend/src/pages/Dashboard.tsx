@@ -37,6 +37,8 @@ export default function Dashboard() {
   const [processedRangesRefresh, setProcessedRangesRefresh] = useState(0)
   const [selectedGapStart, setSelectedGapStart] = useState<Date | undefined>()
   const [selectedGapEnd, setSelectedGapEnd] = useState<Date | undefined>()
+  const [cleanupLoading, setCleanupLoading] = useState(false)
+  const [cleanupResult, setCleanupResult] = useState<{ message: string; duplicates_removed: number } | null>(null)
 
   const {
     usernameInput,
@@ -303,6 +305,32 @@ export default function Dashboard() {
   const handleGapSelect = (startDate: Date, endDate: Date) => {
     setSelectedGapStart(startDate)
     setSelectedGapEnd(endDate)
+  }
+
+  const handleCleanupDuplicates = async () => {
+    if (!username || !selectedAccount) {
+      setError('Please select an account first')
+      return
+    }
+    
+    setCleanupLoading(true)
+    setCleanupResult(null)
+    setError(null)
+    
+    try {
+      const response = await api.post(`/api/insights/cleanup-duplicates?username=${username}&account_id=${selectedAccount}`)
+      setCleanupResult(response.data)
+      if (response.data.duplicates_removed > 0) {
+        setSuccess(`Cleaned up ${response.data.duplicates_removed} duplicate records`)
+        // Refresh insights after cleanup
+        loadSummary()
+        loadInsights()
+      }
+    } catch (err: any) {
+      setError(err.userMessage || 'Failed to clean up duplicates')
+    } finally {
+      setCleanupLoading(false)
+    }
     setSuccess(`Gap selected: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}. Dates filled in above - click "Analyze" to process this gap.`)
     setTimeout(() => {
       const datePicker = document.querySelector('.card h2')?.parentElement
@@ -573,6 +601,41 @@ export default function Dashboard() {
                 setShowAddAccountModal(true)
               }}
             />
+
+            {/* Data Maintenance */}
+            <h3 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Data Maintenance</h3>
+            <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+              <p style={{ margin: '0 0 1rem 0', color: '#666' }}>
+                If you've run force re-analysis multiple times on the same date ranges, 
+                you may have duplicate analysis records. Use this to clean them up.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleCleanupDuplicates}
+                  disabled={cleanupLoading || !selectedAccount}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: selectedAccount ? '#6c757d' : '#ccc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: selectedAccount ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {cleanupLoading ? 'Cleaning...' : 'Clean Up Duplicate Data'}
+                </button>
+                {!selectedAccount && (
+                  <span style={{ color: '#666', fontSize: '0.9rem' }}>Select an account first</span>
+                )}
+                {cleanupResult && (
+                  <span style={{ color: cleanupResult.duplicates_removed > 0 ? '#28a745' : '#666', fontSize: '0.9rem' }}>
+                    {cleanupResult.duplicates_removed > 0 
+                      ? `Removed ${cleanupResult.duplicates_removed} duplicates from ${cleanupResult.emails_affected} emails`
+                      : 'No duplicates found'}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
