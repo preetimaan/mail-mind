@@ -10,57 +10,84 @@ interface SenderChartProps {
 
 export default function SenderChart({ insights, username, accountId }: SenderChartProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
-  const [copiedAll, setCopiedAll] = useState(false)
-  const [showAll, setShowAll] = useState(false)
-  const [allSenders, setAllSenders] = useState<SenderInsights['top_senders'] | null>(null)
-  const [loadingAll, setLoadingAll] = useState(false)
+  const [copiedFilter, setCopiedFilter] = useState(false)
+  const [senders, setSenders] = useState(insights.top_senders)
+  const [offset, setOffset] = useState(insights.offset)
+  const [hasMore, setHasMore] = useState(insights.has_more)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [selectedSenders, setSelectedSenders] = useState<Set<string>>(new Set())
+  const [totalSenders, setTotalSenders] = useState(insights.total_senders)
 
-  const data = insights.top_senders.slice(0, 10).map((sender) => ({
+  const data = senders.slice(0, 10).map((sender) => ({
     name: sender.name || sender.email.split('@')[0],
     count: sender.count,
     percentage: sender.percentage,
   }))
 
-  const topSenders = insights.top_senders.slice(0, 10)
-
-  const loadAllSenders = async () => {
-    if (allSenders) {
-      // Already loaded, just toggle display
-      setShowAll(!showAll)
-      return
-    }
-
-    setLoadingAll(true)
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return
+    
+    const newOffset = offset + 20
+    if (newOffset >= 100) return // Cap at 100
+    
+    setLoadingMore(true)
     try {
-      const response = await api.get(`/api/insights/senders?username=${username}&account_id=${accountId}&limit=0`)
-      setAllSenders(response.data.top_senders)
-      setShowAll(true)
+      const response = await api.get(`/api/insights/senders?username=${username}&account_id=${accountId}&limit=20&offset=${newOffset}`)
+      setSenders([...senders, ...response.data.top_senders])
+      setOffset(newOffset)
+      setHasMore(response.data.has_more && newOffset + 20 < 100)
+      setTotalSenders(response.data.total_senders)
     } catch (err) {
-      console.error('Failed to load all senders:', err)
+      console.error('Failed to load more senders:', err)
     } finally {
-      setLoadingAll(false)
+      setLoadingMore(false)
     }
   }
 
-  const displayedSenders = showAll && allSenders ? allSenders : topSenders
+  const toggleSenderSelection = (email: string) => {
+    const newSelected = new Set(selectedSenders)
+    if (newSelected.has(email)) {
+      newSelected.delete(email)
+    } else {
+      newSelected.add(email)
+    }
+    setSelectedSenders(newSelected)
+  }
+
+  const selectAll = () => {
+    const allEmails = new Set(senders.map(s => s.email))
+    setSelectedSenders(allEmails)
+  }
+
+  const clearSelection = () => {
+    setSelectedSenders(new Set())
+  }
+
+  const generateFilterString = () => {
+    if (selectedSenders.size === 0) return ''
+    const emails = Array.from(selectedSenders)
+    // Gmail filter format: from:email1 OR from:email2 OR from:email3
+    return emails.map(e => `from:${e}`).join(' OR ')
+  }
+
+  const copyFilterString = async () => {
+    const filterString = generateFilterString()
+    if (!filterString) return
+    
+    try {
+      await navigator.clipboard.writeText(filterString)
+      setCopiedFilter(true)
+      setTimeout(() => setCopiedFilter(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
 
   const copyEmail = async (email: string, index: number) => {
     try {
       await navigator.clipboard.writeText(email)
       setCopiedIndex(index)
       setTimeout(() => setCopiedIndex(null), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-    }
-  }
-
-  const copyAllEmails = async () => {
-    const sendersToCopy = showAll && allSenders ? allSenders : topSenders
-    const allEmails = sendersToCopy.map(s => s.email).join(', ')
-    try {
-      await navigator.clipboard.writeText(allEmails)
-      setCopiedAll(true)
-      setTimeout(() => setCopiedAll(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
     }
@@ -79,50 +106,77 @@ export default function SenderChart({ insights, username, accountId }: SenderCha
         </BarChart>
       </ResponsiveContainer>
       
+      {/* Filter String Generator */}
+      {selectedSenders.size > 0 && (
+        <div style={{ 
+          marginTop: '1.5rem', 
+          padding: '1rem', 
+          backgroundColor: '#e8f4fd', 
+          borderRadius: '8px',
+          border: '1px solid #b8daff'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <strong style={{ color: '#004085' }}>{selectedSenders.size} sender(s) selected</strong>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={clearSelection}
+                type="button"
+                style={{
+                  background: 'none',
+                  border: '1px solid #6c757d',
+                  color: '#6c757d',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Selection
+              </button>
+              <button
+                onClick={copyFilterString}
+                type="button"
+                style={{
+                  background: copiedFilter ? '#28a745' : '#007bff',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                }}
+              >
+                {copiedFilter ? '✓ Copied!' : '📋 Copy Filter String'}
+              </button>
+            </div>
+          </div>
+          <div style={{ 
+            backgroundColor: '#fff', 
+            padding: '0.75rem', 
+            borderRadius: '4px', 
+            fontFamily: 'monospace', 
+            fontSize: '0.85rem',
+            wordBreak: 'break-all',
+            maxHeight: '100px',
+            overflowY: 'auto'
+          }}>
+            {generateFilterString()}
+          </div>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#666' }}>
+            Paste this in Gmail search or use it to create a filter
+          </p>
+        </div>
+      )}
+      
       <div style={{ marginTop: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ margin: 0 }}>
-            {showAll ? `All Senders (${allSenders?.length || 0})` : `Top Senders (${topSenders.length})`}
+            Top Senders ({senders.length} of {totalSenders})
           </h3>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {insights.top_senders.length > topSenders.length && (
-              <button
-                onClick={loadAllSenders}
-                type="button"
-                disabled={loadingAll}
-                style={{
-                  background: showAll ? '#667eea' : 'none',
-                  border: '1px solid #667eea',
-                  color: showAll ? '#fff' : '#667eea',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '4px',
-                  fontSize: '0.9rem',
-                  cursor: loadingAll ? 'wait' : 'pointer',
-                  fontWeight: '500',
-                  transition: 'all 0.2s',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  opacity: loadingAll ? 0.6 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!loadingAll && !showAll) {
-                    e.currentTarget.style.backgroundColor = '#667eea'
-                    e.currentTarget.style.color = '#fff'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loadingAll && !showAll) {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                    e.currentTarget.style.color = '#667eea'
-                  }
-                }}
-              >
-                {loadingAll ? 'Loading...' : showAll ? 'Show Top 10' : `Show All (${insights.total_emails > 0 ? '~' + Math.min(insights.top_senders.length, 1000) : 0})`}
-              </button>
-            )}
             <button
-              onClick={copyAllEmails}
+              onClick={selectAll}
               type="button"
               style={{
                 background: 'none',
@@ -132,85 +186,113 @@ export default function SenderChart({ insights, username, accountId }: SenderCha
                 borderRadius: '4px',
                 fontSize: '0.9rem',
                 cursor: 'pointer',
-                fontWeight: '500',
-                transition: 'all 0.2s',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#667eea'
-                e.currentTarget.style.color = '#fff'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-                e.currentTarget.style.color = '#667eea'
               }}
             >
-              {copiedAll ? '✓ Copied!' : '📋 Copy All Emails'}
+              Select All
             </button>
           </div>
         </div>
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: showAll ? '600px' : 'none', overflowY: showAll ? 'auto' : 'visible' }}>
-          {displayedSenders.map((sender, index) => (
+        
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {senders.map((sender, index) => (
             <li 
               key={`${sender.email}-${index}`}
               style={{ 
-                padding: '0.75rem', 
-                background: '#f8f9fa', 
-                marginBottom: '0.5rem', 
+                padding: '0.5rem 0.75rem', 
+                background: selectedSenders.has(sender.email) ? '#e8f4fd' : '#f8f9fa', 
+                marginBottom: '0.25rem', 
                 borderRadius: '4px',
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: '1rem'
+                gap: '0.75rem',
+                border: selectedSenders.has(sender.email) ? '1px solid #b8daff' : '1px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
               }}
+              onClick={() => toggleSenderSelection(sender.email)}
             >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
+              <input
+                type="checkbox"
+                checked={selectedSenders.has(sender.email)}
+                onChange={() => toggleSenderSelection(sender.email)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ 
+                  width: '16px', 
+                  height: '16px', 
+                  cursor: 'pointer',
+                  accentColor: '#667eea',
+                  flexShrink: 0
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: '500', whiteSpace: 'nowrap' }}>
                   {sender.name || sender.email.split('@')[0]}
-                </div>
-                <div style={{ fontSize: '0.9rem', color: '#666', wordBreak: 'break-all' }}>
+                </span>
+                <span style={{ fontSize: '0.85rem', color: '#666', wordBreak: 'break-all' }}>
                   {sender.email}
-                </div>
-                <div style={{ fontSize: '0.85rem', color: '#999', marginTop: '0.25rem' }}>
-                  {sender.count} emails ({sender.percentage.toFixed(1)}%)
-                </div>
+                </span>
+                <span style={{ fontSize: '0.8rem', color: '#999', whiteSpace: 'nowrap' }}>
+                  ({sender.count} · {sender.percentage.toFixed(1)}%)
+                </span>
               </div>
               <button
-                onClick={() => copyEmail(sender.email, index)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  copyEmail(sender.email, index)
+                }}
                 type="button"
                 style={{
                   background: copiedIndex === index ? '#28a745' : 'none',
                   border: copiedIndex === index ? '1px solid #28a745' : '1px solid #ddd',
                   color: copiedIndex === index ? '#fff' : '#333',
-                  padding: '0.5rem 1rem',
+                  padding: '0.25rem 0.5rem',
                   borderRadius: '4px',
-                  fontSize: '0.85rem',
+                  fontSize: '0.8rem',
                   cursor: 'pointer',
                   fontWeight: '500',
                   transition: 'all 0.2s',
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
                 }}
-                onMouseEnter={(e) => {
-                  if (copiedIndex !== index) {
-                    e.currentTarget.style.backgroundColor = '#f8f9fa'
-                    e.currentTarget.style.borderColor = '#bbb'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (copiedIndex !== index) {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                    e.currentTarget.style.borderColor = '#ddd'
-                  }
-                }}
               >
-                {copiedIndex === index ? '✓ Copied' : '📋 Copy'}
+                {copiedIndex === index ? '✓' : '📋'}
               </button>
             </li>
           ))}
         </ul>
+        
+        {/* Load More Button */}
+        {hasMore && senders.length < 100 && (
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              type="button"
+              style={{
+                background: '#667eea',
+                border: 'none',
+                color: '#fff',
+                padding: '0.75rem 2rem',
+                borderRadius: '4px',
+                fontSize: '1rem',
+                cursor: loadingMore ? 'wait' : 'pointer',
+                fontWeight: '500',
+                opacity: loadingMore ? 0.7 : 1,
+              }}
+            >
+              {loadingMore ? 'Loading...' : `Load More (${Math.min(20, 100 - senders.length)} more)`}
+            </button>
+            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#666' }}>
+              Showing {senders.length} of {Math.min(100, totalSenders)} senders (max 100)
+            </p>
+          </div>
+        )}
+        
+        {senders.length >= 100 && (
+          <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
+            Showing top 100 senders
+          </p>
+        )}
       </div>
       
       <div style={{ marginTop: '2rem' }}>
@@ -226,4 +308,3 @@ export default function SenderChart({ insights, username, accountId }: SenderCha
     </div>
   )
 }
-

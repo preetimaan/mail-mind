@@ -85,12 +85,14 @@ async def get_sender_insights(
     username: str,
     account_id: int,
     limit: Optional[int] = 20,
+    offset: Optional[int] = 0,
     db: Session = Depends(get_db)
 ):
-    """Get top senders and patterns
+    """Get top senders and patterns with pagination
     
     Args:
-        limit: Maximum number of senders to return. If None or 0, returns all senders.
+        limit: Maximum number of senders to return (default 20, max 100)
+        offset: Number of senders to skip for pagination (default 0)
     """
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -104,9 +106,27 @@ async def get_sender_insights(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    # Get sender counts - includes ALL emails for this account
-    # Note: Groups by both sender_email and sender_name, so same email with different names
-    # will appear as separate entries (this is correct behavior)
+    # Cap limit at 100
+    if limit and limit > 100:
+        limit = 100
+    
+    # Get total email count for this account
+    total_emails = db.query(EmailMetadata).filter(
+        EmailMetadata.account_id == account_id
+    ).count()
+    
+    # Get total unique sender count (for pagination info)
+    total_senders = db.query(
+        EmailMetadata.sender_email,
+        EmailMetadata.sender_name
+    ).filter(
+        EmailMetadata.account_id == account_id
+    ).group_by(
+        EmailMetadata.sender_email,
+        EmailMetadata.sender_name
+    ).count()
+    
+    # Get sender counts with pagination
     query = db.query(
         EmailMetadata.sender_email,
         EmailMetadata.sender_name,
@@ -120,16 +140,15 @@ async def get_sender_insights(
         func.count(EmailMetadata.id).desc()
     )
     
-    # Apply limit only if specified and > 0
+    # Apply offset
+    if offset and offset > 0:
+        query = query.offset(offset)
+    
+    # Apply limit
     if limit and limit > 0:
         query = query.limit(limit)
     
     sender_counts = query.all()
-    
-    # Get total email count for this account (includes all emails, no filters)
-    total_emails = db.query(EmailMetadata).filter(
-        EmailMetadata.account_id == account_id
-    ).count()
     
     senders = [
         {
@@ -141,12 +160,15 @@ async def get_sender_insights(
         for sender, name, count in sender_counts
     ]
     
-    # Domain analysis
+    # Domain analysis (only for current page of senders)
     domain_counts = Counter()
     for sender, _, count in sender_counts:
         if '@' in sender:
             domain = sender.split('@')[1]
             domain_counts[domain] += count
+    
+    # Calculate pagination info
+    has_more = (offset or 0) + len(sender_counts) < total_senders
     
     return {
         'top_senders': senders,
@@ -154,7 +176,11 @@ async def get_sender_insights(
             {'domain': domain, 'count': count}
             for domain, count in domain_counts.most_common(10)
         ],
-        'total_emails': total_emails
+        'total_emails': total_emails,
+        'total_senders': total_senders,
+        'offset': offset or 0,
+        'limit': limit or 20,
+        'has_more': has_more
     }
 
 @router.get("/categories")

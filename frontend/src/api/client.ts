@@ -114,6 +114,10 @@ export interface SenderInsights {
     count: number
   }>
   total_emails: number
+  total_senders: number
+  offset: number
+  limit: number
+  has_more: boolean
 }
 
 export interface CategoryInsights {
