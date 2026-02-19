@@ -41,13 +41,19 @@ class GmailConnector:
     def get_email_count_by_date_range(
         self,
         start_date: datetime,
-        end_date: datetime
+        end_date: datetime,
+        exclude_sent: bool = True
     ) -> int:
         """
         Get count of emails in date range without fetching them
         Returns the total count
+        
+        Args:
+            exclude_sent: If True, excludes sent emails (only counts received emails)
         """
         query = f'after:{int(start_date.timestamp())} before:{int(end_date.timestamp())}'
+        if exclude_sent:
+            query += ' -in:sent'
         
         try:
             total = 0
@@ -81,13 +87,19 @@ class GmailConnector:
         start_date: datetime, 
         end_date: datetime,
         max_results: int = 5000,
-        progress_callback: callable = None
+        progress_callback: callable = None,
+        exclude_sent: bool = True
     ) -> List[Dict]:
         """
         Fetch emails within date range
         Returns list of email metadata dicts
+        
+        Args:
+            exclude_sent: If True, excludes sent emails (only fetches received emails)
         """
         query = f'after:{int(start_date.timestamp())} before:{int(end_date.timestamp())}'
+        if exclude_sent:
+            query += ' -in:sent'
         
         emails = []
         page_token = None

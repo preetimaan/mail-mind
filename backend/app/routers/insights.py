@@ -535,6 +535,112 @@ async def get_processed_range_gaps(
         for gap_start, gap_end in filtered_gaps
     ]
 
+@router.post("/recalculate")
+async def recalculate_insights(
+    username: str,
+    account_id: int,
+    db: Session = Depends(get_db)
+):
+    """Recalculate analysis results for all emails (re-categorize without re-fetching)"""
+    from app.nlp_analyzer import NLPAnalyzer
+    from app.encryption import EncryptionManager
+    
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Get all emails for this account
+    emails = db.query(EmailMetadata).filter(
+        EmailMetadata.account_id == account_id
+    ).all()
+    
+    if not emails:
+        return {
+            'message': 'No emails found to recalculate',
+            'emails_processed': 0
+        }
+    
+    # Delete existing analysis results
+    deleted = db.query(AnalysisResult).filter(
+        AnalysisResult.email_id.in_([e.id for e in emails])
+    ).delete(synchronize_session=False)
+    db.commit()
+    
+    # Prepare email data for NLP analyzer
+    email_data_list = [
+        {
+            'sender_email': e.sender_email,
+            'sender_name': e.sender_name,
+            'subject': e.subject or '',
+            'date_received': e.date_received,
+            'snippet': ''
+        }
+        for e in emails
+    ]
+    
+    # Run NLP analysis
+    nlp_analyzer = NLPAnalyzer()
+    analysis_data = nlp_analyzer.analyze_batch(email_data_list)
+    
+    # Helper functions for categorization
+    def get_category(email_data):
+        subject = (email_data.get('subject', '') or '').lower()
+        sender = (email_data.get('sender_email', '') or '').lower()
+        
+        if any(kw in subject for kw in ['notification', 'alert', 'reminder']):
+            return 'notifications'
+        elif any(kw in subject or kw in sender for kw in ['newsletter', 'digest', 'unsubscribe']):
+            return 'newsletters'
+        elif any(kw in sender for kw in ['facebook', 'twitter', 'linkedin', 'instagram']):
+            return 'social'
+        elif any(kw in sender for kw in ['amazon', 'ebay', 'order', 'shipping', 'delivery']):
+            return 'shopping'
+        elif any(kw in subject or kw in sender for kw in ['invoice', 'meeting', 'project', 'deadline']):
+            return 'work'
+        elif any(kw in subject for kw in ['hi ', 'hello', 'hey ', 're:', 'fwd:']):
+            return 'personal'
+        return 'other'
+    
+    # Create new analysis results
+    enc_manager = EncryptionManager(user.id)
+    
+    for email_meta, email_data in zip(emails, email_data_list):
+        category = get_category(email_data)
+        
+        encrypted_analysis = enc_manager.encrypt({
+            'sender_email': email_data['sender_email'],
+            'sender_name': email_data.get('sender_name'),
+            'subject': email_data.get('subject', ''),
+            'date_received': email_data['date_received'].isoformat() if email_data['date_received'] else None,
+            'analysis': analysis_data
+        })
+        
+        analysis_result = AnalysisResult(
+            email_id=email_meta.id,
+            analysis_run_id=None,  # Not tied to a specific run
+            encrypted_analysis=encrypted_analysis,
+            sender_cluster=None,
+            subject_cluster=None,
+            category=category
+        )
+        db.add(analysis_result)
+    
+    db.commit()
+    
+    return {
+        'message': f'Successfully recalculated insights for {len(emails)} emails',
+        'emails_processed': len(emails),
+        'old_results_removed': deleted
+    }
+
 @router.post("/cleanup-duplicates")
 async def cleanup_duplicate_analysis_results(
     username: str,

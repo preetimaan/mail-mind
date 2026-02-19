@@ -39,6 +39,8 @@ export default function Dashboard() {
   const [selectedGapEnd, setSelectedGapEnd] = useState<Date | undefined>()
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [cleanupResult, setCleanupResult] = useState<{ message: string; duplicates_removed: number } | null>(null)
+  const [recalculateLoading, setRecalculateLoading] = useState(false)
+  const [recalculateResult, setRecalculateResult] = useState<{ message: string; emails_processed: number } | null>(null)
 
   const {
     usernameInput,
@@ -322,7 +324,6 @@ export default function Dashboard() {
       setCleanupResult(response.data)
       if (response.data.duplicates_removed > 0) {
         setSuccess(`Cleaned up ${response.data.duplicates_removed} duplicate records`)
-        // Refresh insights after cleanup
         loadSummary()
         loadInsights()
       }
@@ -331,13 +332,29 @@ export default function Dashboard() {
     } finally {
       setCleanupLoading(false)
     }
-    setSuccess(`Gap selected: ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}. Dates filled in above - click "Analyze" to process this gap.`)
-    setTimeout(() => {
-      const datePicker = document.querySelector('.card h2')?.parentElement
-      if (datePicker) {
-        datePicker.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
-    }, 100)
+  }
+
+  const handleRecalculateInsights = async () => {
+    if (!username || !selectedAccount) {
+      setError('Please select an account first')
+      return
+    }
+    
+    setRecalculateLoading(true)
+    setRecalculateResult(null)
+    setError(null)
+    
+    try {
+      const response = await api.post(`/api/insights/recalculate?username=${username}&account_id=${selectedAccount}`)
+      setRecalculateResult(response.data)
+      setSuccess(`Recalculated insights for ${response.data.emails_processed} emails`)
+      loadSummary()
+      loadInsights()
+    } catch (err: any) {
+      setError(err.userMessage || 'Failed to recalculate insights')
+    } finally {
+      setRecalculateLoading(false)
+    }
   }
 
   // Auto-switch to settings tab only if logged in but no accounts
@@ -604,36 +621,69 @@ export default function Dashboard() {
 
             {/* Data Maintenance */}
             <h3 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Data Maintenance</h3>
-            <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-              <p style={{ margin: '0 0 1rem 0', color: '#666' }}>
-                If you've run force re-analysis multiple times on the same date ranges, 
-                you may have duplicate analysis records. Use this to clean them up.
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <button
-                  onClick={handleCleanupDuplicates}
-                  disabled={cleanupLoading || !selectedAccount}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    backgroundColor: selectedAccount ? '#6c757d' : '#ccc',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: selectedAccount ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  {cleanupLoading ? 'Cleaning...' : 'Clean Up Duplicate Data'}
-                </button>
-                {!selectedAccount && (
-                  <span style={{ color: '#666', fontSize: '0.9rem' }}>Select an account first</span>
-                )}
-                {cleanupResult && (
-                  <span style={{ color: cleanupResult.duplicates_removed > 0 ? '#28a745' : '#666', fontSize: '0.9rem' }}>
-                    {cleanupResult.duplicates_removed > 0 
-                      ? `Removed ${cleanupResult.duplicates_removed} duplicates from ${cleanupResult.emails_affected} emails`
-                      : 'No duplicates found'}
-                  </span>
-                )}
+            <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {!selectedAccount && (
+                <p style={{ margin: 0, color: '#666', fontStyle: 'italic' }}>Select an account above to enable maintenance options</p>
+              )}
+              
+              {/* Recalculate Insights */}
+              <div>
+                <p style={{ margin: '0 0 0.5rem 0', color: '#333', fontWeight: 500 }}>Recalculate Insights</p>
+                <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>
+                  Re-categorizes all emails without re-fetching them. Use if categories seem wrong.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleRecalculateInsights}
+                    disabled={recalculateLoading || !selectedAccount}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: selectedAccount ? '#007bff' : '#ccc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: selectedAccount ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {recalculateLoading ? 'Recalculating...' : 'Recalculate Insights'}
+                  </button>
+                  {recalculateResult && (
+                    <span style={{ color: '#28a745', fontSize: '0.9rem' }}>
+                      Recalculated {recalculateResult.emails_processed} emails
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Clean Up Duplicates */}
+              <div>
+                <p style={{ margin: '0 0 0.5rem 0', color: '#333', fontWeight: 500 }}>Clean Up Duplicates</p>
+                <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>
+                  Removes duplicate analysis records from force re-analysis runs.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleCleanupDuplicates}
+                    disabled={cleanupLoading || !selectedAccount}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: selectedAccount ? '#6c757d' : '#ccc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: selectedAccount ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {cleanupLoading ? 'Cleaning...' : 'Clean Up Duplicates'}
+                  </button>
+                  {cleanupResult && (
+                    <span style={{ color: cleanupResult.duplicates_removed > 0 ? '#28a745' : '#666', fontSize: '0.9rem' }}>
+                      {cleanupResult.duplicates_removed > 0 
+                        ? `Removed ${cleanupResult.duplicates_removed} duplicates`
+                        : 'No duplicates found'}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
