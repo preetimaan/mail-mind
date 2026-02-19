@@ -56,12 +56,16 @@
   - [x] `GET /api/oauth/callback` - Handle OAuth callback and store credentials (✅ Implemented - required for Gmail account setup)
 - [x] Insights
   - [x] `GET /api/insights/summary` - Overall summary
-  - [x] `GET /api/insights/senders` - Top senders and patterns
+  - [x] `GET /api/insights/senders` - Top senders and patterns (with pagination: limit, offset)
   - [x] `GET /api/insights/categories` - Category distribution
   - [x] `GET /api/insights/frequency` - Frequency patterns
   - [x] `GET /api/insights/frequency/yearly` - Yearly frequency analysis
   - [x] `GET /api/insights/processed-ranges` - Processed date ranges
   - [x] `GET /api/insights/processed-ranges/gaps` - Detect unprocessed date gaps
+  - [x] `GET /api/insights/diagnostic` - Data integrity diagnostics
+  - [x] `POST /api/insights/cleanup-duplicates` - Remove duplicate analysis results
+  - [x] `POST /api/insights/remove-sent-emails` - Remove incorrectly included sent emails
+  - [x] `POST /api/insights/recalculate` - Recalculate insights without re-fetching emails
 
 ### Frontend
 - [x] React + TypeScript setup with Vite
@@ -81,11 +85,19 @@
 - [x] Visualization components
   - [x] Stats grid (summary statistics)
   - [x] Sender chart (top senders with percentages)
+    - [x] Pagination (load more in batches of 20, up to 100)
+    - [x] Multi-select checkboxes for senders
+    - [x] Gmail filter string generator from selected senders
+    - [x] Compact row layout with text wrapping
   - [x] Category chart (category distribution)
   - [x] Frequency chart (hourly/weekly patterns)
   - [x] Yearly frequency chart (year-over-year analysis)
   - [x] Processed ranges display with gap detection
   - [x] Processed ranges chart (simplified Yes/No visualization)
+- [x] Data Maintenance UI (Settings tab)
+  - [x] Remove Sent Emails button
+  - [x] Recalculate Insights button
+  - [x] Clean Up Duplicates button
 - [x] Real-time status updates
   - [x] Polling for analysis completion
   - [x] Error and success message display
@@ -121,6 +133,9 @@
 - [x] Fixed timezone handling in date tracking (normalize to UTC)
 - [x] Improved gap detection to find all unprocessed date ranges
 - [x] Fixed duplicate email handling (composite unique constraint, IntegrityError handling, Yahoo UID support)
+- [x] Fixed force reanalysis not properly deleting existing data (now deletes EmailMetadata + AnalysisResults)
+- [x] Fixed Gmail fetching sent emails (now excludes sent with `-in:sent` filter)
+- [x] Fixed insights not updating after multiple analysis runs
 
 ---
 
@@ -160,9 +175,11 @@
 - [x] Modular component architecture for better maintainability
 - [x] Replace browser confirm dialogs with custom modals (DeleteAccountModal, ConfirmModal)
 - [x] Improved delete account flow with account selection modal
-- [x] Copy email functionality for frequent senders (individual and bulk copy)
+- [x] Copy email functionality for frequent senders (individual and bulk copy, filter string generation)
 - [x] Show email summary with 0 values when no data exists (always visible)
 - [x] Tab-based navigation and improved layout structure
+- [x] Sticky tabs (stay visible when scrolling)
+- [x] Compact account summary bar (single line vs. 3 cards)
 - [x] UI improvements (button heights, spacing, colors, layout fixes)
 - [x] Date input validation improvements
 - [ ] Frontend state persistence - Restore analysis state on page refresh
@@ -196,7 +213,28 @@
 - [ ] Filter UI component
 - [ ] Search results display
 
-#### 5. Advanced Analytics
+#### 5. AI-Powered Sender Categorization
+**Status**: Not Started  
+**Priority**: High  
+**Description**: Intelligently categorize senders using AI to suggest meaningful categories and subcategories.
+
+**Tasks**:
+- [ ] AI model integration for sender analysis (OpenAI/local LLM)
+- [ ] Smart category detection based on sender domain and name patterns
+- [ ] Main category suggestions:
+  - **Essentials**: Insurance, rent, bank, utilities, government
+  - **Life**: Shopping, food delivery, travel (Uber, Lyft), entertainment
+  - **Software/Tech**: GitHub, cloud providers (AWS, GCP), domain registrars (GoDaddy), dev tools
+  - **Work**: Company emails, clients, professional services
+  - **Social**: Social networks, dating apps, community platforms
+- [ ] Subcategory suggestions within each main category
+- [ ] Bulk categorization of senders
+- [ ] User ability to confirm/override AI suggestions
+- [ ] Save custom categories per user
+- [ ] Filter emails by AI-suggested categories
+- [ ] Category-based email filter string generation
+
+#### 6. Advanced Analytics
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Deeper insights and trend analysis.
@@ -211,7 +249,7 @@
 
 ### Low Priority / Future Enhancements
 
-#### 6. Multi-Account Comparison
+#### 7. Multi-Account Comparison
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Compare insights across multiple email accounts.
@@ -221,7 +259,7 @@
 - [ ] Aggregate statistics across accounts
 - [ ] Account-specific insights toggle
 
-#### 7. Email Content Analysis
+#### 8. Email Content Analysis
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Analyze email body content (requires full email access).
@@ -233,7 +271,7 @@
 - [ ] Attachment detection
 - [ ] Link extraction
 
-#### 8. Notifications & Alerts
+#### 9. Notifications & Alerts
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Notify users about email patterns.
@@ -244,7 +282,7 @@
 - [ ] Category change alerts
 - [ ] Email digest summaries
 
-#### 9. Performance Optimizations
+#### 10. Performance Optimizations
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Optimize for large-scale email processing.
@@ -256,7 +294,7 @@
 - [ ] Async email fetching improvements
 - [ ] Memory optimization for large batches
 
-#### 10. Testing
+#### 11. Testing
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Add comprehensive test coverage.
@@ -269,7 +307,7 @@
 - [ ] E2E tests for analysis flow
 - [ ] Mock email connectors for testing
 
-#### 11. Deployment & DevOps
+#### 12. Deployment & DevOps
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Production deployment setup.
@@ -298,6 +336,7 @@
 
 | Feature | Priority | Effort | Impact | Status |
 |---------|----------|--------|--------|--------|
+| AI-Powered Sender Categorization | High | High | High | Not Started |
 | UI/UX Enhancements | Medium | Medium | Medium | Partially Complete |
 | Export Functionality | Medium | Low | Medium | Not Started |
 | Email Filtering & Search | Medium | Medium | Medium | Not Started |
@@ -312,12 +351,12 @@
 
 ## 🎯 Next Focus Areas
 
+- AI-Powered Sender Categorization (essentials, life, software/tech categories)
 - Frontend state persistence (restore analysis state on refresh)
 - Concurrent analysis handling (prevent/queue multiple analyses)
 - Export functionality (CSV/JSON)
 - Email filtering & search
 - Testing infrastructure
-- Account edit/delete and connection testing
 
 ---
 
