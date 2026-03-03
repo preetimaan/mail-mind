@@ -1,11 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timedelta
 from collections import Counter
+from pydantic import BaseModel
 
-from app.database import get_db, User, EmailAccount, EmailMetadata, AnalysisResult, ProcessedDateRange
+from app.database import (
+    get_db,
+    User,
+    EmailAccount,
+    EmailMetadata,
+    AnalysisResult,
+    ProcessedDateRange,
+    CustomCategory,
+    SenderCategoryMapping,
+)
 from app.encryption import EncryptionManager
 
 router = APIRouter()
@@ -222,6 +232,9 @@ async def get_category_insights(
         ],
         'total': total
     }
+
+
+# --- Frequency insights ---
 
 @router.get("/frequency")
 async def get_frequency_insights(
@@ -812,3 +825,233 @@ async def get_diagnostic_info(
             'analysis_per_email': round(analysis_count / email_count, 2) if email_count > 0 else 0
         }
     }
+
+
+# --- Custom categories (user-defined) ---
+
+class CustomCategoryCreate(BaseModel):
+    name: str
+
+
+class CustomCategoryUpdate(BaseModel):
+    name: str
+
+
+class SendersAssignRequest(BaseModel):
+    sender_emails: List[str]
+
+
+@router.get("/custom-categories")
+async def list_custom_categories(
+    username: str,
+    db: Session = Depends(get_db),
+):
+    """List all custom categories for the user."""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    categories = (
+        db.query(CustomCategory)
+        .filter(CustomCategory.user_id == user.id)
+        .order_by(CustomCategory.name)
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in categories
+    ]
+
+
+@router.post("/custom-categories")
+async def create_custom_category(
+    username: str,
+    body: CustomCategoryCreate,
+    db: Session = Depends(get_db),
+):
+    """Create a new custom category."""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name is required")
+
+    existing = (
+        db.query(CustomCategory)
+        .filter(CustomCategory.user_id == user.id, CustomCategory.name == name)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="A category with this name already exists")
+
+    cat = CustomCategory(user_id=user.id, name=name)
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return {
+        "id": cat.id,
+        "name": cat.name,
+        "created_at": cat.created_at.isoformat() if cat.created_at else None,
+    }
+
+
+@router.patch("/custom-categories/{category_id}")
+async def update_custom_category(
+    username: str,
+    category_id: int,
+    body: CustomCategoryUpdate,
+    db: Session = Depends(get_db),
+):
+    """Rename a custom category."""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cat = (
+        db.query(CustomCategory)
+        .filter(CustomCategory.id == category_id, CustomCategory.user_id == user.id)
+        .first()
+    )
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name is required")
+
+    existing = (
+        db.query(CustomCategory)
+        .filter(
+            CustomCategory.user_id == user.id,
+            CustomCategory.name == name,
+            CustomCategory.id != category_id,
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="A category with this name already exists")
+
+    cat.name = name
+    db.commit()
+    db.refresh(cat)
+    return {
+        "id": cat.id,
+        "name": cat.name,
+        "created_at": cat.created_at.isoformat() if cat.created_at else None,
+    }
+
+
+@router.delete("/custom-categories/{category_id}")
+async def delete_custom_category(
+    username: str,
+    category_id: int,
+    db: Session = Depends(get_db),
+):
+    """Delete a custom category and all sender mappings."""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cat = (
+        db.query(CustomCategory)
+        .filter(CustomCategory.id == category_id, CustomCategory.user_id == user.id)
+        .first()
+    )
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    db.delete(cat)
+    db.commit()
+    return {"message": "Category deleted"}
+
+
+@router.post("/custom-categories/{category_id}/senders")
+async def assign_senders_to_category(
+    username: str,
+    category_id: int,
+    body: SendersAssignRequest,
+    db: Session = Depends(get_db),
+):
+    """Assign one or more sender emails to a custom category. Replaces existing assignment for each sender."""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cat = (
+        db.query(CustomCategory)
+        .filter(CustomCategory.id == category_id, CustomCategory.user_id == user.id)
+        .first()
+    )
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    assigned = 0
+    for email in body.sender_emails or []:
+        email = (email or "").strip().lower()
+        if not email or "@" not in email:
+            continue
+        # Remove from any other custom category for this user
+        db.query(SenderCategoryMapping).filter(
+            SenderCategoryMapping.user_id == user.id,
+            SenderCategoryMapping.sender_email == email,
+        ).delete(synchronize_session=False)
+        # Add to this category (ignore if already exists - unique constraint)
+        existing = (
+            db.query(SenderCategoryMapping)
+            .filter(
+                SenderCategoryMapping.user_id == user.id,
+                SenderCategoryMapping.sender_email == email,
+                SenderCategoryMapping.custom_category_id == category_id,
+            )
+            .first()
+        )
+        if not existing:
+            mapping = SenderCategoryMapping(
+                user_id=user.id,
+                sender_email=email,
+                custom_category_id=category_id,
+            )
+            db.add(mapping)
+            assigned += 1
+
+    db.commit()
+    return {"message": f"Assigned {assigned} sender(s) to category", "assigned": assigned}
+
+
+@router.delete("/custom-categories/{category_id}/senders/{sender_email:path}")
+async def remove_sender_from_category(
+    username: str,
+    category_id: int,
+    sender_email: str,
+    db: Session = Depends(get_db),
+):
+    """Remove a sender from a custom category."""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    cat = (
+        db.query(CustomCategory)
+        .filter(CustomCategory.id == category_id, CustomCategory.user_id == user.id)
+        .first()
+    )
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    deleted = (
+        db.query(SenderCategoryMapping)
+        .filter(
+            SenderCategoryMapping.user_id == user.id,
+            SenderCategoryMapping.custom_category_id == category_id,
+            SenderCategoryMapping.sender_email == sender_email,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"message": "Sender removed from category", "deleted": deleted > 0}

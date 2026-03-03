@@ -174,3 +174,11 @@ export interface CleanupResult {
   emails_affected: number
   duplicates_removed: number
 }
+
+
+// Custom categories
+export interface CustomCategory {
+  id: number
+  name: string
+  created_at: string | null
+}

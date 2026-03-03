@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { SenderInsights, api } from '../api/client'
+import { SenderInsights, api, CustomCategory } from '../api/client'
 
 interface SenderChartProps {
   insights: SenderInsights
   username: string
   accountId: number
+  customCategories?: CustomCategory[]
+  onAssignToCategory?: (senderEmail: string, categoryId: number) => Promise<void>
 }
 
-export default function SenderChart({ insights, username, accountId }: SenderChartProps) {
+export default function SenderChart({ insights, username, accountId, customCategories = [], onAssignToCategory }: SenderChartProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [copiedFilter, setCopiedFilter] = useState(false)
   const [senders, setSenders] = useState(insights.top_senders)
@@ -257,6 +259,33 @@ export default function SenderChart({ insights, username, accountId }: SenderCha
               >
                 {copiedIndex === index ? '✓' : '📋'}
               </button>
+              {onAssignToCategory && customCategories.length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const id = Number(e.target.value)
+                    if (id) onAssignToCategory(sender.email, id)
+                    e.target.value = ''
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    padding: '0.2rem 0.4rem',
+                    fontSize: '0.8rem',
+                    borderRadius: 4,
+                    border: '1px solid #ddd',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                  title="Add to custom category"
+                >
+                  <option value="">Add to category...</option>
+                  {customCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </li>
           ))}
         </ul>

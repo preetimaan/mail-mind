@@ -45,6 +45,7 @@ class User(Base):
     # Relationships
     email_accounts = relationship("EmailAccount", back_populates="user", cascade="all, delete-orphan")
     analysis_runs = relationship("AnalysisRun", back_populates="user", cascade="all, delete-orphan")
+    custom_categories = relationship("CustomCategory", back_populates="user", cascade="all, delete-orphan")
 
 class EmailAccount(Base):
     __tablename__ = "email_accounts"
@@ -131,6 +132,36 @@ class ProcessedDateRange(Base):
     __table_args__ = (
         {"sqlite_autoincrement": True},
     )
+
+
+class CustomCategory(Base):
+    """User-defined category (e.g. Finance, Urgent)."""
+    __tablename__ = "custom_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="custom_categories")
+    sender_mappings = relationship("SenderCategoryMapping", back_populates="custom_category", cascade="all, delete-orphan")
+
+
+class SenderCategoryMapping(Base):
+    """Maps sender_email to a custom category for a user."""
+    __tablename__ = "sender_category_mappings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    sender_email = Column(String, nullable=False, index=True)
+    custom_category_id = Column(Integer, ForeignKey("custom_categories.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint("user_id", "sender_email", name="uq_user_sender_category"),
+    )
+    
+    custom_category = relationship("CustomCategory", back_populates="sender_mappings")
 
 def init_db():
     Base.metadata.create_all(bind=engine)

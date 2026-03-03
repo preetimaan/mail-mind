@@ -7,6 +7,7 @@ import CurrentAccountSummary from '../components/CurrentAccountSummary'
 import AllAccountsSummary from '../components/AllAccountsSummary'
 import SenderChart from '../components/SenderChart'
 import CategoryChart from '../components/CategoryChart'
+import CustomCategoriesManager from '../components/CustomCategoriesManager'
 import FrequencyChart from '../components/FrequencyChart'
 import YearlyFrequencyChart from '../components/YearlyFrequencyChart'
 import ProcessedRanges from '../components/ProcessedRanges'
@@ -22,6 +23,7 @@ import { useOAuthCallback } from '../hooks/useOAuthCallback'
 import { useAccounts } from '../hooks/useAccounts'
 import { useInsights } from '../hooks/useInsights'
 import { useAnalysisPolling } from '../hooks/useAnalysisPolling'
+import { useCustomCategories } from '../hooks/useCustomCategories'
 import './Dashboard.css'
 
 export default function Dashboard() {
@@ -51,6 +53,8 @@ export default function Dashboard() {
     handleUsernameKeyPress,
     handleLogout,
   } = useUsername()
+
+  const { customCategories, loadCustomCategories } = useCustomCategories(username)
 
   const {
     accounts,
@@ -521,7 +525,22 @@ export default function Dashboard() {
                   senderInsights.total_emails > 0 ? (
                     <div className="card" style={{ marginTop: '1.5rem' }}>
                       <h2>Top Senders</h2>
-                      <SenderChart insights={senderInsights} username={username || ''} accountId={selectedAccount || 0} />
+                      <SenderChart
+                        insights={senderInsights}
+                        username={username || ''}
+                        accountId={selectedAccount || 0}
+                        customCategories={customCategories}
+                        onAssignToCategory={async (senderEmail, categoryId) => {
+                          try {
+                            await api.post(`/api/insights/custom-categories/${categoryId}/senders?username=${username}`, {
+                              sender_emails: [senderEmail],
+                            })
+                            setSuccess(`Added sender to category`)
+                          } catch (err: any) {
+                            setError(err.response?.data?.detail || err.userMessage || 'Failed to assign sender')
+                          }
+                        }}
+                      />
                     </div>
                   ) : (
                     <div className="card" style={{ marginTop: '1.5rem' }}>
@@ -539,7 +558,9 @@ export default function Dashboard() {
                   categoryInsights.total > 0 ? (
                     <div className="card" style={{ marginTop: '1.5rem' }}>
                       <h2>Email Categories</h2>
-                      <CategoryChart insights={categoryInsights} />
+                      <CategoryChart
+                        insights={categoryInsights}
+                      />
                     </div>
                   ) : (
                     <div className="card" style={{ marginTop: '1.5rem' }}>
@@ -589,6 +610,7 @@ export default function Dashboard() {
               </div>
             )}
 
+
           </>
         )}
 
@@ -603,6 +625,15 @@ export default function Dashboard() {
                 <AllAccountsSummary summary={summary} />
               </div>
             )}
+
+            <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Custom Categories</h3>
+            <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.5rem' }}>
+              <CustomCategoriesManager
+                username={username || ''}
+                customCategories={customCategories}
+                onUpdate={loadCustomCategories}
+              />
+            </div>
 
             <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Account Management</h3>
             {accountsLoading && <div style={{ marginBottom: '1rem', color: '#666' }}>Loading accounts...</div>}

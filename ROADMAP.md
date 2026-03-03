@@ -200,23 +200,38 @@
 - [ ] Date range selection for exports
 - [ ] Export button in dashboard
 
-#### 4. Email Filtering & Search
-**Status**: Not Started  
-**Priority**: Medium  
-**Description**: Filter and search through analyzed emails.
+#### 4. Email List, Filtering & Search
+**Status**: Complete  
+**Priority**: High  
+**Description**: Browse and filter analyzed emails so users can reduce inbox overload and split mail by category/sender/date. Currently only aggregates (senders, categories) are shown—no list of individual emails.
 
 **Tasks**:
-- [ ] Filter by sender
-- [ ] Filter by category
-- [ ] Filter by date range
-- [ ] Search by subject line
-- [ ] Filter UI component
-- [ ] Search results display
+- [x] **Email list API** – `GET /api/insights/emails` with pagination (`limit`, `offset`), returning email metadata + category per account. Response: subject, sender_email, sender_name, date_received, category, custom_category.
+- [x] **Email list UI** – New "Emails" tab with paginated table (subject, sender, date, category, custom category). Empty state when no data.
+- [x] **Filter by category** – List endpoint accepts `category=` (notifications, newsletters, social, shopping, work, personal, other). UI: category dropdown (includes custom categories).
+- [x] **Filter by sender** – List endpoint accepts `sender_email=`. UI: "Emails" button in Top Senders → open email list filtered to that sender.
+- [x] **Filter by date range** – List endpoint accepts `start_date`, `end_date`. UI: date-from / date-to inputs on the list view.
+- [x] **Search by subject** – List endpoint accepts `q=` (substring match on subject). UI: search box in filter bar.
+- [x] **Filter UI component** – Filter bar: category dropdown, sender input, date range, subject search, Apply. Debounced refetch on filter change.
+- [x] **Category-click → filtered list** – Category chart segments clickable; clicking opens Emails tab with that category filter.
 
-#### 5. AI-Powered Sender Categorization
+#### 5. Category-First Navigation & Custom Categories
+**Status**: Complete  
+**Priority**: High  
+**Description**: Let users split emails into categories via navigation (click category → see list) and via user-defined categories (e.g. "Finance", "Urgent") by assigning senders to custom labels.
+
+**Tasks**:
+- [x] **Category-first entry** – From Insights, clicking a category opens the email list filtered to that category.
+- [x] **Custom categories (user-defined)** – CustomCategory table (user_id, name). CRUD API: GET/POST/PATCH/DELETE `/api/insights/custom-categories`.
+- [x] **Sender → custom category mapping** – SenderCategoryMapping table (user_id, sender_email, custom_category_id). POST/DELETE for assign/remove. One sender per custom category (reassign replaces).
+- [x] **Filter by custom category** – Email list accepts `custom_category_id`; custom categories in filter dropdown alongside auto-categories.
+- [x] **Custom category management UI** – Settings: CustomCategoriesManager (create, rename, delete). Top Senders: "Add to category" dropdown to assign sender to custom category.
+- [ ] **Optional: subject rules** – Allow rules like "subject contains X" → custom category for future expansion.
+
+#### 6. AI-Powered Sender Categorization
 **Status**: Not Started  
 **Priority**: High  
-**Description**: Intelligently categorize senders using AI to suggest meaningful categories and subcategories.
+**Description**: Intelligently categorize senders using AI to suggest meaningful categories and subcategories. Builds on Custom Categories (section 5): AI suggests which senders belong in which user or system category.
 
 **Tasks**:
 - [ ] AI model integration for sender analysis (OpenAI/local LLM)
@@ -234,7 +249,7 @@
 - [ ] Filter emails by AI-suggested categories
 - [ ] Category-based email filter string generation
 
-#### 6. Advanced Analytics
+#### 7. Advanced Analytics
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Deeper insights and trend analysis.
@@ -246,10 +261,11 @@
 - [ ] Peak time analysis (best times to check email)
 - [ ] Sender importance scoring
 - [ ] Email thread analysis (if thread_id available)
+- [ ] **Priority / importance buckets (optional)** – Simple priority or bucket (e.g. High / Medium / Low or "Needs reply" / "Read later" / "Archive"). Filter email list by priority. Can be manual (user marks) or heuristic at first (e.g. work + recent = high).
 
 ### Low Priority / Future Enhancements
 
-#### 7. Multi-Account Comparison
+#### 8. Multi-Account Comparison
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Compare insights across multiple email accounts.
@@ -259,7 +275,7 @@
 - [ ] Aggregate statistics across accounts
 - [ ] Account-specific insights toggle
 
-#### 8. Email Content Analysis
+#### 9. Email Content Analysis
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Analyze email body content (requires full email access).
@@ -271,7 +287,7 @@
 - [ ] Attachment detection
 - [ ] Link extraction
 
-#### 9. Notifications & Alerts
+#### 10. Notifications & Alerts
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Notify users about email patterns.
@@ -282,7 +298,7 @@
 - [ ] Category change alerts
 - [ ] Email digest summaries
 
-#### 10. Performance Optimizations
+#### 11. Performance Optimizations
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Optimize for large-scale email processing.
@@ -294,7 +310,19 @@
 - [ ] Async email fetching improvements
 - [ ] Memory optimization for large batches
 
-#### 11. Testing
+#### 11. Performance Optimizations
+**Status**: Not Started  
+**Priority**: Low  
+**Description**: Optimize for large-scale email processing.
+
+**Tasks**:
+- [ ] Batch processing optimization (larger chunks)
+- [ ] Database indexing improvements
+- [ ] Caching for frequently accessed insights
+- [ ] Async email fetching improvements
+- [ ] Memory optimization for large batches
+
+#### 12. Testing
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Add comprehensive test coverage.
@@ -307,7 +335,20 @@
 - [ ] E2E tests for analysis flow
 - [ ] Mock email connectors for testing
 
-#### 12. Deployment & DevOps
+#### 12. Testing
+**Status**: Not Started  
+**Priority**: Medium  
+**Description**: Add comprehensive test coverage.
+
+**Tasks**:
+- [ ] Unit tests for NLP analyzer
+- [ ] Unit tests for date tracker
+- [ ] Integration tests for API endpoints
+- [ ] Frontend component tests
+- [ ] E2E tests for analysis flow
+- [ ] Mock email connectors for testing
+
+#### 13. Deployment & DevOps
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Production deployment setup.
@@ -336,10 +377,11 @@
 
 | Feature | Priority | Effort | Impact | Status |
 |---------|----------|--------|--------|--------|
+| Email List, Filtering & Search | High | Medium | High | Complete |
+| Category-First Navigation & Custom Categories | High | Medium | High | Complete |
 | AI-Powered Sender Categorization | High | High | High | Not Started |
 | UI/UX Enhancements | Medium | Medium | Medium | Partially Complete |
 | Export Functionality | Medium | Low | Medium | Not Started |
-| Email Filtering & Search | Medium | Medium | Medium | Not Started |
 | Testing | Medium | High | High | Not Started |
 | Deployment & DevOps | Medium | Medium | High | Not Started |
 | Advanced Analytics | Medium | High | Medium | Not Started |
@@ -351,11 +393,13 @@
 
 ## 🎯 Next Focus Areas
 
-- AI-Powered Sender Categorization (essentials, life, software/tech categories)
+- ~~**Email list + filters**~~ ✅ Done – Paginated email list API and UI, filter by category/sender/date, subject search
+- ~~**Category-first navigation**~~ ✅ Done – Click category in Insights → open email list filtered to that category
+- ~~**Custom categories**~~ ✅ Done – User-defined categories and sender→category mapping; filter list by custom category
+- AI-Powered Sender Categorization (suggestions building on custom categories)
 - Frontend state persistence (restore analysis state on refresh)
 - Concurrent analysis handling (prevent/queue multiple analyses)
 - Export functionality (CSV/JSON)
-- Email filtering & search
 - Testing infrastructure
 
 ---

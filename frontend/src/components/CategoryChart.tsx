@@ -12,10 +12,14 @@ export default function CategoryChart({ insights }: CategoryChartProps) {
     name: cat.category.charAt(0).toUpperCase() + cat.category.slice(1),
     value: cat.count,
     percentage: cat.percentage,
+    category: cat.category,
   }))
 
   return (
     <div>
+      <p style={{ fontSize: '0.9rem', color: '#555', marginBottom: '0.5rem' }}>
+        📊 Distribution of emails by category
+      </p>
       <ResponsiveContainer width="100%" height={400}>
         <PieChart>
           <Pie
