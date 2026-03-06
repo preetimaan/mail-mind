@@ -8,6 +8,7 @@ import AllAccountsSummary from '../components/AllAccountsSummary'
 import SenderChart from '../components/SenderChart'
 import CategoryChart from '../components/CategoryChart'
 import CustomCategoriesManager from '../components/CustomCategoriesManager'
+import AISuggestModal from '../components/AISuggestModal'
 import FrequencyChart from '../components/FrequencyChart'
 import YearlyFrequencyChart from '../components/YearlyFrequencyChart'
 import ProcessedRanges from '../components/ProcessedRanges'
@@ -43,6 +44,15 @@ export default function Dashboard() {
   const [cleanupResult, setCleanupResult] = useState<{ message: string; duplicates_removed: number } | null>(null)
   const [recalculateLoading, setRecalculateLoading] = useState(false)
   const [recalculateResult, setRecalculateResult] = useState<{ message: string; emails_processed: number } | null>(null)
+<<<<<<< HEAD
+=======
+  const [emailListInitialFilter, setEmailListInitialFilter] = useState<{
+    category?: string | null
+    senderEmail?: string | null
+    customCategoryId?: number | null
+  }>({})
+  const [showAISuggestModal, setShowAISuggestModal] = useState(false)
+>>>>>>> 198a3ea (feat: subject rules + AI-powered sender categorization (roadmap 5-6))
 
   const {
     usernameInput,
@@ -524,7 +534,17 @@ export default function Dashboard() {
                 {senderInsights ? (
                   senderInsights.total_emails > 0 ? (
                     <div className="card" style={{ marginTop: '1.5rem' }}>
-                      <h2>Top Senders</h2>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <h2 style={{ margin: 0 }}>Top Senders</h2>
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={() => setShowAISuggestModal(true)}
+                          style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                        >
+                          Suggest categories
+                        </button>
+                      </div>
                       <SenderChart
                         insights={senderInsights}
                         username={username || ''}
@@ -539,6 +559,17 @@ export default function Dashboard() {
                           } catch (err: any) {
                             setError(err.response?.data?.detail || err.userMessage || 'Failed to assign sender')
                           }
+                        }}
+                      />
+                      <AISuggestModal
+                        isOpen={showAISuggestModal}
+                        onClose={() => setShowAISuggestModal(false)}
+                        username={username || ''}
+                        senders={senderInsights?.top_senders?.map((s) => ({ email: s.email, name: s.name, count: s.count })) ?? []}
+                        customCategories={customCategories}
+                        onApplied={() => {
+                          loadCustomCategories()
+                          loadInsights()
                         }}
                       />
                     </div>

@@ -182,3 +182,22 @@ export interface CustomCategory {
   name: string
   created_at: string | null
 }
+
+export interface SubjectRule {
+  id: number
+  subject_contains: string
+  created_at: string | null
+}
+
+// AI suggest categories
+export interface AISuggestion {
+  sender_email: string
+  sender_name: string | null
+  suggested_category: string
+  suggested_subcategory: string | null
+}
+
+export interface AISuggestResponse {
+  suggestions: AISuggestion[]
+  provider: 'openai' | 'rules'
+}
