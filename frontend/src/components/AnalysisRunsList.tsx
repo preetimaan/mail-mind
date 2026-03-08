@@ -15,6 +15,45 @@ function isReconnectError(message: string | null | undefined): boolean {
   return m.includes('reconnect') || m.includes('expired or revoked') || m.includes('credentials expired')
 }
 
+function shouldShowError(message: string | null | undefined): boolean {
+  if (!message) return false
+  const m = message.toLowerCase()
+  
+  // Hide internal/backend errors
+  const internalErrorPatterns = [
+    'internal server error',
+    'internal error',
+    'backend error',
+    'traceback',
+    'exception',
+    'stack trace',
+    'error 500',
+    'server error',
+    'unexpected error',
+    'fatal error',
+    'referenced before assignment',
+    'unbound local error',
+    'name error',
+    'attribute error',
+    'type error',
+    'value error',
+    'key error',
+    'index error',
+    'runtime error',
+    'syntax error',
+    'import error'
+  ]
+  
+  return !internalErrorPatterns.some(pattern => m.includes(pattern))
+}
+
+function getUserFriendlyError(message: string | null | undefined): string {
+  if (!message || !shouldShowError(message)) {
+    return 'Analysis failed. Please try again or contact support if the issue persists.'
+  }
+  return message
+}
+
 export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAccount }: AnalysisRunsListProps) {
   const [expandedFailedGroups, setExpandedFailedGroups] = useState<Set<number>>(new Set())
 
@@ -94,7 +133,7 @@ export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAc
                   </div>
                   {!isExpanded && firstRun.error_message && (
                     <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
-                      {firstRun.error_message}
+                      {getUserFriendlyError(firstRun.error_message)}
                     </div>
                   )}
                 </div>
@@ -116,7 +155,7 @@ export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAc
                         {new Date(run.end_date).toLocaleDateString()}
                         {run.error_message && (
                           <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
-                            {run.error_message}
+                            {getUserFriendlyError(run.error_message)}
                           </div>
                         )}
                       </div>
@@ -175,7 +214,7 @@ export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAc
                 {new Date(run.end_date).toLocaleDateString()}
                 {run.status === 'failed' && run.error_message && (
                   <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
-                    {run.error_message}
+                    {getUserFriendlyError(run.error_message)}
                   </div>
                 )}
               </div>
