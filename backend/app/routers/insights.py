@@ -262,33 +262,28 @@ async def get_frequency_insights(
     
     if not emails:
         return {
-            'daily_average': 0,
-            'hourly_distribution': {},
-            'weekday_distribution': {}
+            'total_emails': 0,
+            'unique_days': 0,
+            'daily_average': 0.0
         }
     
     dates = [e[0] for e in emails if e[0]]
+    
+    if not dates:
+        return {
+            'total_emails': len(emails),
+            'unique_days': 0,
+            'daily_average': 0.0
+        }
     
     # Daily average
     unique_days = len(set(d.date() for d in dates))
     daily_avg = len(dates) / max(unique_days, 1)
     
-    # Hourly distribution
-    hourly_counts = Counter(d.hour for d in dates)
-    
-    # Weekday distribution (ordered Monday through Sunday)
-    weekday_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    weekday_counts = Counter(weekday_names[d.weekday()] for d in dates)
-    # Ensure weekday distribution is ordered (Monday through Sunday)
-    ordered_weekday_dist = {day: weekday_counts.get(day, 0) for day in weekday_names}
-    
     return {
-        'daily_average': round(daily_avg, 2),
         'total_emails': len(dates),
         'unique_days': unique_days,
-        'peak_hour': max(hourly_counts.items(), key=lambda x: x[1])[0] if hourly_counts else None,
-        'hourly_distribution': dict(hourly_counts),
-        'weekday_distribution': ordered_weekday_dist
+        'daily_average': round(daily_avg, 2)
     }
 
 @router.get("/frequency/yearly")

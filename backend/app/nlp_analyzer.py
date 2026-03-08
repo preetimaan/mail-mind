@@ -205,19 +205,8 @@ class NLPAnalyzer:
         # Daily frequency
         daily_counts = Counter(d.date() for d in dates if d)
         
-        # Hourly frequency
-        hourly_counts = Counter(d.hour for d in dates if d)
-        
-        # Day of week frequency
-        weekday_counts = Counter(d.weekday() for d in dates if d)
-        weekday_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        
         return {
-            'daily_average': round(len(emails) / max(len(daily_counts), 1), 2),
-            'peak_hour': max(hourly_counts.items(), key=lambda x: x[1])[0] if hourly_counts else None,
-            'peak_day': weekday_names[max(weekday_counts.items(), key=lambda x: x[1])[0]] if weekday_counts else None,
-            'hourly_distribution': dict(hourly_counts),
-            'weekday_distribution': {weekday_names[k]: v for k, v in weekday_counts.items()}
+            'daily_average': round(len(emails) / max(len(daily_counts), 1), 2)
         }
     
     def _categorize_emails(self, emails: List[Dict]) -> Dict:
