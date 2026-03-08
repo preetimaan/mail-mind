@@ -55,17 +55,17 @@ class DateTracker:
             proc_end = self._normalize_datetime(proc_range.end_date)
             normalized_ranges.append((proc_start, proc_end))
         
-        # Merge overlapping ranges
+        # Merge overlapping or adjacent ranges (adjacent = within 1 second, e.g. 2023-12-30 23:59:59.999999 and 2023-12-31 00:00:00)
         merged_ranges = []
         normalized_ranges.sort(key=lambda x: x[0])  # Sort by start date
-        
+        adjacency_epsilon = timedelta(seconds=1)
+
         for proc_start, proc_end in normalized_ranges:
             if not merged_ranges:
                 merged_ranges.append((proc_start, proc_end))
             else:
                 last_start, last_end = merged_ranges[-1]
-                # If this range overlaps or is adjacent to the last one, merge them
-                if proc_start <= last_end:
+                if proc_start <= last_end + adjacency_epsilon:
                     # Overlapping or adjacent - merge
                     merged_ranges[-1] = (last_start, max(last_end, proc_end))
                 else:
@@ -78,7 +78,6 @@ class DateTracker:
         # 2. End just before start_date (so we know where processed data ends before our range)
         # 3. Start just after end_date (so we know where processed data starts after our range)
         # Use a buffer to catch ranges near the boundaries
-        from datetime import timedelta
         buffer = timedelta(days=365)  # 1 year buffer to catch nearby ranges
         relevant_ranges = [
             (ps, pe)

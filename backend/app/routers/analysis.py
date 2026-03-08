@@ -171,6 +171,21 @@ def process_batch_analysis(
         analysis_run.status = "processing"
         db.commit()
         
+        # Normalize start/end to full-day boundaries (inclusive) so ProcessedDateRange covers the entire end day.
+        # Otherwise e.g. end_date=2023-12-31T00:00:00 stores range ending at midnight Dec 31, and Dec 31 stays a "gap".
+        def normalize_for_range(dt):
+            if dt is None:
+                return dt
+            if dt.tzinfo is not None:
+                from dateutil import tz as dateutil_tz
+                utc_dt = dt.astimezone(dateutil_tz.UTC)
+                dt = utc_dt.replace(tzinfo=None)
+            return dt
+        start_date = normalize_for_range(start_date)
+        end_date = normalize_for_range(end_date)
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
         # If force_reanalysis is True, remove existing data for this range
         if force_reanalysis:
             logger.info(f"Force reanalysis requested - removing existing data for {start_date} to {end_date}")
