@@ -28,17 +28,23 @@ export function useAccounts(username: string | null) {
       const loadedAccounts = response.data || []
       setAccounts(loadedAccounts)
       setLoading(false)
-      
-      // Auto-select first account if we have accounts and no account is selected
+
+      const storageKey = username ? `mailmind_selected_account_${username}` : null
       if (loadedAccounts.length > 0) {
-        // Only auto-select if no account is currently selected, or if the selected account is not in the new list
-        const currentAccountExists = selectedAccount && loadedAccounts.some((a: { id: number }) => a.id === selectedAccount)
-        if (!currentAccountExists) {
-          setSelectedAccount(loadedAccounts[0].id)
-        }
+        const preferredId = storageKey ? (() => {
+          const s = localStorage.getItem(storageKey)
+          if (!s) return null
+          const n = parseInt(s, 10)
+          return Number.isNaN(n) ? null : n
+        })() : null
+        const idToSelect = preferredId && loadedAccounts.some((a: { id: number }) => a.id === preferredId)
+          ? preferredId
+          : loadedAccounts[0].id
+        setSelectedAccount(idToSelect)
+        if (storageKey) localStorage.setItem(storageKey, String(idToSelect))
       } else {
-        // No accounts, clear selection
         setSelectedAccount(null)
+        if (storageKey) localStorage.removeItem(storageKey)
       }
     } catch (err: any) {
       console.error('Error loading accounts:', err)
@@ -101,6 +107,7 @@ export function useAccounts(username: string | null) {
       loadAccounts()
       if (selectedAccount === accountId) {
         setSelectedAccount(null)
+        localStorage.removeItem(`mailmind_selected_account_${username}`)
       }
     } catch (err: any) {
       const errorMessage = err.userMessage || err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to delete account'
@@ -108,10 +115,19 @@ export function useAccounts(username: string | null) {
     }
   }
 
+  const persistAndSetSelectedAccount = (id: number | null) => {
+    setSelectedAccount(id)
+    if (username) {
+      const key = `mailmind_selected_account_${username}`
+      if (id !== null) localStorage.setItem(key, String(id))
+      else localStorage.removeItem(key)
+    }
+  }
+
   return {
     accounts,
     selectedAccount,
-    setSelectedAccount,
+    setSelectedAccount: persistAndSetSelectedAccount,
     error,
     loading,
     loadAccounts,
