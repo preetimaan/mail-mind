@@ -68,6 +68,9 @@ npm run dev
    - `GMAIL_CLIENT_ID` - From Google Cloud Console
    - `GMAIL_CLIENT_SECRET` - From Google Cloud Console
 
+   **Optional (for AI-powered category suggestions):**
+   - `OPENAI_API_KEY` - OpenAI API key; if set, "Suggest categories" uses gpt-4o-mini. If not set, rule-based keyword suggestions are used.
+
 **⚠️ Never commit `.env` to git!** It's already in `.gitignore`
 
 ### Backend Setup
@@ -78,6 +81,8 @@ python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+# Optional: for AI category suggestions (otherwise rule-based suggestions are used)
+# pip install openai
 mkdir -p data
 uvicorn main:app --reload
 ```

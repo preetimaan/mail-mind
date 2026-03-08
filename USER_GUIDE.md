@@ -49,7 +49,7 @@ This guide helps you add email accounts and use the dashboard to gain insights i
 
 ## Understanding Your Dashboard
 
-The dashboard is organized into tabs for easy navigation. Here's what each section shows:
+The dashboard has four tabs: **Analysis**, **Insights**, **Emails**, and **Settings**. Here's what each section shows:
 
 ### 📊 Account Summary Bar
 
@@ -67,22 +67,19 @@ A compact bar showing stats for your currently selected account:
 
 **What you'll see:**
 - Bar chart showing your top 10 email senders
-- List of top email domains (e.g., gmail.com, company.com)
-- Copy buttons to easily copy sender email addresses
+- List of senders with copy button, **Emails** button (opens Emails tab filtered by that sender), and **Add to category** dropdown
+- Option to select senders and copy a Gmail filter string (e.g. `from: x@y.com OR from: z@w.com`)
+- **Suggest categories** button to get AI or rule-based category suggestions and apply them to custom categories
+- List of top email domains
 
 **What it means:**
 - Identifies who emails you most frequently
-- Helps spot important contacts vs. automated emails
-- Domain analysis shows which organizations email you most
+- Custom categories are **sender-based**: assign senders to your own categories (Finance, Urgent, etc.) and filter the email list by them
 
 **Tips:**
-- Click the copy icon next to any sender to copy their email
-- Use "Copy All" to copy all top senders at once
-- Toggle "Show All Senders" to see beyond the top 10
-
-**Example:**
-- If "noreply@amazon.com" is at the top → You get many Amazon notifications
-- If a colleague's name appears → They're a frequent contact
+- Click **Emails** next to a sender to see all emails from that sender
+- Use **Add to category** to assign a sender to a custom category (create categories in Settings first)
+- Use **Suggest categories** to bulk-suggest categories and apply to custom categories in one place
 
 ---
 
@@ -90,18 +87,12 @@ A compact bar showing stats for your currently selected account:
 
 **What you'll see:**
 - Pie chart showing how your emails are categorized:
-  - **Notifications**: System alerts, confirmations, receipts
-  - **Newsletters**: Marketing emails, digests, subscriptions
-  - **Social**: Emails from social media platforms
-  - **Shopping**: Order confirmations, shipping updates, e-commerce
-  - **Work**: Meeting invites, project updates, work-related
-  - **Personal**: Direct emails from people (not automated)
-  - **Other**: Everything else
+  - **Notifications**, **Newsletters**, **Social**, **Shopping**, **Work**, **Personal**, **Other**
+- Hint: "Click a segment to view emails in that category"
 
 **What it means:**
 - Shows the breakdown of your email types
-- Helps you understand if you're getting mostly automated emails vs. personal
-- Percentage shows what portion of your inbox each category represents
+- **Category-first navigation**: Click any segment to open the **Emails** tab with that category filter applied
 
 ---
 
@@ -168,6 +159,34 @@ A compact bar showing stats for your currently selected account:
 - 🟢 Green = Completed successfully
 - 🔴 Red = Failed (with error message)
 - ⚫ Gray = Cancelled by you
+
+---
+
+### 📧 Emails Tab (Browse & Filter)
+
+**What you'll see:**
+- A filter bar: **Category** (auto categories + your custom categories), **Sender**, **From/To** dates, **Subject** search, and **Apply**
+- Paginated table of emails: Date, Sender, Subject, Category, Custom category
+- "Load more" to fetch the next page
+
+**What it means:**
+- Browse all analyzed emails and narrow down by category, sender, date range, or subject
+- Custom categories are **sender-based**: an email appears under a custom category if its sender has been assigned to that category (via Top Senders → Add to category or Suggest categories)
+
+**Tips:**
+- Jump here from **Insights** by clicking a category in the pie chart or **Emails** next to a sender in Top Senders
+- Combine filters (e.g. category Newsletters + date range last month)
+
+---
+
+### ⚙️ Settings Tab
+
+**What you'll see:**
+- **Custom categories**: Create categories (e.g. Finance, Urgent), rename, or delete. Assign senders from the Top Senders list in Insights (Add to category dropdown).
+- **Account management**: Add/delete accounts, reconnect if needed
+- **Data maintenance**: Remove sent emails, recalculate insights, clean up duplicates
+
+**Custom categories are based on senders only** — you assign sender addresses to a category, and the Emails tab filter shows all emails from those senders.
 
 ---
 
@@ -270,12 +289,19 @@ For Gmail via API, you'll need OAuth tokens. See the backend helper script: `pyt
 
 ---
 
+### 🤖 Suggest Categories (AI or Rules)
+
+In **Insights** → **Top Senders**, click **Suggest categories**. A modal opens with a table: each sender gets a suggested category (e.g. Essentials, Life, Software/Tech, Work, Social, Other). You can **Apply** each row to an existing custom category or **Create new** and then apply. Suggestions use OpenAI if the server has `OPENAI_API_KEY` set; otherwise rule-based keyword matching is used. Custom categories are always **sender-based**: applying adds that sender to the chosen category.
+
+---
+
 ## Common Questions
 
 | Question | Answer |
 |----------|--------|
 | Why do I see 0 emails? | You haven't analyzed any date ranges yet. Click "Analyze" to process emails. |
 | Why are some categories missing? | Categories only appear if you have emails in that category. |
+| What are custom categories? | Sender-based labels you create (e.g. Finance). Assign senders in Top Senders → Add to category, or use Suggest categories. |
 | Can I analyze the same dates twice? | Yes! It only processes new/unprocessed emails. Safe to re-run. |
 | Can I cancel a running analysis? | Yes! Use the "Stop" button. All changes are automatically reverted. |
 | How do I know which dates need analysis? | Check "Processed Date Ranges" - red months indicate gaps. |
