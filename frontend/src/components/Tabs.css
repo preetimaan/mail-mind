@@ -6,7 +6,7 @@
   padding: 1rem 0.75rem 0;
   position: sticky;
   top: 68px;
-  background: linear-gradient(to bottom, #f7fafc 0%, #edf2f7 100%);
+  background: white;
   z-index: 50;
   margin-left: -1.5rem;
   margin-right: -1.5rem;
@@ -22,7 +22,7 @@
   background: transparent;
   border: none;
   border-radius: 10px 10px 0 0;
-  color: var(--color-gray-600);
+  color: var(--color-gray-500);
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 600;
@@ -33,19 +33,19 @@
 }
 
 .tab:hover:not(.disabled):not(.active) {
-  color: var(--color-gray-800);
-  background: rgba(255, 255, 255, 0.6);
+  color: var(--color-primary);
+  background: var(--color-gray-50);
 }
 
 .tab.active {
   color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+  background: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(55, 65, 81, 0.25);
   z-index: 1;
 }
 
 .tab.active:hover {
-  background: linear-gradient(135deg, #5568d3 0%, #5e3a82 100%);
+  background: var(--color-primary-dark);
 }
 
 .tab.active::after {
@@ -54,8 +54,8 @@
   bottom: -2px;
   left: 0;
   right: 0;
-  height: 2px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  height: 3px;
+  background: var(--color-accent);
 }
 
 .tab.disabled {

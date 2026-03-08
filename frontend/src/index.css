@@ -5,15 +5,20 @@
 }
 
 :root {
-  /* Primary Colors */
-  --color-primary: #667eea;
-  --color-primary-dark: #5568d3;
-  --color-primary-light: #8b9cf6;
+  /* Primary Colors - Charcoal */
+  --color-primary: #374151;
+  --color-primary-dark: #1f2937;
+  --color-primary-light: #4b5563;
   
-  /* Secondary Colors */
-  --color-secondary: #764ba2;
-  --color-secondary-dark: #5e3a82;
-  --color-secondary-light: #9d6bc9;
+  /* Accent Colors - Electric Blue */
+  --color-accent: #3b82f6;
+  --color-accent-dark: #2563eb;
+  --color-accent-light: #60a5fa;
+  
+  /* Secondary Colors - Kept for compatibility */
+  --color-secondary: #6b7280;
+  --color-secondary-dark: #4b5563;
+  --color-secondary-light: #9ca3af;
   
   /* Semantic Colors */
   --color-success: #48bb78;
@@ -72,7 +77,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(to bottom, #f7fafc 0%, #edf2f7 100%);
+  background: linear-gradient(to bottom, #ffffff 0%, #f9fafb 100%);
   color: var(--color-gray-800);
   line-height: 1.6;
   font-size: 16px;

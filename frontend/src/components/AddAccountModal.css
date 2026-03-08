@@ -119,10 +119,10 @@
 }
 
 .provider-button:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
   background: var(--color-gray-50);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.15);
 }
 
 .provider-button:active {

@@ -35,7 +35,7 @@ export default function CurrentAccountSummary({ summary, selectedAccount, accoun
       flexWrap: 'wrap',
       gap: '1rem',
     }}>
-      <span style={{ fontWeight: '600', color: '#333' }}>
+      <span style={{ fontWeight: '600', color: 'var(--color-gray-800)' }}>
         Email Summary
       </span>
       <div style={{
@@ -43,14 +43,14 @@ export default function CurrentAccountSummary({ summary, selectedAccount, accoun
         gap: '1.5rem',
         flexWrap: 'wrap',
       }}>
-        <span style={{ color: '#555' }}>
-          <strong style={{ color: '#667eea' }}>{emails}</strong> emails
+        <span style={{ color: 'var(--color-gray-600)' }}>
+          <strong style={{ color: 'var(--color-accent)' }}>{emails}</strong> emails
         </span>
-        <span style={{ color: '#555' }}>
-          <strong style={{ color: '#667eea' }}>{senders}</strong> senders
+        <span style={{ color: 'var(--color-gray-600)' }}>
+          <strong style={{ color: 'var(--color-accent)' }}>{senders}</strong> senders
         </span>
-        <span style={{ color: '#555' }}>
-          <strong style={{ color: '#667eea' }}>{ranges}</strong> processed ranges
+        <span style={{ color: 'var(--color-gray-600)' }}>
+          <strong style={{ color: 'var(--color-accent)' }}>{ranges}</strong> processed ranges
         </span>
       </div>
     </div>
