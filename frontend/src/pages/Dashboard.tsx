@@ -612,21 +612,8 @@ export default function Dashboard() {
                           <YearlyFrequencyChart insights={yearlyFrequencyInsights} />
                         </div>
                       )}
-                      <div className="card" style={{ marginTop: '1.5rem' }}>
-                        <h2>Email Frequency</h2>
-                        <FrequencyChart insights={frequencyInsights} />
-                      </div>
                     </>
-                  ) : (
-                    <div className="card" style={{ marginTop: '1.5rem' }}>
-                      <h2>Email Frequency</h2>
-                      <EmptyState
-                        title="No frequency data yet"
-                        message="Run an analysis to see your email frequency patterns."
-                        icon="⏰"
-                      />
-                    </div>
-                  )
+                  ) : null
                 ) : null}
               </>
             )}
@@ -655,15 +642,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Custom Categories</h3>
-            <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.5rem' }}>
-              <CustomCategoriesManager
-                username={username || ''}
-                customCategories={customCategories}
-                onUpdate={loadCustomCategories}
-              />
-            </div>
-
             <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Account Management</h3>
             {accountsLoading && <div style={{ marginBottom: '1rem', color: '#666' }}>Loading accounts...</div>}
             {accountsError && <div className="error" style={{ marginBottom: '1rem' }}>{accountsError}</div>}
@@ -678,6 +656,15 @@ export default function Dashboard() {
                 setShowAddAccountModal(true)
               }}
             />
+
+            <h3 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Custom Categories</h3>
+            <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.5rem' }}>
+              <CustomCategoriesManager
+                username={username || ''}
+                customCategories={customCategories}
+                onUpdate={loadCustomCategories}
+              />
+            </div>
 
             {/* Data Maintenance */}
             <h3 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Data Maintenance</h3>
