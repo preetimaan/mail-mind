@@ -44,15 +44,7 @@ export default function Dashboard() {
   const [cleanupResult, setCleanupResult] = useState<{ message: string; duplicates_removed: number } | null>(null)
   const [recalculateLoading, setRecalculateLoading] = useState(false)
   const [recalculateResult, setRecalculateResult] = useState<{ message: string; emails_processed: number } | null>(null)
-<<<<<<< HEAD
-=======
-  const [emailListInitialFilter, setEmailListInitialFilter] = useState<{
-    category?: string | null
-    senderEmail?: string | null
-    customCategoryId?: number | null
-  }>({})
   const [showAISuggestModal, setShowAISuggestModal] = useState(false)
->>>>>>> 198a3ea (feat: subject rules + AI-powered sender categorization (roadmap 5-6))
 
   const {
     usernameInput,
