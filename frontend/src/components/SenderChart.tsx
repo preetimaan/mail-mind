@@ -14,14 +14,18 @@ export default function SenderChart({ insights, username, accountId, customCateg
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [copiedFilter, setCopiedFilter] = useState(false)
   const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set())
+  const [visibleCount, setVisibleCount] = useState(20)
 
   // Use top_domains instead of top_senders for the chart
-  const domains = insights.top_domains || []
-  const data = domains.slice(0, 10).map((domain) => ({
+  const allDomains = insights.top_domains || []
+  const data = allDomains.slice(0, 20).map((domain) => ({
     name: domain.domain,
     count: domain.count,
     percentage: (domain.count / insights.total_emails) * 100,
   }))
+  
+  const visibleDomains = allDomains.slice(0, visibleCount)
+  const hasMore = visibleCount < allDomains.length
 
   const toggleDomainSelection = (domain: string) => {
     const newSelected = new Set(selectedDomains)
@@ -34,8 +38,12 @@ export default function SenderChart({ insights, username, accountId, customCateg
   }
 
   const selectAll = () => {
-    const allDomains = new Set(domains.map(d => d.domain))
-    setSelectedDomains(allDomains)
+    const allDomainsSet = new Set(visibleDomains.map(d => d.domain))
+    setSelectedDomains(allDomainsSet)
+  }
+  
+  const loadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 20, allDomains.length))
   }
 
   const clearSelection = () => {
@@ -103,7 +111,7 @@ export default function SenderChart({ insights, username, accountId, customCateg
           🌐 Top email domains by volume
         </p>
       </div>
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={500}>
         <BarChart data={data}>
           <defs>
             <linearGradient id="senderGradient" x1="0" y1="0" x2="0" y2="1">
@@ -197,7 +205,7 @@ export default function SenderChart({ insights, username, accountId, customCateg
       <div style={{ marginTop: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ margin: 0 }}>
-            Top Domains ({domains.length})
+            Top Domains ({visibleDomains.length} of {allDomains.length})
           </h3>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button
@@ -219,27 +227,27 @@ export default function SenderChart({ insights, username, accountId, customCateg
         </div>
         
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {domains.map((domain, index) => (
+          {visibleDomains.map((domainItem, index) => (
             <li 
-              key={`${domain.domain}-${index}`}
+              key={`${domainItem.domain}-${index}`}
               style={{ 
                 padding: '0.5rem 0.75rem', 
-                background: selectedDomains.has(domain.domain) ? '#e8f4fd' : '#f8f9fa', 
+                background: selectedDomains.has(domainItem.domain) ? '#e8f4fd' : '#f8f9fa', 
                 marginBottom: '0.25rem', 
                 borderRadius: '4px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
-                border: selectedDomains.has(domain.domain) ? '1px solid #b8daff' : '1px solid transparent',
+                border: selectedDomains.has(domainItem.domain) ? '1px solid #b8daff' : '1px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
-              onClick={() => toggleDomainSelection(domain.domain)}
+              onClick={() => toggleDomainSelection(domainItem.domain)}
             >
               <input
                 type="checkbox"
-                checked={selectedDomains.has(domain.domain)}
-                onChange={() => toggleDomainSelection(domain.domain)}
+                checked={selectedDomains.has(domainItem.domain)}
+                onChange={() => toggleDomainSelection(domainItem.domain)}
                 onClick={(e) => e.stopPropagation()}
                 style={{ 
                   width: '16px', 
@@ -251,16 +259,16 @@ export default function SenderChart({ insights, username, accountId, customCateg
               />
               <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: '500', fontSize: '1rem', color: '#2c3e50' }}>
-                  {domain.domain}
+                  {domainItem.domain}
                 </span>
                 <span style={{ fontSize: '0.85rem', color: '#999', whiteSpace: 'nowrap' }}>
-                  ({domain.count} · {((domain.count / insights.total_emails) * 100).toFixed(1)}%)
+                  ({domainItem.count} · {((domainItem.count / insights.total_emails) * 100).toFixed(1)}%)
                 </span>
               </div>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  copyDomain(domain.domain, index)
+                  copyDomain(domainItem.domain, index)
                 }}
                 type="button"
                 style={{
@@ -282,6 +290,28 @@ export default function SenderChart({ insights, username, accountId, customCateg
             </li>
           ))}
         </ul>
+        
+        {/* Load More Button */}
+        {hasMore && (
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <button
+              onClick={loadMore}
+              type="button"
+              style={{
+                background: '#667eea',
+                border: 'none',
+                color: '#fff',
+                padding: '0.75rem 2rem',
+                borderRadius: '4px',
+                fontSize: '1rem',
+                cursor: 'pointer',
+                fontWeight: '500',
+              }}
+            >
+              Load More ({Math.min(20, allDomains.length - visibleCount)} more)
+            </button>
+          </div>
+        )}
       </div>
       
     </div>

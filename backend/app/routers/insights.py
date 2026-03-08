@@ -184,7 +184,7 @@ async def get_sender_insights(
         'top_senders': senders,
         'top_domains': [
             {'domain': domain, 'count': count}
-            for domain, count in domain_counts.most_common(10)
+            for domain, count in domain_counts.most_common(50)
         ],
         'total_emails': total_emails,
         'total_senders': total_senders,
