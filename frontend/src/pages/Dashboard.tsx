@@ -587,6 +587,8 @@ export default function Dashboard() {
                       <h2>Email Categories</h2>
                       <CategoryChart
                         insights={categoryInsights}
+                        username={username || ''}
+                        accountId={selectedAccount || 0}
                       />
                     </div>
                   ) : (

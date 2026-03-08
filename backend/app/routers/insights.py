@@ -234,6 +234,53 @@ async def get_category_insights(
     }
 
 
+@router.get("/category-domains")
+async def get_category_domains(
+    username: str,
+    account_id: int,
+    category: str,
+    db: Session = Depends(get_db)
+):
+    """Get top domains for a specific category"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(EmailAccount).filter(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Get emails in this category with their domains
+    emails = (
+        db.query(EmailMetadata.sender_email)
+        .join(AnalysisResult, AnalysisResult.email_id == EmailMetadata.id)
+        .filter(
+            EmailMetadata.account_id == account_id,
+            AnalysisResult.category == category
+        )
+        .all()
+    )
+    
+    # Count by domain
+    domain_counts = Counter()
+    for (email,) in emails:
+        if email and '@' in email:
+            domain = email.split('@')[1].lower()
+            domain_counts[domain] += 1
+    
+    return {
+        'category': category,
+        'domains': [
+            {'domain': domain, 'count': count}
+            for domain, count in domain_counts.most_common(10)
+        ]
+    }
+
+
 # --- Frequency insights ---
 
 @router.get("/frequency")
