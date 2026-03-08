@@ -6,9 +6,16 @@ interface AnalysisRunsListProps {
   runs: AnalysisRun[]
   loading: boolean
   onRetry: (runId: number) => void
+  onReconnectAccount?: (accountId: number) => void
 }
 
-export default function AnalysisRunsList({ runs, loading, onRetry }: AnalysisRunsListProps) {
+function isReconnectError(message: string | null | undefined): boolean {
+  if (!message) return false
+  const m = message.toLowerCase()
+  return m.includes('reconnect') || m.includes('expired or revoked') || m.includes('credentials expired')
+}
+
+export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAccount }: AnalysisRunsListProps) {
   const [expandedFailedGroups, setExpandedFailedGroups] = useState<Set<number>>(new Set())
 
   if (runs.length === 0) {
@@ -126,15 +133,32 @@ export default function AnalysisRunsList({ runs, loading, onRetry }: AnalysisRun
                             onRetry(run.id)
                           }}
                           className="button"
-                          style={{ 
-                            marginLeft: '1rem',
-                            padding: '0.5rem 1rem',
-                            fontSize: '0.9rem'
-                          }}
+                          style={{ marginLeft: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.9rem' }}
                           disabled={loading}
                         >
                           Retry
                         </button>
+                        {isReconnectError(run.error_message) && onReconnectAccount && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onReconnectAccount(run.account_id)
+                            }}
+                            type="button"
+                            style={{
+                              marginLeft: '0.5rem',
+                              padding: '0.5rem 1rem',
+                              fontSize: '0.9rem',
+                              background: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Reconnect
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -163,18 +187,34 @@ export default function AnalysisRunsList({ runs, loading, onRetry }: AnalysisRun
                   <span>{run.emails_processed} emails</span>
                 )}
                 {run.status === 'failed' && (
-                  <button
-                    onClick={() => onRetry(run.id)}
-                    className="button"
-                    style={{ 
-                      marginLeft: '1rem',
-                      padding: '0.5rem 1rem',
-                      fontSize: '0.9rem'
-                    }}
-                    disabled={loading}
-                  >
-                    Retry
-                  </button>
+                  <>
+                    <button
+                      onClick={() => onRetry(run.id)}
+                      className="button"
+                      style={{ marginLeft: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                      disabled={loading}
+                    >
+                      Retry
+                    </button>
+                    {isReconnectError(run.error_message) && onReconnectAccount && (
+                      <button
+                        onClick={() => onReconnectAccount(run.account_id)}
+                        type="button"
+                        style={{
+                          marginLeft: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          fontSize: '0.9rem',
+                          background: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Reconnect
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

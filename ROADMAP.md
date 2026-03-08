@@ -226,7 +226,7 @@
 - [x] **Sender → custom category mapping** – SenderCategoryMapping table (user_id, sender_email, custom_category_id). POST/DELETE for assign/remove. One sender per custom category (reassign replaces).
 - [x] **Filter by custom category** – Email list accepts `custom_category_id`; custom categories in filter dropdown alongside auto-categories.
 - [x] **Custom category management UI** – Settings: CustomCategoriesManager (create, rename, delete). Top Senders: "Add to category" dropdown to assign sender to custom category.
-- [x] **Optional: subject rules** – SubjectRule table; rule "subject contains X" → custom category. GET/POST/DELETE `/api/insights/custom-categories/{id}/subject-rules`. Email list filter by custom category includes emails matching subject rules. Settings: expand category → add/remove subject rules.
+- [ ] **Optional: subject rules** – Deferred. Custom categories are sender-based only.
 
 #### 6. AI-Powered Sender Categorization
 **Status**: Complete  

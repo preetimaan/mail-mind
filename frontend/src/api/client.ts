@@ -183,12 +183,6 @@ export interface CustomCategory {
   created_at: string | null
 }
 
-export interface SubjectRule {
-  id: number
-  subject_contains: string
-  created_at: string | null
-}
-
 // AI suggest categories
 export interface AISuggestion {
   sender_email: string

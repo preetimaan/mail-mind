@@ -145,7 +145,6 @@ class CustomCategory(Base):
     
     user = relationship("User", back_populates="custom_categories")
     sender_mappings = relationship("SenderCategoryMapping", back_populates="custom_category", cascade="all, delete-orphan")
-    subject_rules = relationship("SubjectRule", back_populates="custom_category", cascade="all, delete-orphan")
 
 
 class SenderCategoryMapping(Base):
@@ -163,19 +162,6 @@ class SenderCategoryMapping(Base):
     )
     
     custom_category = relationship("CustomCategory", back_populates="sender_mappings")
-
-
-class SubjectRule(Base):
-    """Rule: if email subject contains this pattern, treat as being in the given custom category."""
-    __tablename__ = "subject_rules"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    custom_category_id = Column(Integer, ForeignKey("custom_categories.id"), nullable=False, index=True)
-    subject_contains = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    custom_category = relationship("CustomCategory", back_populates="subject_rules")
 
 
 def init_db():

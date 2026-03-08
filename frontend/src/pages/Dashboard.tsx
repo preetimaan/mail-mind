@@ -501,6 +501,10 @@ export default function Dashboard() {
                     runs={analysisRuns}
                     loading={loading}
                     onRetry={handleRetryAnalysis}
+                    onReconnectAccount={(accountId) => {
+                      setSelectedAccount(accountId)
+                      setShowAddAccountModal(true)
+                    }}
                   />
                   {hasMoreRuns && (
                     <div style={{ marginTop: '1rem', textAlign: 'center' }}>
