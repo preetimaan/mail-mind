@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { format, parseISO, differenceInDays, eachMonthOfInterval } from 'date-fns'
 
 interface ProcessedRange {
@@ -116,43 +116,49 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
   return (
     <div>
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+        <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+          <defs>
+            <linearGradient id="processedAreaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#667eea" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#667eea" stopOpacity={0.25} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="month" 
+          <XAxis
+            dataKey="month"
             angle={-45}
             textAnchor="end"
             height={80}
             interval={calculateInterval()}
           />
-          <YAxis 
+          <YAxis
             domain={[0, 1]}
             ticks={[0, 1]}
-            tickFormatter={(value) => value === 1 ? 'Yes' : 'No'}
+            tickFormatter={(value) => (value === 1 ? 'Covered' : '')}
+            width={50}
           />
-          <Tooltip 
-            formatter={(value: number, name: string) => {
-              if (name === 'processed') {
-                return [value === 1 ? 'Yes' : 'No', 'Processed']
-              }
-              return [value, name]
+          <Tooltip
+            formatter={(value: number, _name: string, props: { payload: (typeof chartData)[0] }) => {
+              const entry = props.payload
+              const pct = entry?.coveragePercent
+              const status = value === 1 ? 'Fully processed' : pct != null ? `Partial (${pct}%)` : 'Gap'
+              return [status, 'Coverage']
             }}
-            labelFormatter={(label) => `Month: ${label}`}
+            labelFormatter={(label) => label}
           />
-          <Legend />
-          <Bar dataKey="processed" name="Processed" fill="#667eea">
-            {chartData.map((entry, index) => {
-              // Red for gaps (< 100%), green for 100% coverage
-              const fillColor = entry.hasGap ? "#dc3545" : "#667eea";
-              return (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={fillColor} 
-                />
-              )
-            })}
-          </Bar>
-        </BarChart>
+          <ReferenceLine y={0} stroke="#e0e0e0" />
+          <Area
+            type="stepAfter"
+            dataKey="processed"
+            name="Processed"
+            fill="url(#processedAreaFill)"
+            stroke="#667eea"
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={true}
+            animationDuration={400}
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   )
