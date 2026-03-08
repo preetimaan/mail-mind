@@ -780,7 +780,14 @@ async def retry_analysis_run(
     
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-    
+
+    # Don't start a retry if the account was marked inactive (e.g. expired token)
+    if not account.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Account credentials expired or revoked. Reconnect the account in Settings, then try again."
+        )
+
     logger.info(f"Retrying analysis run {run_id} for user {username}")
     print(f"[PRINT] Retrying analysis run {run_id} for user {username}")
     
