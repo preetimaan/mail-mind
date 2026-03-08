@@ -13,63 +13,40 @@ interface SenderChartProps {
 export default function SenderChart({ insights, username, accountId, customCategories = [], onAssignToCategory }: SenderChartProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [copiedFilter, setCopiedFilter] = useState(false)
-  const [senders, setSenders] = useState(insights.top_senders)
-  const [offset, setOffset] = useState(insights.offset)
-  const [hasMore, setHasMore] = useState(insights.has_more)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [selectedSenders, setSelectedSenders] = useState<Set<string>>(new Set())
-  const [totalSenders, setTotalSenders] = useState(insights.total_senders)
+  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set())
 
-  const data = senders.slice(0, 10).map((sender) => ({
-    name: sender.name || sender.email.split('@')[0],
-    count: sender.count,
-    percentage: sender.percentage,
+  // Use top_domains instead of top_senders for the chart
+  const domains = insights.top_domains || []
+  const data = domains.slice(0, 10).map((domain) => ({
+    name: domain.domain,
+    count: domain.count,
+    percentage: (domain.count / insights.total_emails) * 100,
   }))
 
-  const loadMore = async () => {
-    if (loadingMore || !hasMore) return
-    
-    const newOffset = offset + 20
-    if (newOffset >= 100) return // Cap at 100
-    
-    setLoadingMore(true)
-    try {
-      const response = await api.get(`/api/insights/senders?username=${username}&account_id=${accountId}&limit=20&offset=${newOffset}`)
-      setSenders([...senders, ...response.data.top_senders])
-      setOffset(newOffset)
-      setHasMore(response.data.has_more && newOffset + 20 < 100)
-      setTotalSenders(response.data.total_senders)
-    } catch (err) {
-      console.error('Failed to load more senders:', err)
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
-  const toggleSenderSelection = (email: string) => {
-    const newSelected = new Set(selectedSenders)
-    if (newSelected.has(email)) {
-      newSelected.delete(email)
+  const toggleDomainSelection = (domain: string) => {
+    const newSelected = new Set(selectedDomains)
+    if (newSelected.has(domain)) {
+      newSelected.delete(domain)
     } else {
-      newSelected.add(email)
+      newSelected.add(domain)
     }
-    setSelectedSenders(newSelected)
+    setSelectedDomains(newSelected)
   }
 
   const selectAll = () => {
-    const allEmails = new Set(senders.map(s => s.email))
-    setSelectedSenders(allEmails)
+    const allDomains = new Set(domains.map(d => d.domain))
+    setSelectedDomains(allDomains)
   }
 
   const clearSelection = () => {
-    setSelectedSenders(new Set())
+    setSelectedDomains(new Set())
   }
 
   const generateFilterString = () => {
-    if (selectedSenders.size === 0) return ''
-    const emails = Array.from(selectedSenders)
-    // Gmail filter format: from:email1 OR from:email2 OR from:email3
-    return emails.map(e => `from:${e}`).join(' OR ')
+    if (selectedDomains.size === 0) return ''
+    const domainList = Array.from(selectedDomains)
+    // Gmail filter format: from:*@domain1.com OR from:*@domain2.com
+    return domainList.map(d => `from:*@${d}`).join(' OR ')
   }
 
   const copyFilterString = async () => {
@@ -85,9 +62,9 @@ export default function SenderChart({ insights, username, accountId, customCateg
     }
   }
 
-  const copyEmail = async (email: string, index: number) => {
+  const copyDomain = async (domain: string, index: number) => {
     try {
-      await navigator.clipboard.writeText(email)
+      await navigator.clipboard.writeText(domain)
       setCopiedIndex(index)
       setTimeout(() => setCopiedIndex(null), 2000)
     } catch (err) {
@@ -123,7 +100,7 @@ export default function SenderChart({ insights, username, accountId, customCateg
     <div>
       <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
-          📧 Top email senders by volume
+          🌐 Top email domains by volume
         </p>
       </div>
       <ResponsiveContainer width="100%" height={400}>
@@ -154,7 +131,7 @@ export default function SenderChart({ insights, username, accountId, customCateg
       </ResponsiveContainer>
       
       {/* Filter String Generator */}
-      {selectedSenders.size > 0 && (
+      {selectedDomains.size > 0 && (
         <div style={{ 
           marginTop: '1.5rem', 
           padding: '1rem', 
@@ -163,7 +140,7 @@ export default function SenderChart({ insights, username, accountId, customCateg
           border: '1px solid #b8daff'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <strong style={{ color: '#004085' }}>{selectedSenders.size} sender(s) selected</strong>
+            <strong style={{ color: '#004085' }}>{selectedDomains.size} domain(s) selected</strong>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 onClick={clearSelection}
@@ -216,10 +193,11 @@ export default function SenderChart({ insights, username, accountId, customCateg
         </div>
       )}
       
+      {/* Domains List */}
       <div style={{ marginTop: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ margin: 0 }}>
-            Top Senders ({senders.length} of {totalSenders})
+            Top Domains ({domains.length})
           </h3>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button
@@ -241,27 +219,27 @@ export default function SenderChart({ insights, username, accountId, customCateg
         </div>
         
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {senders.map((sender, index) => (
+          {domains.map((domain, index) => (
             <li 
-              key={`${sender.email}-${index}`}
+              key={`${domain.domain}-${index}`}
               style={{ 
                 padding: '0.5rem 0.75rem', 
-                background: selectedSenders.has(sender.email) ? '#e8f4fd' : '#f8f9fa', 
+                background: selectedDomains.has(domain.domain) ? '#e8f4fd' : '#f8f9fa', 
                 marginBottom: '0.25rem', 
                 borderRadius: '4px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
-                border: selectedSenders.has(sender.email) ? '1px solid #b8daff' : '1px solid transparent',
+                border: selectedDomains.has(domain.domain) ? '1px solid #b8daff' : '1px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
-              onClick={() => toggleSenderSelection(sender.email)}
+              onClick={() => toggleDomainSelection(domain.domain)}
             >
               <input
                 type="checkbox"
-                checked={selectedSenders.has(sender.email)}
-                onChange={() => toggleSenderSelection(sender.email)}
+                checked={selectedDomains.has(domain.domain)}
+                onChange={() => toggleDomainSelection(domain.domain)}
                 onClick={(e) => e.stopPropagation()}
                 style={{ 
                   width: '16px', 
@@ -272,20 +250,17 @@ export default function SenderChart({ insights, username, accountId, customCateg
                 }}
               />
               <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: '500', whiteSpace: 'nowrap' }}>
-                  {sender.name || sender.email.split('@')[0]}
+                <span style={{ fontWeight: '500', fontSize: '1rem', color: '#2c3e50' }}>
+                  {domain.domain}
                 </span>
-                <span style={{ fontSize: '0.85rem', color: '#666', wordBreak: 'break-all' }}>
-                  {sender.email}
-                </span>
-                <span style={{ fontSize: '0.8rem', color: '#999', whiteSpace: 'nowrap' }}>
-                  ({sender.count} · {sender.percentage.toFixed(1)}%)
+                <span style={{ fontSize: '0.85rem', color: '#999', whiteSpace: 'nowrap' }}>
+                  ({domain.count} · {((domain.count / insights.total_emails) * 100).toFixed(1)}%)
                 </span>
               </div>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  copyEmail(sender.email, index)
+                  copyDomain(domain.domain, index)
                 }}
                 type="button"
                 style={{
@@ -304,81 +279,11 @@ export default function SenderChart({ insights, username, accountId, customCateg
               >
                 {copiedIndex === index ? '✓' : '📋'}
               </button>
-              {onAssignToCategory && customCategories.length > 0 && (
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const id = Number(e.target.value)
-                    if (id) onAssignToCategory(sender.email, id)
-                    e.target.value = ''
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    padding: '0.2rem 0.4rem',
-                    fontSize: '0.8rem',
-                    borderRadius: 4,
-                    border: '1px solid #ddd',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
-                  title="Add to custom category"
-                >
-                  <option value="">Add to category...</option>
-                  {customCategories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
             </li>
           ))}
         </ul>
-        
-        {/* Load More Button */}
-        {hasMore && senders.length < 100 && (
-          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              type="button"
-              style={{
-                background: '#667eea',
-                border: 'none',
-                color: '#fff',
-                padding: '0.75rem 2rem',
-                borderRadius: '4px',
-                fontSize: '1rem',
-                cursor: loadingMore ? 'wait' : 'pointer',
-                fontWeight: '500',
-                opacity: loadingMore ? 0.7 : 1,
-              }}
-            >
-              {loadingMore ? 'Loading...' : `Load More (${Math.min(20, 100 - senders.length)} more)`}
-            </button>
-            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#666' }}>
-              Showing {senders.length} of {Math.min(100, totalSenders)} senders (max 100)
-            </p>
-          </div>
-        )}
-        
-        {senders.length >= 100 && (
-          <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
-            Showing top 100 senders
-          </p>
-        )}
       </div>
       
-      <div style={{ marginTop: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>Top Domains</h3>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {insights.top_domains.map((domain) => (
-            <li key={domain.domain} style={{ padding: '0.5rem', background: '#f8f9fa', marginBottom: '0.5rem', borderRadius: '4px' }}>
-              <strong>{domain.domain}</strong>: {domain.count} emails
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   )
 }
