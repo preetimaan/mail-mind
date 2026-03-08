@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, parseISO, differenceInDays, eachMonthOfInterval } from 'date-fns'
 
 interface ProcessedRange {
@@ -77,18 +77,14 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
       
       const totalDaysInMonth = differenceInDays(monthEnd, monthStart) + 1
       const coveragePercent = totalDaysInMonth > 0 ? (processedDays / totalDaysInMonth) * 100 : 0
-      const hasGap = coveragePercent < 100 // Any coverage less than 100% is a gap
-      const isProcessed = coveragePercent === 100 ? 1 : 0 // 1 = Yes (fully processed), 0 = No (has gap)
       
       return {
         month: format(month, 'MMM yyyy'),
         year: year.toString(),
-        processed: isProcessed,
+        coverage: Math.min(100, Math.round(coveragePercent)),
         processedDays,
         totalDays: totalDaysInMonth,
-        emails: totalEmails,
-        hasGap: hasGap,
-        coveragePercent: Math.min(100, Math.round(coveragePercent)) // Keep for tooltip
+        emails: totalEmails
       }
     })
   }, [ranges])
@@ -113,50 +109,75 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
     return 11
   }
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div style={{
+          backgroundColor: 'white',
+          padding: '12px',
+          border: '1px solid #ccc',
+          borderRadius: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#2c3e50' }}>{label}</p>
+          <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#667eea' }}>
+            Coverage: <strong>{data.coverage}%</strong>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#666' }}>
+            {data.processedDays} of {data.totalDays} days processed
+          </p>
+          {data.emails > 0 && (
+            <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#666' }}>
+              {data.emails.toLocaleString()} emails
+            </p>
+          )}
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <div>
+      <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
+          📊 Timeline shows continuous coverage of analyzed email data. Gaps indicate unprocessed date ranges.
+        </p>
+      </div>
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
           <defs>
-            <linearGradient id="processedAreaFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#667eea" stopOpacity={0.9} />
-              <stop offset="100%" stopColor="#667eea" stopOpacity={0.25} />
+            <linearGradient id="coverageGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#667eea" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#667eea" stopOpacity={0.1}/>
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="month"
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <XAxis 
+            dataKey="month" 
             angle={-45}
             textAnchor="end"
             height={80}
             interval={calculateInterval()}
+            tick={{ fontSize: 12, fill: '#666' }}
           />
-          <YAxis
-            domain={[0, 1]}
-            ticks={[0, 1]}
-            tickFormatter={(value) => (value === 1 ? 'Covered' : '')}
-            width={50}
+          <YAxis 
+            domain={[0, 100]}
+            ticks={[0, 25, 50, 75, 100]}
+            tickFormatter={(value) => `${value}%`}
+            tick={{ fontSize: 12, fill: '#666' }}
+            label={{ value: 'Coverage', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#666' } }}
           />
-          <Tooltip
-            formatter={(value: number, _name: string, props: { payload: (typeof chartData)[0] }) => {
-              const entry = props.payload
-              const pct = entry?.coveragePercent
-              const status = value === 1 ? 'Fully processed' : pct != null ? `Partial (${pct}%)` : 'Gap'
-              return [status, 'Coverage']
-            }}
-            labelFormatter={(label) => label}
-          />
-          <ReferenceLine y={0} stroke="#e0e0e0" />
-          <Area
-            type="stepAfter"
-            dataKey="processed"
-            name="Processed"
-            fill="url(#processedAreaFill)"
-            stroke="#667eea"
-            strokeWidth={1.5}
+          <Tooltip content={<CustomTooltip />} />
+          <Area 
+            type="monotone" 
+            dataKey="coverage" 
+            stroke="#667eea" 
+            strokeWidth={2}
+            fill="url(#coverageGradient)"
             dot={false}
-            isAnimationActive={true}
-            animationDuration={400}
+            activeDot={{ r: 5, fill: '#667eea' }}
           />
         </AreaChart>
       </ResponsiveContainer>
