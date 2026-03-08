@@ -95,16 +95,61 @@ export default function SenderChart({ insights, username, accountId, customCateg
     }
   }
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div style={{
+          backgroundColor: 'white',
+          padding: '12px',
+          border: '1px solid #ccc',
+          borderRadius: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#2c3e50' }}>{data.name}</p>
+          <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#667eea' }}>
+            Emails: <strong>{data.count.toLocaleString()}</strong>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#666' }}>
+            {data.percentage.toFixed(1)}% of total
+          </p>
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <div>
+      <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
+          📧 Top email senders by volume
+        </p>
+      </div>
       <ResponsiveContainer width="100%" height={400}>
         <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="count" fill="#667eea" name="Email Count" />
+          <defs>
+            <linearGradient id="senderGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#667eea" stopOpacity={0.9}/>
+              <stop offset="95%" stopColor="#667eea" stopOpacity={0.6}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <XAxis 
+            dataKey="name" 
+            angle={-45} 
+            textAnchor="end" 
+            height={100}
+            tick={{ fontSize: 12, fill: '#666' }}
+          />
+          <YAxis tick={{ fontSize: 12, fill: '#666' }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar 
+            dataKey="count" 
+            fill="url(#senderGradient)" 
+            name="Email Count"
+            radius={[4, 4, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
       
