@@ -419,14 +419,38 @@ async def get_processed_ranges(
             logger.info(f"  Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
             print(f"[PRINT]   Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
     
+    # Merge adjacent ranges (within 1s) so the table matches gap logic and doesn't show two rows for Dec 30 / Dec 31
+    merged = []
+    adjacency_epsilon = timedelta(seconds=1)
+    for r in ranges:
+        if not merged:
+            merged.append({
+                'start_date': r.start_date,
+                'end_date': r.end_date,
+                'emails_count': r.emails_count,
+                'processed_at': r.processed_at,
+            })
+        else:
+            last = merged[-1]
+            if r.start_date <= last['end_date'] + adjacency_epsilon:
+                last['end_date'] = max(last['end_date'], r.end_date)
+                last['emails_count'] = last['emails_count'] + r.emails_count
+                last['processed_at'] = max(last['processed_at'], r.processed_at)
+            else:
+                merged.append({
+                    'start_date': r.start_date,
+                    'end_date': r.end_date,
+                    'emails_count': r.emails_count,
+                    'processed_at': r.processed_at,
+                })
     result = [
         {
-            'start_date': r.start_date.isoformat(),
-            'end_date': r.end_date.isoformat(),
-            'emails_count': r.emails_count,
-            'processed_at': r.processed_at.isoformat()
+            'start_date': m['start_date'].isoformat(),
+            'end_date': m['end_date'].isoformat(),
+            'emails_count': m['emails_count'],
+            'processed_at': m['processed_at'].isoformat(),
         }
-        for r in ranges
+        for m in merged
     ]
     
     # If no ranges exist but emails do, try to reconstruct from email metadata
