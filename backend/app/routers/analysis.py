@@ -213,14 +213,8 @@ def process_batch_analysis(
             # End at end of day (23:59:59.999999)
             norm_end = norm_end.replace(hour=23, minute=59, second=59, microsecond=999999)
             
-            # Add a 1-day buffer on each side to catch timezone edge cases
-            buffer_start = norm_start - timedelta(days=1)
-            buffer_end = norm_end + timedelta(days=1)
-            
-            logger.info(f"Normalized date range: {norm_start} to {norm_end}")
-            logger.info(f"With buffer for deletion: {buffer_start} to {buffer_end}")
-            print(f"[PRINT] Normalized date range: {norm_start} to {norm_end}")
-            print(f"[PRINT] With buffer for deletion: {buffer_start} to {buffer_end}")
+            logger.info(f"Deleting data for exact range: {norm_start} to {norm_end}")
+            print(f"[PRINT] Deleting data for exact range: {norm_start} to {norm_end}")
             
             # Check total emails for this account first
             total_account_emails = db.query(EmailMetadata).filter(
@@ -229,11 +223,11 @@ def process_batch_analysis(
             logger.info(f"Total emails for account {account_id}: {total_account_emails}")
             print(f"[PRINT] Total emails for account {account_id}: {total_account_emails}")
             
-            # 1. Find all emails in the date range for this account (with buffer)
+            # 1. Find all emails in the exact date range for this account (no buffer)
             emails_in_range = db.query(EmailMetadata).filter(
                 EmailMetadata.account_id == account_id,
-                EmailMetadata.date_received >= buffer_start,
-                EmailMetadata.date_received <= buffer_end
+                EmailMetadata.date_received >= norm_start,
+                EmailMetadata.date_received <= norm_end
             ).all()
             
             if emails_in_range:
