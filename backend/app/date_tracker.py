@@ -165,17 +165,26 @@ class DateTracker:
         logger.info(f"mark_range_processed called: account_id={self.account_id}, start={start_date}, end={end_date}, count={emails_count}")
         print(f"[PRINT] mark_range_processed called: account_id={self.account_id}, start={start_date}, end={end_date}, count={emails_count}")
         
-        # Check for overlaps and adjacent ranges (within 2 days) that should be merged
-        # Use a 2-day buffer to catch ranges that are adjacent (e.g., Dec 31 -> Jan 1)
-        adjacency_buffer = timedelta(days=2)
-        overlapping = self.db.query(ProcessedDateRange).filter(
-            ProcessedDateRange.account_id == self.account_id,
-            ProcessedDateRange.start_date <= end_date + adjacency_buffer,
-            ProcessedDateRange.end_date >= start_date - adjacency_buffer
+        # Get all existing ranges to check for overlaps/adjacency
+        all_ranges = self.db.query(ProcessedDateRange).filter(
+            ProcessedDateRange.account_id == self.account_id
         ).all()
         
-        logger.info(f"Found {len(overlapping)} overlapping ranges")
-        print(f"[PRINT] Found {len(overlapping)} overlapping ranges")
+        # Find ranges that should be merged (overlap or are adjacent within 1 day)
+        overlapping = []
+        for r in all_ranges:
+            r_start = self._normalize_datetime(r.start_date)
+            r_end = self._normalize_datetime(r.end_date)
+            
+            # Check if ranges overlap or are adjacent (within 1 day)
+            # Adjacent means: r_end is within 1 day before start_date, or r_start is within 1 day after end_date
+            if (r_start <= end_date + timedelta(days=1) and 
+                r_end >= start_date - timedelta(days=1)):
+                overlapping.append(r)
+                logger.info(f"Found overlapping/adjacent range: {r_start} to {r_end}")
+        
+        logger.info(f"Found {len(overlapping)} overlapping/adjacent ranges to merge")
+        print(f"[PRINT] Found {len(overlapping)} overlapping/adjacent ranges to merge")
         
         if overlapping:
             # Merge overlapping ranges - normalize all dates before comparison
@@ -188,6 +197,7 @@ class DateTracker:
             total_count = sum(r.emails_count for r in overlapping) + emails_count
             
             logger.info(f"Merging ranges: {min_start} to {max_end}, total emails: {total_count}")
+            print(f"[PRINT] Merging {len(overlapping)} ranges into: {min_start} to {max_end}")
             
             # Delete old ranges
             for r in overlapping:
