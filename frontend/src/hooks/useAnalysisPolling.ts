@@ -21,7 +21,7 @@ export function useAnalysisPolling({
   onProgress,
 }: UseAnalysisPollingOptions) {
   const [loading, setLoading] = useState(false)
-  const [progress, setProgress] = useState<{ emailsProcessed: number; totalEmails: number | null; status: string } | null>(null)
+  const [progress, setProgress] = useState<{ emailsProcessed: number; totalEmails: number | null; status: string; currentChunk?: number | null; totalChunks?: number | null } | null>(null)
 
   const pollAnalysisRun = (runId: number): Promise<void> => {
     if (!username) return Promise.resolve()
@@ -44,8 +44,14 @@ export function useAnalysisPolling({
           if (run.status === 'processing' || run.status === 'pending') {
             // Always create a new object to ensure React detects the change
             // This is important because emails_processed increments during processing
-            console.log(`[Progress] Polling: ${emailsProcessed}${totalEmails ? `/${totalEmails}` : ''} emails, status: ${run.status}`)
-            setProgress({ emailsProcessed, totalEmails, status: run.status })
+            console.log(`[Progress] Polling: ${emailsProcessed}${totalEmails ? `/${totalEmails}` : ''} emails, status: ${run.status}${run.current_chunk ? `, chunk ${run.current_chunk}/${run.total_chunks}` : ''}`)
+            setProgress({ 
+              emailsProcessed, 
+              totalEmails, 
+              status: run.status,
+              currentChunk: run.current_chunk,
+              totalChunks: run.total_chunks
+            })
             if (onProgress) {
               onProgress(emailsProcessed, run.status)
             }

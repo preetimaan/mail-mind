@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
-from datetime import datetime
-from typing import Dict, List
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 import json
 import logging
 
@@ -12,6 +12,29 @@ from app.nlp_analyzer import NLPAnalyzer
 from app.date_tracker import DateTracker
 
 logger = logging.getLogger(__name__)
+
+def chunk_date_range(start_date: datetime, end_date: datetime, chunk_size_days: int = 365) -> List[Tuple[datetime, datetime]]:
+    """
+    Split a large date range into smaller chunks for processing.
+    
+    Args:
+        start_date: Start of the date range
+        end_date: End of the date range  
+        chunk_size_days: Size of each chunk in days (default 365 = 1 year)
+        
+    Returns:
+        List of (chunk_start, chunk_end) tuples
+    """
+    chunks = []
+    current = start_date
+    
+    while current < end_date:
+        chunk_end = min(current + timedelta(days=chunk_size_days - 1), end_date)
+        chunks.append((current, chunk_end))
+        current = chunk_end + timedelta(days=1)
+    
+    logger.info(f"Split date range {start_date} to {end_date} into {len(chunks)} chunks")
+    return chunks
 
 class AnalysisService:
     """Service for batch email analysis"""
@@ -35,13 +58,80 @@ class AnalysisService:
         run_id: int = None
     ) -> Dict:
         """
-        Analyze emails in date range, skipping already processed dates
+        Analyze emails in date range with automatic chunking for large ranges.
+        Skips already processed dates.
         """
         # Use self.run_id if available, otherwise use parameter
         if self.run_id:
             run_id = self.run_id
         if run_id is None:
             raise ValueError("run_id is required for analysis results")
+        
+        # Calculate date range span in days
+        date_span = (end_date - start_date).days
+        
+        # If range is larger than 2 years, chunk it into yearly chunks
+        if date_span > 730:  # 2 years
+            logger.info(f"Large date range detected ({date_span} days). Chunking into yearly segments...")
+            print(f"[PRINT] Large date range detected ({date_span} days). Chunking...")
+            
+            chunks = chunk_date_range(start_date, end_date, chunk_size_days=365)
+            total_emails = 0
+            
+            # Set total chunks for progress tracking
+            analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
+            if analysis_run:
+                analysis_run.total_chunks = len(chunks)
+                self.db.commit()
+            
+            for chunk_idx, (chunk_start, chunk_end) in enumerate(chunks, 1):
+                logger.info(f"Processing chunk {chunk_idx}/{len(chunks)}: {chunk_start} to {chunk_end}")
+                print(f"[PRINT] Processing chunk {chunk_idx}/{len(chunks)}")
+                
+                # Update analysis run with current chunk info
+                analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
+                if analysis_run:
+                    analysis_run.current_chunk = chunk_idx
+                    self.db.commit()
+                
+                # Process this chunk
+                result = self._process_single_range(connector, chunk_start, chunk_end, run_id)
+                total_emails += result.get('emails_processed', 0)
+                
+                # Check if cancelled between chunks
+                analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
+                if analysis_run and analysis_run.status == "cancelled":
+                    logger.info(f"Analysis cancelled between chunks")
+                    return {
+                        'emails_processed': total_emails,
+                        'message': f'Analysis cancelled after processing {chunk_idx}/{len(chunks)} chunks'
+                    }
+            
+            # Clear chunk info on success
+            analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
+            if analysis_run:
+                analysis_run.current_chunk = None
+                analysis_run.total_chunks = None
+                self.db.commit()
+            
+            return {
+                'emails_processed': total_emails,
+                'message': f'Processed {len(chunks)} chunks successfully'
+            }
+        else:
+            # Small range, process normally
+            return self._process_single_range(connector, start_date, end_date, run_id)
+    
+    def _process_single_range(
+        self,
+        connector,
+        start_date: datetime,
+        end_date: datetime,
+        run_id: int
+    ) -> Dict:
+        """
+        Process a single date range (internal method used by analyze_date_range)
+        """
         # Get unprocessed date ranges
         unprocessed_ranges = self.date_tracker.get_unprocessed_ranges(start_date, end_date)
         

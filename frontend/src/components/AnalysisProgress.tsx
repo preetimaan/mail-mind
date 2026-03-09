@@ -5,9 +5,11 @@ interface AnalysisProgressProps {
   totalEmails: number | null
   status: 'processing' | 'completed' | 'failed'
   message?: string
+  currentChunk?: number | null
+  totalChunks?: number | null
 }
 
-export default function AnalysisProgress({ emailsProcessed, totalEmails, status, message }: AnalysisProgressProps) {
+export default function AnalysisProgress({ emailsProcessed, totalEmails, status, message, currentChunk, totalChunks }: AnalysisProgressProps) {
   const isProcessing = status === 'processing'
   const progressPercent = totalEmails && totalEmails > 0 
     ? Math.min(100, Math.round((emailsProcessed / totalEmails) * 100))
@@ -21,6 +23,11 @@ export default function AnalysisProgress({ emailsProcessed, totalEmails, status,
       <div className="analysis-progress-header">
         <span className="analysis-progress-label">
           {isProcessing ? 'Processing emails...' : status === 'completed' ? 'Analysis completed' : 'Analysis failed'}
+          {isProcessing && currentChunk && totalChunks && totalChunks > 1 && (
+            <span style={{ fontSize: '0.85rem', color: '#6b7280', marginLeft: '0.5rem' }}>
+              (Chunk {currentChunk}/{totalChunks})
+            </span>
+          )}
         </span>
         <span className="analysis-progress-count">
           {totalEmails 

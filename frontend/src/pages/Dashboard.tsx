@@ -284,7 +284,7 @@ export default function Dashboard() {
         end_date: endDate.toISOString(),
         force_reanalysis: forceReanalysis,
       }, {
-        timeout: 60000, // 60 seconds for analysis start request
+        timeout: 120000, // 2 minutes for queueing large date ranges
       })
 
       setSuccess(`Analysis started! Run ID: ${response.data.run_id}${forceReanalysis ? ' (re-analyzing existing ranges)' : ''}`)
@@ -460,6 +460,8 @@ export default function Dashboard() {
                         emailsProcessed={progress.emailsProcessed}
                         totalEmails={progress.totalEmails}
                         status={progress.status as 'processing' | 'completed' | 'failed'}
+                        currentChunk={progress.currentChunk}
+                        totalChunks={progress.totalChunks}
                       />
                     </div>
                   )}

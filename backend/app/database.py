@@ -93,6 +93,8 @@ class AnalysisRun(Base):
     status = Column(String, default="pending")  # pending, processing, completed, failed
     emails_processed = Column(Integer, default=0)
     total_emails = Column(Integer, nullable=True)  # Total emails to process (null if unknown)
+    current_chunk = Column(Integer, nullable=True)  # Current chunk being processed (for large ranges)
+    total_chunks = Column(Integer, nullable=True)  # Total number of chunks (for progress tracking)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
     error_message = Column(Text, nullable=True)  # Store error details for failed runs

@@ -69,6 +69,8 @@ export interface AnalysisRun {
   status: string
   emails_processed: number
   total_emails?: number | null
+  current_chunk?: number | null
+  total_chunks?: number | null
   start_date: string
   end_date: string
   created_at: string
