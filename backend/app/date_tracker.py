@@ -165,11 +165,13 @@ class DateTracker:
         logger.info(f"mark_range_processed called: account_id={self.account_id}, start={start_date}, end={end_date}, count={emails_count}")
         print(f"[PRINT] mark_range_processed called: account_id={self.account_id}, start={start_date}, end={end_date}, count={emails_count}")
         
-        # Check for overlaps and merge if needed
+        # Check for overlaps and adjacent ranges (within 2 days) that should be merged
+        # Use a 2-day buffer to catch ranges that are adjacent (e.g., Dec 31 -> Jan 1)
+        adjacency_buffer = timedelta(days=2)
         overlapping = self.db.query(ProcessedDateRange).filter(
             ProcessedDateRange.account_id == self.account_id,
-            ProcessedDateRange.start_date <= end_date,
-            ProcessedDateRange.end_date >= start_date
+            ProcessedDateRange.start_date <= end_date + adjacency_buffer,
+            ProcessedDateRange.end_date >= start_date - adjacency_buffer
         ).all()
         
         logger.info(f"Found {len(overlapping)} overlapping ranges")
