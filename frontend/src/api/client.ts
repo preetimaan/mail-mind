@@ -99,6 +99,7 @@ export interface Summary {
     email_count: number
     sender_count: number
     processed_ranges: number
+    earliest_email_date: string | null
   }>
 }
 

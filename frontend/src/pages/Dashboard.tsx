@@ -9,7 +9,6 @@ import SenderChart from '../components/SenderChart'
 import CategoryChart from '../components/CategoryChart'
 import CustomCategoriesManager from '../components/CustomCategoriesManager'
 import AISuggestModal from '../components/AISuggestModal'
-import FrequencyChart from '../components/FrequencyChart'
 import YearlyFrequencyChart from '../components/YearlyFrequencyChart'
 import ProcessedRanges from '../components/ProcessedRanges'
 import AddAccountModal from '../components/AddAccountModal'
@@ -475,8 +474,8 @@ export default function Dashboard() {
                     loading={loading}
                     disabled={loading}
                     hasRunningAnalysis={currentRunningRunId !== null}
-                    initialStartDate={selectedGapStart}
-                    initialEndDate={selectedGapEnd}
+                    initialStartDate={selectedGapStart || (summary?.accounts.find(a => a.id === selectedAccount)?.earliest_email_date ? new Date(summary.accounts.find(a => a.id === selectedAccount)!.earliest_email_date!) : undefined)}
+                    initialEndDate={selectedGapEnd || new Date()}
                   />
                 </div>
 

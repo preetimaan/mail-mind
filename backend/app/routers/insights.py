@@ -64,13 +64,19 @@ async def get_summary(
             ProcessedDateRange.account_id == account.id
         ).all()
         
+        # Get earliest email date
+        earliest_email = db.query(func.min(EmailMetadata.date_received)).filter(
+            EmailMetadata.account_id == account.id
+        ).scalar()
+        
         account_summary = {
             'id': account.id,
             'email': account.email,
             'provider': account.provider,
             'email_count': email_count,
             'sender_count': sender_count,
-            'processed_ranges': len(processed_ranges)
+            'processed_ranges': len(processed_ranges),
+            'earliest_email_date': earliest_email.isoformat() if earliest_email else None
         }
         
         summary['accounts'].append(account_summary)
