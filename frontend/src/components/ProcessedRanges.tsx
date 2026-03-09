@@ -153,7 +153,19 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
                     <strong>{format(new Date(gap.start_date), 'MMM d, yyyy')}</strong> to{' '}
                     <strong>{format(new Date(gap.end_date), 'MMM d, yyyy')}</strong>
                     <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.25rem' }}>
-                      {gap.days} {gap.days === 1 ? 'day' : 'days'} unprocessed (inclusive)
+                      {gap.days} {gap.days === 1 ? 'day' : 'days'} unprocessed
+                      {(() => {
+                        const startYear = new Date(gap.start_date).getFullYear()
+                        const endYear = new Date(gap.end_date).getFullYear()
+                        if (startYear !== endYear) {
+                          const years = []
+                          for (let y = startYear; y <= endYear; y++) {
+                            years.push(y)
+                          }
+                          return ` • Affects years: ${years.join(', ')}`
+                        }
+                        return ` • Year: ${startYear}`
+                      })()}
                     </div>
                   </div>
                   {onSelectGap && (
