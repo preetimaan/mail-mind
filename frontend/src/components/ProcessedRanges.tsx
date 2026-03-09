@@ -115,6 +115,9 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
       {gaps.length > 0 && (
         <div style={{ marginBottom: '2rem' }}>
           <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Unprocessed Gaps ({gaps.length})</h3>
+          <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.75rem', fontStyle: 'italic' }}>
+            These are date ranges where no emails have been processed yet. Click to analyze.
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {gaps.map((gap, idx) => (
               <div
@@ -147,10 +150,10 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <strong>{format(new Date(gap.start_date), 'MMM d, yyyy')}</strong> -{' '}
+                    <strong>{format(new Date(gap.start_date), 'MMM d, yyyy')}</strong> to{' '}
                     <strong>{format(new Date(gap.end_date), 'MMM d, yyyy')}</strong>
                     <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.25rem' }}>
-                      {gap.days} {gap.days === 1 ? 'day' : 'days'} unprocessed
+                      {gap.days} {gap.days === 1 ? 'day' : 'days'} unprocessed (inclusive)
                     </div>
                   </div>
                   {onSelectGap && (
