@@ -287,7 +287,12 @@ export default function Dashboard() {
         timeout: 120000, // 2 minutes for queueing large date ranges
       })
 
-      setSuccess(`Analysis started! Run ID: ${response.data.run_id}${forceReanalysis ? ' (re-analyzing existing ranges)' : ''}`)
+      // Get date range span to show chunk info
+      const daySpan = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      const willChunk = daySpan > 730
+      const chunkCount = willChunk ? Math.ceil(daySpan / 365) : 1
+      
+      setSuccess(`Analysis started!${willChunk ? ` Processing ${chunkCount} chunks...` : ''}${forceReanalysis ? ' (re-analyzing existing ranges)' : ''}`)
       
       const runId = response.data.run_id
       setCurrentRunningRunId(runId)
@@ -453,7 +458,7 @@ export default function Dashboard() {
                   </div>
                 )}
                 <div className="card" style={{ marginTop: '1.5rem' }}>
-                  <h2>Batch Analysis</h2>
+                  <h2>Email Analysis</h2>
                   {loading && progress && (
                     <div style={{ marginBottom: '1rem' }}>
                       <AnalysisProgress 
@@ -476,8 +481,8 @@ export default function Dashboard() {
                     loading={loading}
                     disabled={loading}
                     hasRunningAnalysis={currentRunningRunId !== null}
-                    initialStartDate={selectedGapStart || (summary?.accounts.find(a => a.id === selectedAccount)?.earliest_email_date ? new Date(summary.accounts.find(a => a.id === selectedAccount)!.earliest_email_date!) : undefined)}
-                    initialEndDate={selectedGapEnd || new Date()}
+                    initialStartDate={selectedGapStart}
+                    initialEndDate={selectedGapEnd}
                   />
                 </div>
 

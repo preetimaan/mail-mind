@@ -55,10 +55,10 @@ class DateTracker:
             proc_end = self._normalize_datetime(proc_range.end_date)
             normalized_ranges.append((proc_start, proc_end))
         
-        # Merge overlapping or adjacent ranges (adjacent = within 1 second, e.g. 2023-12-30 23:59:59.999999 and 2023-12-31 00:00:00)
+        # Merge overlapping or adjacent ranges (adjacent = within 2 days to handle chunk boundaries)
         merged_ranges = []
         normalized_ranges.sort(key=lambda x: x[0])  # Sort by start date
-        adjacency_epsilon = timedelta(seconds=1)
+        adjacency_epsilon = timedelta(days=2)  # 2 days to catch Dec 31 -> Jan 1 transitions
 
         for proc_start, proc_end in normalized_ranges:
             if not merged_ranges:

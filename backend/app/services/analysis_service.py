@@ -28,10 +28,17 @@ def chunk_date_range(start_date: datetime, end_date: datetime, chunk_size_days: 
     chunks = []
     current = start_date
     
-    while current < end_date:
+    while current <= end_date:
+        # Calculate chunk end, ensuring we don't go past the overall end_date
         chunk_end = min(current + timedelta(days=chunk_size_days - 1), end_date)
         chunks.append((current, chunk_end))
+        
+        # Move to next chunk start (day after chunk_end)
         current = chunk_end + timedelta(days=1)
+        
+        # If we've reached or passed the end_date, stop
+        if current > end_date:
+            break
     
     logger.info(f"Split date range {start_date} to {end_date} into {len(chunks)} chunks")
     return chunks

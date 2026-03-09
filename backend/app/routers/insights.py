@@ -625,7 +625,7 @@ async def get_processed_range_gaps(
         # Skip gaps where start >= end (invalid or zero-length)
         if gap_start >= gap_end:
             continue
-        # Only include gaps that span at least one full day
+        # Only include gaps that span at least 3 days (filter out chunk boundary artifacts)
         # Use date comparison to ensure we're looking at full days, not just hours
         gap_start_date = gap_start.date()
         gap_end_date = gap_end.date()
@@ -633,7 +633,7 @@ async def get_processed_range_gaps(
             continue
         # Calculate days using date difference
         days = (gap_end_date - gap_start_date).days + 1
-        if days < 1:
+        if days < 3:  # Skip gaps smaller than 3 days (likely chunk boundaries)
             continue
         filtered_gaps.append((gap_start, gap_end))
     
