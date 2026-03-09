@@ -207,7 +207,7 @@ def process_batch_analysis(
             norm_end = normalize_datetime(end_date)
             
             # Adjust dates to be inclusive of full days
-            from datetime import timedelta
+            from datetime import timedelta, date, time
             # Start at beginning of day
             norm_start = norm_start.replace(hour=0, minute=0, second=0, microsecond=0)
             # End at end of day (23:59:59.999999)
@@ -280,7 +280,8 @@ def process_batch_analysis(
                 logger.info(f"No existing emails found in date range")
                 print(f"[PRINT] No existing emails found in date range")
             
-            # 4. Remove processed date ranges that overlap with the requested range
+            # 4. Split overlapping processed date ranges: keep portions outside [norm_start, norm_end]
+            #    and remove only the overlapping part (so we don't wipe out 2023 when re-analyzing 2024-2025)
             overlapping_ranges = db.query(ProcessedDateRange).filter(
                 ProcessedDateRange.account_id == account_id,
                 ProcessedDateRange.start_date < norm_end,
@@ -288,18 +289,60 @@ def process_batch_analysis(
             ).all()
             
             if overlapping_ranges:
-                logger.info(f"Found {len(overlapping_ranges)} processed date ranges to remove:")
-                print(f"[PRINT] Found {len(overlapping_ranges)} processed date ranges to remove:")
+                logger.info(f"Found {len(overlapping_ranges)} processed date ranges overlapping re-analysis window")
+                print(f"[PRINT] Splitting {len(overlapping_ranges)} overlapping ranges, keeping portions outside re-analysis window")
                 for range_obj in overlapping_ranges:
-                    logger.info(f"  - Removing range: {range_obj.start_date} to {range_obj.end_date} ({range_obj.emails_count} emails)")
-                    print(f"[PRINT]   Removing range: {range_obj.start_date} to {range_obj.end_date} ({range_obj.emails_count} emails)")
+                    r_start = normalize_datetime(range_obj.start_date)
+                    r_end = normalize_datetime(range_obj.end_date)
+                    # Portion before re-analysis window: [r_start, end of day before norm_start]
+                    day_before_start = (norm_start.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1))
+                    before_end = day_before_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    # Portion after re-analysis window: [start of day after norm_end, r_end]
+                    after_start = datetime.combine(norm_end.date() + timedelta(days=1), time.min)
+                    
+                    if r_start <= before_end:
+                        # Keep "before" portion
+                        keep_start = r_start
+                        keep_end = min(r_end, before_end)
+                        if keep_start <= keep_end:
+                            count = db.query(EmailMetadata).filter(
+                                EmailMetadata.account_id == account_id,
+                                EmailMetadata.date_received >= keep_start,
+                                EmailMetadata.date_received <= keep_end
+                            ).count()
+                            db.add(ProcessedDateRange(
+                                account_id=account_id,
+                                start_date=keep_start,
+                                end_date=keep_end,
+                                emails_count=count
+                            ))
+                            logger.info(f"  Kept before portion: {keep_start.date()} to {keep_end.date()} ({count} emails)")
+                            print(f"[PRINT]   Kept before: {keep_start.date()} to {keep_end.date()}")
+                    if after_start <= r_end:
+                        # Keep "after" portion
+                        keep_start = max(r_start, after_start)
+                        keep_end = r_end
+                        if keep_start <= keep_end:
+                            count = db.query(EmailMetadata).filter(
+                                EmailMetadata.account_id == account_id,
+                                EmailMetadata.date_received >= keep_start,
+                                EmailMetadata.date_received <= keep_end
+                            ).count()
+                            db.add(ProcessedDateRange(
+                                account_id=account_id,
+                                start_date=keep_start,
+                                end_date=keep_end,
+                                emails_count=count
+                            ))
+                            logger.info(f"  Kept after portion: {keep_start.date()} to {keep_end.date()} ({count} emails)")
+                            print(f"[PRINT]   Kept after: {keep_start.date()} to {keep_end.date()}")
                     db.delete(range_obj)
                 db.commit()
-                logger.info(f"Successfully removed {len(overlapping_ranges)} processed date ranges")
-                print(f"[PRINT] Successfully removed {len(overlapping_ranges)} processed date ranges")
+                logger.info(f"Split complete - removed overlapping ranges, kept non-overlapping portions")
+                print(f"[PRINT] Split complete")
             else:
-                logger.info(f"No processed date ranges found to remove")
-                print(f"[PRINT] No processed date ranges found to remove")
+                logger.info(f"No processed date ranges overlap the re-analysis window")
+                print(f"[PRINT] No overlapping ranges to split")
             
             logger.info(f"Force reanalysis cleanup complete - will re-fetch and re-analyze fresh data")
             print(f"[PRINT] Force reanalysis cleanup complete - will re-fetch and re-analyze fresh data")
