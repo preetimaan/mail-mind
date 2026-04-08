@@ -499,9 +499,8 @@ async def get_processed_ranges(
             logger.info(f"  Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
             print(f"[PRINT]   Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
     
-    # Merge adjacent ranges (within 1s) so the table matches gap logic and doesn't show two rows for Dec 30 / Dec 31
+    # Merge touching/overlapping half-open ranges [start, end)
     merged = []
-    adjacency_epsilon = timedelta(seconds=1)
     for r in ranges:
         if not merged:
             merged.append({
@@ -512,7 +511,7 @@ async def get_processed_ranges(
             })
         else:
             last = merged[-1]
-            if r.start_date <= last['end_date'] + adjacency_epsilon:
+            if r.start_date <= last['end_date']:
                 last['end_date'] = max(last['end_date'], r.end_date)
                 last['emails_count'] = last['emails_count'] + r.emails_count
                 last['processed_at'] = max(last['processed_at'], r.processed_at)
@@ -552,10 +551,11 @@ async def get_processed_ranges(
             ).first()
             
             if min_max and min_max.min_date and min_max.max_date:
-                # Create a single range covering all emails
-                # Round to start of day for min, end of day for max
+                from datetime import time as dt_time
+                # Half-open [min midnight, day after max calendar day at midnight)
                 min_date = min_max.min_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                max_date = min_max.max_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                last_calendar_day = min_max.max_date.date()
+                max_date = datetime.combine(last_calendar_day + timedelta(days=1), dt_time.min)
                 
                 # Check if range already exists (shouldn't, but just in case)
                 existing = db.query(ProcessedDateRange).filter(
@@ -657,15 +657,8 @@ async def get_processed_range_gaps(
         # Skip gaps where start >= end (invalid or zero-length)
         if gap_start >= gap_end:
             continue
-        # Only include gaps that span at least 3 days (filter out chunk boundary artifacts)
-        # Use date comparison to ensure we're looking at full days, not just hours
-        gap_start_date = gap_start.date()
-        gap_end_date = gap_end.date()
-        if gap_end_date <= gap_start_date:
-            continue
-        # Calculate days using date difference
-        days = (gap_end_date - gap_start_date).days + 1
-        if days < 3:  # Skip gaps smaller than 3 days (likely chunk boundaries)
+        # Half-open gap [gap_start, gap_end): span in whole days = (end - start).days at midnight bounds
+        if (gap_end - gap_start).days < 3:
             continue
         filtered_gaps.append((gap_start, gap_end))
     
@@ -673,7 +666,7 @@ async def get_processed_range_gaps(
         {
             'start_date': gap_start.isoformat(),
             'end_date': gap_end.isoformat(),
-            'days': (gap_end.date() - gap_start.date()).days + 1
+            'days': (gap_end - gap_start).days
         }
         for gap_start, gap_end in filtered_gaps
     ]

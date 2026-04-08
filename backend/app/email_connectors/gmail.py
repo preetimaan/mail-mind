@@ -5,7 +5,7 @@ from google.auth.transport.requests import Request
 from google.auth.exceptions import RefreshError
 import base64
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from email.utils import parsedate_to_datetime
 import logging
@@ -14,6 +14,27 @@ logger = logging.getLogger(__name__)
 
 # Per date-range fetch cap (analysis passes the default). Gmail queries can match far more than this.
 DEFAULT_MAX_RESULTS_PER_RANGE = 250_000
+
+
+def _naive_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _in_half_open(dr: datetime, start: datetime, end: datetime) -> bool:
+    """True if start <= dr < end (exclusive end), using naive UTC components for comparison."""
+    return _naive_utc(start) <= _naive_utc(dr) < _naive_utc(end)
+
+
+def _gmail_query_half_open(start_date: datetime, end_date: datetime, exclude_sent: bool) -> str:
+    """Gmail after:/before: are calendar dates; half-open [start, end) uses end as exclusive calendar day."""
+    sa = start_date.strftime("%Y/%m/%d")
+    eb = end_date.strftime("%Y/%m/%d")
+    q = f"after:{sa} before:{eb}"
+    if exclude_sent:
+        q += " -in:sent"
+    return q
 
 
 class GmailConnector:
@@ -58,9 +79,7 @@ class GmailConnector:
         Args:
             exclude_sent: If True, excludes sent emails (only counts received emails)
         """
-        query = f'after:{int(start_date.timestamp())} before:{int(end_date.timestamp())}'
-        if exclude_sent:
-            query += ' -in:sent'
+        query = _gmail_query_half_open(start_date, end_date, exclude_sent)
         
         try:
             total = 0
@@ -79,7 +98,23 @@ class GmailConnector:
                 if not messages:
                     break
                 
-                total += len(messages)
+                for msg in messages:
+                    try:
+                        msg_detail = self.service.users().messages().get(
+                            userId='me',
+                            id=msg['id'],
+                            format='metadata',
+                            metadataHeaders=['Date']
+                        ).execute()
+                        dr = datetime.fromtimestamp(
+                            int(msg_detail['internalDate']) / 1000.0,
+                            tz=timezone.utc,
+                        )
+                        if _in_half_open(dr, start_date, end_date):
+                            total += 1
+                    except Exception as e:
+                        logger.warning(f"Error counting message {msg.get('id')}: {e}")
+                
                 page_token = response.get('nextPageToken')
                 if not page_token:
                     break
@@ -106,9 +141,7 @@ class GmailConnector:
                 (insights then reflect only what was ingested). Default is very large for full-mailbox runs.
             exclude_sent: If True, excludes sent emails (only fetches received emails)
         """
-        query = f'after:{int(start_date.timestamp())} before:{int(end_date.timestamp())}'
-        if exclude_sent:
-            query += ' -in:sent'
+        query = _gmail_query_half_open(start_date, end_date, exclude_sent)
         
         emails = []
         page_token = None
@@ -144,12 +177,18 @@ class GmailConnector:
                         
                         headers = {h['name']: h['value'] for h in msg_detail.get('payload', {}).get('headers', [])}
                         
-                        # Parse date
+                        # Parse date (prefer internalDate for consistency with search window)
                         date_str = headers.get('Date', '')
                         try:
                             date_received = parsedate_to_datetime(date_str)
-                        except:
-                            date_received = datetime.fromtimestamp(int(msg_detail['internalDate']) / 1000)
+                        except Exception:
+                            date_received = datetime.fromtimestamp(
+                                int(msg_detail['internalDate']) / 1000.0,
+                                tz=timezone.utc,
+                            )
+                        
+                        if not _in_half_open(date_received, start_date, end_date):
+                            continue
                         
                         # Parse sender
                         from_header = headers.get('From', '')

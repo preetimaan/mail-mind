@@ -18,16 +18,14 @@ function formatDateForInput(date: Date) {
   return `${y}-${m}-${d}`
 }
 
-/** Parse <input type="date"> value as local midnight / local end-of-day — not UTC (new Date('yyyy-mm-dd') is UTC). */
-function parseLocalDateParts(ymd: string, endOfDay: boolean): Date {
+/** Parse <input type="date"> as local midnight (not UTC — new Date('yyyy-mm-dd') is UTC). */
+function parseLocalDateAtMidnight(ymd: string): Date {
   const parts = ymd.split('-').map(Number)
   if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
     return new Date(NaN)
   }
   const [y, m, d] = parts
-  return endOfDay
-    ? new Date(y, m - 1, d, 23, 59, 59, 999)
-    : new Date(y, m - 1, d, 0, 0, 0, 0)
+  return new Date(y, m - 1, d, 0, 0, 0, 0)
 }
 
 export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, hasRunningAnalysis, initialStartDate, initialEndDate }: DateRangePickerProps) {
@@ -113,11 +111,11 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
       return
     }
 
-    const start = parseLocalDateParts(startDate, false)
-    const end = parseLocalDateParts(endDate, true)
+    const start = parseLocalDateAtMidnight(startDate)
+    const end = parseLocalDateAtMidnight(endDate)
 
-    if (start > end) {
-      alert('Start date must be before end date')
+    if (!(start < end)) {
+      alert('End date must be after start date (end is exclusive — same day twice is an empty range)')
       return
     }
 
@@ -128,7 +126,7 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
     <form onSubmit={handleSubmit}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '1rem', alignItems: 'end' }}>
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="label">Start Date</label>
+          <label className="label">Start date (inclusive)</label>
           <input
             type="date"
             className="input"
@@ -140,7 +138,7 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
           />
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="label">End Date</label>
+          <label className="label">End date (exclusive)</label>
           <input
             type="date"
             className="input"
@@ -175,6 +173,9 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
           Stop
         </button>
       </div>
+      <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: '#666' }}>
+        Range is <strong>[start, end)</strong>: mail on the end date is <strong>not</strong> included (e.g. 2010-01-01 through 2016-01-01 covers through Dec 31, 2015).
+      </p>
       <div style={{ marginTop: '0.5rem' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
           <input
@@ -190,4 +191,3 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
     </form>
   )
 }
-

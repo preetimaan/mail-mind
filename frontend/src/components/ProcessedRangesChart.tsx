@@ -2,16 +2,16 @@ import { useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   format,
-  parseISO,
-  differenceInDays,
+  differenceInCalendarDays,
   differenceInMonths,
   eachMonthOfInterval,
   eachYearOfInterval,
   startOfMonth,
-  endOfMonth,
   startOfYear,
-  endOfYear,
+  addMonths,
+  addYears,
 } from 'date-fns'
+import { parseApiDateOnly } from '../utils/calendarDate'
 
 interface ProcessedRange {
   start_date: string
@@ -30,14 +30,13 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
   const chartData = useMemo(() => {
     // If no ranges, show last 12 months (all unprocessed)
     if (ranges.length === 0) {
-      const endDate = endOfMonth(new Date())
       const startDate = startOfMonth(new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1))
-      const months = eachMonthOfInterval({ start: startDate, end: endDate })
+      const months = eachMonthOfInterval({ start: startDate, end: startOfMonth(new Date()) })
 
       return months.map((monthStart) => {
         const bucketStart = startOfMonth(monthStart)
-        const bucketEnd = endOfMonth(monthStart)
-        const totalDays = differenceInDays(bucketEnd, bucketStart) + 1
+        const bucketEndExclusive = addMonths(bucketStart, 1)
+        const totalDays = differenceInCalendarDays(bucketEndExclusive, bucketStart)
         return {
           x: bucketStart.getTime(),
           label: format(bucketStart, 'MMM yyyy'),
@@ -50,65 +49,60 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
       })
     }
 
-    // Find the overall date range from processed ranges
-    const allDates = ranges.flatMap(r => [
-      parseISO(r.start_date),
-      parseISO(r.end_date)
-    ])
+    // API ranges are half-open [start, end)
+    const allDates = ranges.flatMap(r => [parseApiDateOnly(r.start_date), parseApiDateOnly(r.end_date)])
     const minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
     const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
     
-    // Decide whether to render monthly or yearly buckets.
-    // If we have many data points / long spans, show years to keep axis readable.
     const spanMonths = Math.max(1, differenceInMonths(maxDate, minDate) + 1)
     const granularity: BucketGranularity = spanMonths > 36 ? 'year' : 'month'
 
-    // X-axis bounds: round DOWN to start of month or Jan 1 (avoid weird "Dec" starts)
-    // and round UP to end of month/year, including "now" so the timeline reaches current time.
     const now = new Date()
     const effectiveMax = maxDate > now ? maxDate : now
 
     const chartStart = granularity === 'year' ? startOfYear(minDate) : startOfMonth(minDate)
-    const chartEnd = granularity === 'year' ? endOfYear(effectiveMax) : endOfMonth(effectiveMax)
+    const chartEndInclusive =
+      granularity === 'year' ? startOfYear(effectiveMax) : startOfMonth(effectiveMax)
 
     const buckets =
       granularity === 'year'
-        ? eachYearOfInterval({ start: chartStart, end: chartEnd }).map((d) => ({
+        ? eachYearOfInterval({ start: chartStart, end: chartEndInclusive }).map((d) => ({
             bucketStart: startOfYear(d),
-            bucketEnd: endOfYear(d),
+            bucketEndExclusive: addYears(startOfYear(d), 1),
             label: format(d, 'yyyy'),
           }))
-        : eachMonthOfInterval({ start: chartStart, end: chartEnd }).map((d) => ({
+        : eachMonthOfInterval({ start: chartStart, end: chartEndInclusive }).map((d) => ({
             bucketStart: startOfMonth(d),
-            bucketEnd: endOfMonth(d),
+            bucketEndExclusive: addMonths(startOfMonth(d), 1),
             label: format(d, 'MMM yyyy'),
           }))
 
-    return buckets.map(({ bucketStart, bucketEnd, label }) => {
+    return buckets.map(({ bucketStart, bucketEndExclusive, label }) => {
       let processedDays = 0
       let totalEmails = 0
 
       ranges.forEach((range) => {
-        const rangeStart = parseISO(range.start_date)
-        const rangeEnd = parseISO(range.end_date)
+        const rangeStart = parseApiDateOnly(range.start_date)
+        const rangeEndExclusive = parseApiDateOnly(range.end_date)
 
-        if (rangeStart <= bucketEnd && rangeEnd >= bucketStart) {
+        if (rangeStart < bucketEndExclusive && rangeEndExclusive > bucketStart) {
           const overlapStart = rangeStart > bucketStart ? rangeStart : bucketStart
-          const overlapEnd = rangeEnd < bucketEnd ? rangeEnd : bucketEnd
-          const days = differenceInDays(overlapEnd, overlapStart) + 1
+          const overlapEndExclusive =
+            rangeEndExclusive < bucketEndExclusive ? rangeEndExclusive : bucketEndExclusive
+          const days = differenceInCalendarDays(overlapEndExclusive, overlapStart)
           processedDays += days
           totalEmails += range.emails_count
         }
       })
 
-      const totalDays = differenceInDays(bucketEnd, bucketStart) + 1
+      const totalDays = differenceInCalendarDays(bucketEndExclusive, bucketStart)
       const coveragePercent = totalDays > 0 ? Math.min(100, Math.round((processedDays / totalDays) * 100)) : 0
       const fullyProcessed = processedDays >= totalDays && totalDays > 0
 
       return {
         x: bucketStart.getTime(),
         label,
-        processed: fullyProcessed ? 1 : 0, // Y-axis is only "processed vs not"
+        processed: fullyProcessed ? 1 : 0,
         coveragePercent,
         processedDays: Math.min(processedDays, totalDays),
         totalDays,
@@ -121,7 +115,6 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No data to display</div>
   }
 
-  // Calculate dynamic interval based on time range
   const calculateInterval = () => {
     if (chartData.length === 0) return 0
     const totalPoints = chartData.length
@@ -168,7 +161,7 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
     <div>
       <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
-          📊 Timeline shows whether each time bucket is fully processed. Gaps indicate buckets with any unprocessed days.
+          Timeline uses half-open processed ranges <strong>[start, end)</strong>. Each bucket counts calendar days in that interval.
         </p>
       </div>
       <ResponsiveContainer width="100%" height={300}>
@@ -210,4 +203,3 @@ export default function ProcessedRangesChart({ ranges }: ProcessedRangesChartPro
     </div>
   )
 }
-

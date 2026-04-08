@@ -15,32 +15,16 @@ logger = logging.getLogger(__name__)
 
 def chunk_date_range(start_date: datetime, end_date: datetime, chunk_size_days: int = 365) -> List[Tuple[datetime, datetime]]:
     """
-    Split a large date range into smaller chunks for processing.
-    
-    Args:
-        start_date: Start of the date range
-        end_date: End of the date range  
-        chunk_size_days: Size of each chunk in days (default 365 = 1 year)
-        
-    Returns:
-        List of (chunk_start, chunk_end) tuples
+    Split half-open [start_date, end_date) into chunks of at most chunk_size_days.
+    Each chunk is [chunk_start, chunk_end) with chunk_end <= end_date (end_date exclusive).
     """
-    chunks = []
+    chunks: List[Tuple[datetime, datetime]] = []
     current = start_date
-    
-    while current <= end_date:
-        # Calculate chunk end, ensuring we don't go past the overall end_date
-        chunk_end = min(current + timedelta(days=chunk_size_days - 1), end_date)
+    while current < end_date:
+        chunk_end = min(current + timedelta(days=chunk_size_days), end_date)
         chunks.append((current, chunk_end))
-        
-        # Move to next chunk start (day after chunk_end)
-        current = chunk_end + timedelta(days=1)
-        
-        # If we've reached or passed the end_date, stop
-        if current > end_date:
-            break
-    
-    logger.info(f"Split date range {start_date} to {end_date} into {len(chunks)} chunks")
+        current = chunk_end
+    logger.info(f"Split half-open range [{start_date}, {end_date}) into {len(chunks)} chunks")
     return chunks
 
 class AnalysisService:

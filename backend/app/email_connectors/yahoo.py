@@ -1,13 +1,23 @@
 import imaplib
 import email
 from email.header import decode_header
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 import re
 import socket
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _naive_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _in_half_open(dr: datetime, start: datetime, end: datetime) -> bool:
+    return _naive_utc(start) <= _naive_utc(dr) < _naive_utc(end)
 
 # Per date-range cap (Yahoo IMAP); larger mailboxes may need smaller ranges instead of one huge pull.
 MAILMIND_YAHOO_MAX_PER_RANGE = 250_000
@@ -254,8 +264,11 @@ class YahooConnector:
                                 date_received = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple))
                             else:
                                 date_received = datetime.now()
-                        except:
+                        except Exception:
                             date_received = datetime.now()
+                        
+                        if not _in_half_open(date_received, start_date, end_date):
+                            continue
                         
                         # Extract sender
                         sender_email = self._extract_email(from_header)

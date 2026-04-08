@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import ProcessedRangesChart from './ProcessedRangesChart'
+import { parseApiDateOnly } from '../utils/calendarDate'
+
+/** Half-open API end → last calendar day included in coverage */
+function formatThroughDate(isoExclusiveEnd: string) {
+  const ex = parseApiDateOnly(isoExclusiveEnd)
+  return format(subDays(ex, 1), 'MMM d, yyyy')
+}
 
 interface ProcessedRangesProps {
   username: string
@@ -124,7 +131,7 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
                 key={idx}
                 onClick={() => {
                   if (onSelectGap) {
-                    onSelectGap(new Date(gap.start_date), new Date(gap.end_date))
+                    onSelectGap(parseApiDateOnly(gap.start_date), parseApiDateOnly(gap.end_date))
                   }
                 }}
                 style={{
@@ -150,13 +157,14 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <strong>{format(new Date(gap.start_date), 'MMM d, yyyy')}</strong> to{' '}
-                    <strong>{format(new Date(gap.end_date), 'MMM d, yyyy')}</strong>
+                    <strong>{format(parseApiDateOnly(gap.start_date), 'MMM d, yyyy')}</strong> through{' '}
+                    <strong>{formatThroughDate(gap.end_date)}</strong>
+                    <span style={{ color: '#888', fontWeight: 400 }}>{' '}(end {format(parseApiDateOnly(gap.end_date), 'MMM d, yyyy')} excluded)</span>
                     <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.25rem' }}>
                       {gap.days} {gap.days === 1 ? 'day' : 'days'} unprocessed
                       {(() => {
-                        const startYear = new Date(gap.start_date).getFullYear()
-                        const endYear = new Date(gap.end_date).getFullYear()
+                        const startYear = parseApiDateOnly(gap.start_date).getFullYear()
+                        const endYear = subDays(parseApiDateOnly(gap.end_date), 1).getFullYear()
                         if (startYear !== endYear) {
                           const years = []
                           for (let y = startYear; y <= endYear; y++) {
@@ -178,7 +186,7 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
                       }}
                       onClick={(e) => {
                         e.stopPropagation()
-                        onSelectGap(new Date(gap.start_date), new Date(gap.end_date))
+                        onSelectGap(parseApiDateOnly(gap.start_date), parseApiDateOnly(gap.end_date))
                       }}
                     >
                       Analyze This Gap
@@ -199,7 +207,7 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
             <thead>
               <tr style={{ borderBottom: '2px solid #ddd' }}>
                 <th style={{ padding: '0.75rem', textAlign: 'left' }}>Start Date</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left' }}>End Date</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Through (excl. end)</th>
                 <th style={{ padding: '0.75rem', textAlign: 'right' }}>Emails</th>
                 <th style={{ padding: '0.75rem', textAlign: 'left' }}>Processed</th>
               </tr>
@@ -220,10 +228,13 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
                   }}
                 >
                   <td style={{ padding: '0.75rem', color: '#333' }}>
-                    {format(new Date(range.start_date), 'MMM d, yyyy')}
+                    {format(parseApiDateOnly(range.start_date), 'MMM d, yyyy')}
                   </td>
                   <td style={{ padding: '0.75rem', color: '#333' }}>
-                    {format(new Date(range.end_date), 'MMM d, yyyy')}
+                    <span>{formatThroughDate(range.end_date)}</span>
+                    <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                      end exclusive: {format(parseApiDateOnly(range.end_date), 'MMM d, yyyy')}
+                    </div>
                   </td>
                   <td style={{ padding: '0.75rem', textAlign: 'right', color: '#333' }}>
                     {range.emails_count.toLocaleString()}

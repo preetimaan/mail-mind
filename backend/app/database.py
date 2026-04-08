@@ -9,20 +9,23 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/mailmind.db")
 
-# Create data directory if it doesn't exist
-os.makedirs("data", exist_ok=True)
-
 # Configure SQLite for better concurrent access
 if "sqlite" in DATABASE_URL:
     connect_args = {
         "check_same_thread": False,
         "timeout": 20  # Wait up to 20 seconds for locks
     }
-    # Extract database path for WAL mode setup
-    db_path = DATABASE_URL.replace("sqlite:///", "")
-    if not os.path.isabs(db_path):
-        db_path = os.path.join(os.path.dirname(__file__), db_path)
-    
+    raw = DATABASE_URL.replace("sqlite:///", "", 1)
+    if raw.startswith("./"):
+        raw = raw[2:]
+    if not os.path.isabs(raw):
+        # Resolve relative to backend/ (parent of app/), not CWD — matches migrations and avoids wrong files
+        _backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        db_path = os.path.join(_backend_dir, raw)
+    else:
+        db_path = raw
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    engine_url = f"sqlite:///{db_path}"
     # Enable WAL mode for better concurrent read/write access
     if os.path.exists(db_path):
         import sqlite3
@@ -31,7 +34,8 @@ if "sqlite" in DATABASE_URL:
         conn.close()
 else:
     connect_args = {}
-engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
+    engine_url = DATABASE_URL
+engine = create_engine(engine_url, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -121,6 +125,7 @@ class AnalysisResult(Base):
     email = relationship("EmailMetadata", back_populates="analysis_results")
 
 class ProcessedDateRange(Base):
+    """Coverage is half-open: [start_date, end_date) — end_date is exclusive (first instant not covered)."""
     __tablename__ = "processed_date_ranges"
     
     id = Column(Integer, primary_key=True, index=True)

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date, time
 import json
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -17,10 +17,11 @@ from app.services.analysis_service import AnalysisService
 router = APIRouter()
 
 class AnalysisRequest(BaseModel):
+    """start_date / end_date are calendar days (local user intent), not UTC instants."""
     username: str
     account_id: int
-    start_date: datetime
-    end_date: datetime
+    start_date: date
+    end_date: date
     force_reanalysis: Optional[bool] = False  # If True, re-analyze even if already processed
 
 class AnalysisResponse(BaseModel):
@@ -54,6 +55,8 @@ async def start_batch_analysis(
     print("=" * 50)
     
     try:
+        start_dt = datetime.combine(request.start_date, time.min)
+        end_dt = datetime.combine(request.end_date, time.min)
         # Run database operations in thread pool to avoid blocking event loop
         loop = asyncio.get_event_loop()
         executor = ThreadPoolExecutor(max_workers=1)
@@ -82,14 +85,14 @@ async def start_batch_analysis(
             logger.info(f"Account found: {account.id}")
             print(f"[PRINT] Account found: {account.id}")
             
-            # Create analysis run
+            # Create analysis run (naive midnight on each calendar day)
             logger.info("Creating analysis run...")
             print("[PRINT] Creating analysis run...")
             analysis_run = AnalysisRun(
                 user_id=user.id,
                 account_id=account.id,
-                start_date=request.start_date,
-                end_date=request.end_date,
+                start_date=start_dt,
+                end_date=end_dt,
                 status="pending"
             )
             db.add(analysis_run)
@@ -115,8 +118,8 @@ async def start_batch_analysis(
             analysis_run.id,
             user_id,
             account_id,
-            request.start_date,
-            request.end_date,
+            start_dt,
+            end_dt,
             request.force_reanalysis
         )
         logger.info(f"Background task added, returning response")
@@ -171,8 +174,7 @@ def process_batch_analysis(
         analysis_run.status = "processing"
         db.commit()
         
-        # Normalize start/end to full-day boundaries (inclusive) so ProcessedDateRange covers the entire end day.
-        # Otherwise e.g. end_date=2023-12-31T00:00:00 stores range ending at midnight Dec 31, and Dec 31 stays a "gap".
+        # Half-open window [start_date, end_date): start inclusive at midnight, end exclusive at midnight.
         def normalize_for_range(dt):
             if dt is None:
                 return dt
@@ -184,9 +186,15 @@ def process_batch_analysis(
         start_date = normalize_for_range(start_date)
         end_date = normalize_for_range(end_date)
         start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Keep AnalysisRun in sync with the range we actually process (full local/naive day bounds)
+        if end_date <= start_date:
+            analysis_run.status = "failed"
+            analysis_run.error_message = "End date must be after start date (end is exclusive)."
+            db.commit()
+            return
+        
+        # Keep AnalysisRun aligned with the half-open range we process
         analysis_run.start_date = start_date
         analysis_run.end_date = end_date
         db.commit()
@@ -208,25 +216,17 @@ def process_batch_analysis(
                     return utc_dt.replace(tzinfo=None)
                 return dt
             
-            norm_start = normalize_datetime(start_date)
-            norm_end = normalize_datetime(end_date)
+            norm_start = normalize_datetime(start_date).replace(hour=0, minute=0, second=0, microsecond=0)
+            norm_end = normalize_datetime(end_date).replace(hour=0, minute=0, second=0, microsecond=0)
             
-            # Adjust dates to be inclusive of full days
-            from datetime import timedelta, date, time
-            # Start at beginning of day
-            norm_start = norm_start.replace(hour=0, minute=0, second=0, microsecond=0)
-            # End at end of day (23:59:59.999999)
-            norm_end = norm_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            logger.info(f"Force re-analysis half-open window: [{norm_start}, {norm_end})")
+            print(f"[PRINT] Force re-analysis window: [{norm_start}, {norm_end})")
             
-            logger.info(f"Force re-analysis window (exact): {norm_start} to {norm_end}")
-            print(f"[PRINT] Force re-analysis window: {norm_start} to {norm_end}")
-            
-            # Re-analyze must never override ranges before or after this window.
-            # 1. Delete only emails strictly inside [norm_start, norm_end]. Never touch before/after.
+            # 1. Delete emails with norm_start <= date_received < norm_end
             emails_in_range = db.query(EmailMetadata).filter(
                 EmailMetadata.account_id == account_id,
                 EmailMetadata.date_received >= norm_start,
-                EmailMetadata.date_received <= norm_end
+                EmailMetadata.date_received < norm_end
             ).all()
             
             if emails_in_range:
@@ -268,48 +268,39 @@ def process_batch_analysis(
                 for range_obj in overlapping_ranges:
                     r_start = normalize_datetime(range_obj.start_date)
                     r_end = normalize_datetime(range_obj.end_date)
-                    # Portion before re-analysis window: [r_start, end of day before norm_start]
-                    day_before_start = (norm_start.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1))
-                    before_end = day_before_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-                    # Portion after re-analysis window: [start of day after norm_end, r_end]
-                    after_start = datetime.combine(norm_end.date() + timedelta(days=1), time.min)
-                    
-                    if r_start <= before_end:
-                        # Keep "before" portion
-                        keep_start = r_start
-                        keep_end = min(r_end, before_end)
-                        if keep_start <= keep_end:
-                            count = db.query(EmailMetadata).filter(
-                                EmailMetadata.account_id == account_id,
-                                EmailMetadata.date_received >= keep_start,
-                                EmailMetadata.date_received <= keep_end
-                            ).count()
-                            db.add(ProcessedDateRange(
-                                account_id=account_id,
-                                start_date=keep_start,
-                                end_date=keep_end,
-                                emails_count=count
-                            ))
-                            logger.info(f"  Kept before portion: {keep_start.date()} to {keep_end.date()} ({count} emails)")
-                            print(f"[PRINT]   Kept before: {keep_start.date()} to {keep_end.date()}")
-                    if after_start <= r_end:
-                        # Keep "after" portion
-                        keep_start = max(r_start, after_start)
-                        keep_end = r_end
-                        if keep_start <= keep_end:
-                            count = db.query(EmailMetadata).filter(
-                                EmailMetadata.account_id == account_id,
-                                EmailMetadata.date_received >= keep_start,
-                                EmailMetadata.date_received <= keep_end
-                            ).count()
-                            db.add(ProcessedDateRange(
-                                account_id=account_id,
-                                start_date=keep_start,
-                                end_date=keep_end,
-                                emails_count=count
-                            ))
-                            logger.info(f"  Kept after portion: {keep_start.date()} to {keep_end.date()} ({count} emails)")
-                            print(f"[PRINT]   Kept after: {keep_start.date()} to {keep_end.date()}")
+                    # Stored half-open [r_start, r_end). Keep [r_start, min(r_end, norm_start)) and [max(r_start, norm_end), r_end).
+                    before_exclusive_end = min(r_end, norm_start)
+                    if r_start < before_exclusive_end:
+                        keep_start, keep_end = r_start, before_exclusive_end
+                        count = db.query(EmailMetadata).filter(
+                            EmailMetadata.account_id == account_id,
+                            EmailMetadata.date_received >= keep_start,
+                            EmailMetadata.date_received < keep_end
+                        ).count()
+                        db.add(ProcessedDateRange(
+                            account_id=account_id,
+                            start_date=keep_start,
+                            end_date=keep_end,
+                            emails_count=count
+                        ))
+                        logger.info(f"  Kept before portion: [{keep_start}, {keep_end}) ({count} emails)")
+                        print(f"[PRINT]   Kept before: [{keep_start.date()}, {keep_end.date()})")
+                    after_inclusive_start = max(r_start, norm_end)
+                    if after_inclusive_start < r_end:
+                        keep_start, keep_end = after_inclusive_start, r_end
+                        count = db.query(EmailMetadata).filter(
+                            EmailMetadata.account_id == account_id,
+                            EmailMetadata.date_received >= keep_start,
+                            EmailMetadata.date_received < keep_end
+                        ).count()
+                        db.add(ProcessedDateRange(
+                            account_id=account_id,
+                            start_date=keep_start,
+                            end_date=keep_end,
+                            emails_count=count
+                        ))
+                        logger.info(f"  Kept after portion: [{keep_start}, {keep_end}) ({count} emails)")
+                        print(f"[PRINT]   Kept after: [{keep_start.date()}, {keep_end.date()})")
                     db.delete(range_obj)
                 db.commit()
                 logger.info(f"Split complete - removed overlapping ranges, kept non-overlapping portions")

@@ -1,6 +1,14 @@
 import { useState } from 'react'
+import { format, subDays } from 'date-fns'
 import { AnalysisRun } from '../api/client'
 import EmptyState from './EmptyState'
+import { parseApiDateOnly } from '../utils/calendarDate'
+
+function formatAnalysisRunRange(startIso: string, endIso: string) {
+  const start = parseApiDateOnly(startIso)
+  const endEx = parseApiDateOnly(endIso)
+  return `${format(start, 'M/d/yyyy')} → through ${format(subDays(endEx, 1), 'M/d/yyyy')} (end ${format(endEx, 'M/d/yyyy')} exclusive)`
+}
 
 interface AnalysisRunsListProps {
   runs: AnalysisRun[]
@@ -129,7 +137,8 @@ export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAc
                     {group.runs.length} consecutive failed {group.runs.length === 1 ? 'run' : 'runs'}
                   </strong>
                   <div style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: '#666' }}>
-                    {new Date(firstRun.start_date).toLocaleDateString()} - {new Date(lastRun.end_date).toLocaleDateString()}
+                    {format(parseApiDateOnly(firstRun.start_date), 'M/d/yyyy')} – through{' '}
+                    {format(subDays(parseApiDateOnly(lastRun.end_date), 1), 'M/d/yyyy')}
                   </div>
                   {!isExpanded && firstRun.error_message && (
                     <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
@@ -151,8 +160,7 @@ export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAc
                   {group.runs.map((run) => (
                     <div key={run.id} className="run-item" style={{ marginBottom: '0.5rem' }}>
                       <div>
-                        <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
-                        {new Date(run.end_date).toLocaleDateString()}
+                        {formatAnalysisRunRange(run.start_date, run.end_date)}
                         {run.error_message && (
                           <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
                             {getUserFriendlyError(run.error_message)}
@@ -210,8 +218,7 @@ export default function AnalysisRunsList({ runs, loading, onRetry, onReconnectAc
           return (
             <div key={run.id} className="run-item">
               <div>
-                <strong>{new Date(run.start_date).toLocaleDateString()}</strong> -{' '}
-                {new Date(run.end_date).toLocaleDateString()}
+                {formatAnalysisRunRange(run.start_date, run.end_date)}
                 {run.status === 'failed' && run.error_message && (
                   <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#c33' }}>
                     {getUserFriendlyError(run.error_message)}

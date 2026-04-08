@@ -24,6 +24,7 @@ import { useAccounts } from '../hooks/useAccounts'
 import { useInsights } from '../hooks/useInsights'
 import { useAnalysisPolling } from '../hooks/useAnalysisPolling'
 import { useCustomCategories } from '../hooks/useCustomCategories'
+import { formatLocalYmd } from '../utils/calendarDate'
 import './Dashboard.css'
 
 export default function Dashboard() {
@@ -280,8 +281,9 @@ export default function Dashboard() {
       const response = await api.post('/api/analysis/batch', {
         username,
         account_id: selectedAccount,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
+        // Calendar YYYY-MM-DD only — avoids toISOString() moving local midnight across UTC date line
+        start_date: formatLocalYmd(startDate),
+        end_date: formatLocalYmd(endDate),
         force_reanalysis: forceReanalysis,
       }, {
         timeout: 120000, // 2 minutes for queueing large date ranges
