@@ -153,11 +153,9 @@
 - [x] Gmail OAuth flow UI (redirect handling)
 - [x] Gmail OAuth callback handler (`/api/oauth/callback` endpoint)
 - [x] Yahoo credentials form (email + app password)
-- [ ] Account list with edit/delete actions
 - [x] Credential validation before saving
 - [x] Error handling for invalid credentials
 - [ ] Connection testing button
-- [ ] Account reconnection for expired tokens
 
 ### Medium Priority
 
@@ -183,27 +181,11 @@
 - [x] UI improvements (button heights, spacing, colors, layout fixes)
 - [x] Date input validation improvements
 - [ ] Frontend state persistence - Restore analysis state on page refresh
-- [ ] Concurrent analysis handling - Prevent/queue multiple simultaneous analyses
-- [ ] Enhanced category chart UI for missing categories
-- [ ] Responsive design improvements
-- [ ] Dark mode support (optional)
 
-#### 3. Export Functionality
-**Status**: Not Started  
-**Priority**: Medium  
-**Description**: Allow users to export insights and data.
-
-**Tasks**:
-- [ ] CSV export for sender insights
-- [ ] JSON export for full analysis data
-- [ ] PDF report generation (optional)
-- [ ] Date range selection for exports
-- [ ] Export button in dashboard
-
-#### 4. Email List, Filtering & Search
+#### 3. Email List, Filtering & Search
 **Status**: Complete  
 **Priority**: High  
-**Description**: Browse and filter analyzed emails so users can reduce inbox overload and split mail by category/sender/date. Currently only aggregates (senders, categories) are shown—no list of individual emails.
+**Description**: Browse and filter analyzed emails so users can reduce inbox overload and split mail by category/sender/date.
 
 **Tasks**:
 - [x] **Email list API** – `GET /api/insights/emails` with pagination (`limit`, `offset`), returning email metadata + category per account. Response: subject, sender_email, sender_name, date_received, category, custom_category.
@@ -215,7 +197,7 @@
 - [x] **Filter UI component** – Filter bar: category dropdown, sender input, date range, subject search, Apply. Debounced refetch on filter change.
 - [x] **Category-click → filtered list** – Category chart segments clickable; clicking opens Emails tab with that category filter.
 
-#### 5. Category-First Navigation & Custom Categories
+#### 4. Category-First Navigation & Custom Categories
 **Status**: Complete  
 **Priority**: High  
 **Description**: Let users split emails into categories via navigation (click category → see list) and via user-defined categories (e.g. "Finance", "Urgent") by assigning senders to custom labels.
@@ -226,12 +208,11 @@
 - [x] **Sender → custom category mapping** – SenderCategoryMapping table (user_id, sender_email, custom_category_id). POST/DELETE for assign/remove. One sender per custom category (reassign replaces).
 - [x] **Filter by custom category** – Email list accepts `custom_category_id`; custom categories in filter dropdown alongside auto-categories.
 - [x] **Custom category management UI** – Settings: CustomCategoriesManager (create, rename, delete). Top Senders: "Add to category" dropdown to assign sender to custom category.
-- [ ] **Optional: subject rules** – Deferred. Custom categories are sender-based only.
 
-#### 6. AI-Powered Sender Categorization
+#### 5. AI-Powered Sender Categorization
 **Status**: Complete  
 **Priority**: High  
-**Description**: Intelligently categorize senders using AI to suggest meaningful categories and subcategories. Builds on Custom Categories (section 5): AI suggests which senders belong in which user or system category.
+**Description**: Intelligently categorize senders using AI to suggest meaningful categories and subcategories. Builds on Custom Categories (section 4): AI suggests which senders belong in which user or system category.
 
 **Tasks**:
 - [x] AI model integration – OpenAI (gpt-4o-mini) when OPENAI_API_KEY set; else rule-based keyword matching
@@ -242,21 +223,7 @@
 - [x] Save custom categories per user – Apply writes to existing custom categories / sender mappings
 - [x] Filter emails by AI-suggested categories – Once applied, filter by custom category in Emails tab
 
-#### 7. Advanced Analytics
-**Status**: Not Started  
-**Priority**: Medium  
-**Description**: Deeper insights and trend analysis.
-
-**Tasks**:
-- [ ] Trends over time (email volume charts)
-- [ ] Sender relationship mapping
-- [ ] Category trends (how categories change over time)
-- [ ] Peak time analysis (best times to check email)
-- [ ] Sender importance scoring
-- [ ] Email thread analysis (if thread_id available)
-- [ ] **Priority / importance buckets (optional)** – Simple priority or bucket (e.g. High / Medium / Low or "Needs reply" / "Read later" / "Archive"). Filter email list by priority. Can be manual (user marks) or heuristic at first (e.g. work + recent = high).
-
-#### 7a. Gmail & large-range ingestion reliability
+#### 6. Gmail & large-range ingestion reliability
 **Status**: Not Started  
 **Priority**: High (operational)  
 **Description**: Overall ranges longer than ~2 years are split server-side into ~365-day half-open chunks, so Gmail is not queried for the entire span at once. Each chunk still performs paginated `messages.list` plus one `messages.get` per message (metadata). The analysis **start** request returns quickly (background work); risk is mainly **429** rate limits, long wall time per chunk, **250k messages/chunk** truncation, and **duplicate API work** from pre-fetch email counting.
@@ -270,7 +237,7 @@
 
 ### Low Priority / Future Enhancements
 
-#### 8. Multi-Account Comparison
+#### 7. Multi-Account Comparison
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Compare insights across multiple email accounts.
@@ -280,30 +247,7 @@
 - [ ] Aggregate statistics across accounts
 - [ ] Account-specific insights toggle
 
-#### 9. Email Content Analysis
-**Status**: Not Started  
-**Priority**: Low  
-**Description**: Analyze email body content (requires full email access).
-
-**Tasks**:
-- [ ] Sentiment analysis
-- [ ] Keyword extraction
-- [ ] Topic modeling
-- [ ] Attachment detection
-- [ ] Link extraction
-
-#### 10. Notifications & Alerts
-**Status**: Not Started  
-**Priority**: Low  
-**Description**: Notify users about email patterns.
-
-**Tasks**:
-- [ ] Unusual sender alerts
-- [ ] High volume notifications
-- [ ] Category change alerts
-- [ ] Email digest summaries
-
-#### 11. Performance Optimizations
+#### 8. Performance Optimizations
 **Status**: Not Started  
 **Priority**: Low  
 **Description**: Optimize for large-scale email processing.
@@ -315,7 +259,7 @@
 - [ ] Async email fetching improvements
 - [ ] Memory optimization for large batches
 
-#### 12. Testing
+#### 9. Testing
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Add comprehensive test coverage.
@@ -328,7 +272,7 @@
 - [ ] E2E tests for analysis flow
 - [ ] Mock email connectors for testing
 
-#### 13. Deployment & DevOps
+#### 10. Deployment & DevOps
 **Status**: Not Started  
 **Priority**: Medium  
 **Description**: Production deployment setup.
@@ -343,53 +287,27 @@
 
 ---
 
-## 🐛 Known Issues
-
-1. **Gmail API rate limits** - No handling for rate limit errors (429 responses). Tracked: **§7a Gmail & large-range ingestion reliability**
-2. **Large batch processing** - Calendar span is chunked (~1y when >2y range); each chunk can still run a long time (many per-message API calls), hit **250k/chunk** cap, or fail on quotas. Tracked: **§7a**
-3. **Frontend state persistence** - Page refresh resets state including running analysis
-4. **Concurrent analysis handling** - No prevention of multiple simultaneous analyses
-5. **Frontend timeout mismatch** - Frontend times out after 30s even when backend succeeds
-
----
-
 ## 📊 Feature Priority Matrix
 
 | Feature | Priority | Effort | Impact | Status |
 |---------|----------|--------|--------|--------|
-| Email List, Filtering & Search | High | Medium | High | Complete |
-| Category-First Navigation & Custom Categories | High | Medium | High | Complete |
-| AI-Powered Sender Categorization | High | High | High | Complete |
-| UI/UX Enhancements | Medium | Medium | Medium | Partially Complete |
-| Export Functionality | Medium | Low | Medium | Not Started |
+| Gmail / large-range ingestion (§6) | High | Medium | High | Not Started |
+| Email list, filtering & search | High | Medium | High | Complete |
+| Category-first nav & custom categories | High | Medium | High | Complete |
+| AI-powered sender categorization | High | High | High | Complete |
+| UI/UX enhancements | Medium | Medium | Medium | Partially complete |
 | Testing | Medium | High | High | Not Started |
 | Deployment & DevOps | Medium | Medium | High | Not Started |
-| Advanced Analytics | Medium | High | Medium | Not Started |
-| Multi-Account Comparison | Low | Medium | Low | Not Started |
-| Content Analysis | Low | High | Low | Not Started |
-| Performance Optimization | Low | High | Medium | Not Started |
-| Gmail / large-range ingestion (§7a) | High | Medium | High | Not Started |
-
----
-
-## 🎯 Next Focus Areas
-
-- ~~**Email list + filters**~~ ✅ Done – Paginated email list API and UI, filter by category/sender/date, subject search
-- ~~**Category-first navigation**~~ ✅ Done – Click category in Insights → open email list filtered to that category
-- ~~**Custom categories**~~ ✅ Done – User-defined categories and sender→category mapping; filter list by custom category
-- ~~**AI-Powered Sender Categorization**~~ ✅ Done – Suggest categories (OpenAI or rule-based), apply to custom categories from modal
-- Frontend state persistence (restore analysis state on refresh)
-- Concurrent analysis handling (prevent/queue multiple analyses)
-- **Gmail large-range resilience** (§7a: retries/backoff, cheaper pre-count, chunk tuning, batch metadata)
-- Export functionality (CSV/JSON)
-- Testing infrastructure
+| Multi-account comparison | Low | Medium | Low | Not Started |
+| Performance optimization | Low | High | Medium | Not Started |
 
 ---
 
 ## 📝 Notes
 
-- All data is encrypted and stored locally
-- Gmail requires OAuth 2.0 credentials from Google Cloud Console
-- Yahoo requires app-specific password (not regular password)
-- spaCy model must be installed separately: `pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl`
-- Backend runs on port 8000, frontend on port 3000 (Vite default)
+- All data is encrypted and stored locally (SQLite under `backend/data/` by default; relative `DATABASE_URL` resolves against the `backend/` directory).
+- **Batch analysis dates** are calendar days: API accepts `YYYY-MM-DD`, combined to naive local midnights; ranges are half-open `[start, end)` (start inclusive, end exclusive). The frontend sends wall-calendar strings, not `Date.toISOString()`, to avoid UTC shifting the intended bounds.
+- **Processed ranges** in the DB use the same half-open convention for `ProcessedDateRange`; optional migration script: `python -m scripts.migrate_processed_ranges_exclusive_end` from `backend/`.
+- Gmail requires OAuth 2.0 credentials from Google Cloud Console; Yahoo uses an app-specific password per account.
+- spaCy model (for NLP): `pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl`
+- Default dev ports: backend **8000**, frontend **3000** (Vite).
