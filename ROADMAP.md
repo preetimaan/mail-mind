@@ -256,6 +256,18 @@
 - [ ] Email thread analysis (if thread_id available)
 - [ ] **Priority / importance buckets (optional)** – Simple priority or bucket (e.g. High / Medium / Low or "Needs reply" / "Read later" / "Archive"). Filter email list by priority. Can be manual (user marks) or heuristic at first (e.g. work + recent = high).
 
+#### 7a. Gmail & large-range ingestion reliability
+**Status**: Not Started  
+**Priority**: High (operational)  
+**Description**: Overall ranges longer than ~2 years are split server-side into ~365-day half-open chunks, so Gmail is not queried for the entire span at once. Each chunk still performs paginated `messages.list` plus one `messages.get` per message (metadata). The analysis **start** request returns quickly (background work); risk is mainly **429** rate limits, long wall time per chunk, **250k messages/chunk** truncation, and **duplicate API work** from pre-fetch email counting.
+
+**Tasks**:
+- [ ] Retries with exponential backoff (and jitter) on transient errors and **429** rate limits
+- [ ] Skip, cap, or replace Gmail **`get_email_count_by_date_range`** with a cheaper estimate (today it can mirror nearly a full list+get pass before fetch)
+- [ ] Configurable **chunk length** (e.g. env `MAILMIND_ANALYSIS_CHUNK_DAYS`) for very dense mailboxes
+- [ ] Explore Gmail **batch HTTP** for batched `messages.get` (fewer round-trips)
+- [ ] Observability: log rate-limit events, per-chunk truncation warnings, elapsed time per chunk
+
 ### Low Priority / Future Enhancements
 
 #### 8. Multi-Account Comparison
@@ -303,31 +315,6 @@
 - [ ] Async email fetching improvements
 - [ ] Memory optimization for large batches
 
-#### 11. Performance Optimizations
-**Status**: Not Started  
-**Priority**: Low  
-**Description**: Optimize for large-scale email processing.
-
-**Tasks**:
-- [ ] Batch processing optimization (larger chunks)
-- [ ] Database indexing improvements
-- [ ] Caching for frequently accessed insights
-- [ ] Async email fetching improvements
-- [ ] Memory optimization for large batches
-
-#### 12. Testing
-**Status**: Not Started  
-**Priority**: Medium  
-**Description**: Add comprehensive test coverage.
-
-**Tasks**:
-- [ ] Unit tests for NLP analyzer
-- [ ] Unit tests for date tracker
-- [ ] Integration tests for API endpoints
-- [ ] Frontend component tests
-- [ ] E2E tests for analysis flow
-- [ ] Mock email connectors for testing
-
 #### 12. Testing
 **Status**: Not Started  
 **Priority**: Medium  
@@ -358,8 +345,8 @@
 
 ## 🐛 Known Issues
 
-1. **Gmail API rate limits** - No handling for rate limit errors (429 responses)
-2. **Large batch processing** - May timeout or fail for very large date ranges (10k+ emails)
+1. **Gmail API rate limits** - No handling for rate limit errors (429 responses). Tracked: **§7a Gmail & large-range ingestion reliability**
+2. **Large batch processing** - Calendar span is chunked (~1y when >2y range); each chunk can still run a long time (many per-message API calls), hit **250k/chunk** cap, or fail on quotas. Tracked: **§7a**
 3. **Frontend state persistence** - Page refresh resets state including running analysis
 4. **Concurrent analysis handling** - No prevention of multiple simultaneous analyses
 5. **Frontend timeout mismatch** - Frontend times out after 30s even when backend succeeds
@@ -381,6 +368,7 @@
 | Multi-Account Comparison | Low | Medium | Low | Not Started |
 | Content Analysis | Low | High | Low | Not Started |
 | Performance Optimization | Low | High | Medium | Not Started |
+| Gmail / large-range ingestion (§7a) | High | Medium | High | Not Started |
 
 ---
 
@@ -392,6 +380,7 @@
 - ~~**AI-Powered Sender Categorization**~~ ✅ Done – Suggest categories (OpenAI or rule-based), apply to custom categories from modal
 - Frontend state persistence (restore analysis state on refresh)
 - Concurrent analysis handling (prevent/queue multiple analyses)
+- **Gmail large-range resilience** (§7a: retries/backoff, cheaper pre-count, chunk tuning, batch metadata)
 - Export functionality (CSV/JSON)
 - Testing infrastructure
 
