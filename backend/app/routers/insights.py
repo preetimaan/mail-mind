@@ -17,6 +17,10 @@ from app.database import (
     SenderCategoryMapping,
 )
 from app.encryption import EncryptionManager
+from app.range_semantics import (
+    half_open_sorted_mergeable,
+    reconstruct_bounds_from_email_min_max,
+)
 
 router = APIRouter()
 
@@ -499,7 +503,7 @@ async def get_processed_ranges(
             logger.info(f"  Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
             print(f"[PRINT]   Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
     
-    # Merge touching/overlapping half-open ranges [start, end)
+    # Merge touching/overlapping half-open ranges (app.range_semantics)
     merged = []
     for r in ranges:
         if not merged:
@@ -511,7 +515,7 @@ async def get_processed_ranges(
             })
         else:
             last = merged[-1]
-            if r.start_date <= last['end_date']:
+            if half_open_sorted_mergeable(r.start_date, last['end_date']):
                 last['end_date'] = max(last['end_date'], r.end_date)
                 last['emails_count'] = last['emails_count'] + r.emails_count
                 last['processed_at'] = max(last['processed_at'], r.processed_at)
@@ -551,11 +555,9 @@ async def get_processed_ranges(
             ).first()
             
             if min_max and min_max.min_date and min_max.max_date:
-                from datetime import time as dt_time
-                # Half-open [min midnight, day after max calendar day at midnight)
-                min_date = min_max.min_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                last_calendar_day = min_max.max_date.date()
-                max_date = datetime.combine(last_calendar_day + timedelta(days=1), dt_time.min)
+                min_date, max_date = reconstruct_bounds_from_email_min_max(
+                    min_max.min_date, min_max.max_date
+                )
                 
                 # Check if range already exists (shouldn't, but just in case)
                 existing = db.query(ProcessedDateRange).filter(

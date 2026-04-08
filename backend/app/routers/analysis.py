@@ -13,6 +13,13 @@ from app.email_connectors import GmailConnector, YahooConnector
 from app.nlp_analyzer import NLPAnalyzer
 from app.date_tracker import DateTracker
 from app.services.analysis_service import AnalysisService
+from app.range_semantics import (
+    normalize_analysis_window,
+    is_valid_half_open,
+    naive_utc_instant,
+    truncate_to_midnight,
+    split_interval_removing_window,
+)
 
 router = APIRouter()
 
@@ -174,21 +181,10 @@ def process_batch_analysis(
         analysis_run.status = "processing"
         db.commit()
         
-        # Half-open window [start_date, end_date): start inclusive at midnight, end exclusive at midnight.
-        def normalize_for_range(dt):
-            if dt is None:
-                return dt
-            if dt.tzinfo is not None:
-                from dateutil import tz as dateutil_tz
-                utc_dt = dt.astimezone(dateutil_tz.UTC)
-                dt = utc_dt.replace(tzinfo=None)
-            return dt
-        start_date = normalize_for_range(start_date)
-        end_date = normalize_for_range(end_date)
-        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        if end_date <= start_date:
+        # Half-open window: see app.range_semantics
+        start_date, end_date = normalize_analysis_window(start_date, end_date)
+
+        if not is_valid_half_open(start_date, end_date):
             analysis_run.status = "failed"
             analysis_run.error_message = "End date must be after start date (end is exclusive)."
             db.commit()
@@ -205,19 +201,8 @@ def process_batch_analysis(
             print(f"[PRINT] Force reanalysis requested - removing existing data for {start_date} to {end_date}")
             
             from app.database import ProcessedDateRange, EmailMetadata, AnalysisResult
-            
-            # Normalize dates for comparison (handle timezone differences)
-            def normalize_datetime(dt):
-                if dt is None:
-                    return dt
-                if dt.tzinfo is not None:
-                    from dateutil import tz as dateutil_tz
-                    utc_dt = dt.astimezone(dateutil_tz.UTC)
-                    return utc_dt.replace(tzinfo=None)
-                return dt
-            
-            norm_start = normalize_datetime(start_date).replace(hour=0, minute=0, second=0, microsecond=0)
-            norm_end = normalize_datetime(end_date).replace(hour=0, minute=0, second=0, microsecond=0)
+
+            norm_start, norm_end = start_date, end_date
             
             logger.info(f"Force re-analysis half-open window: [{norm_start}, {norm_end})")
             print(f"[PRINT] Force re-analysis window: [{norm_start}, {norm_end})")
@@ -266,12 +251,11 @@ def process_batch_analysis(
                 logger.info(f"Found {len(overlapping_ranges)} processed date ranges overlapping re-analysis window")
                 print(f"[PRINT] Splitting {len(overlapping_ranges)} overlapping ranges, keeping portions outside re-analysis window")
                 for range_obj in overlapping_ranges:
-                    r_start = normalize_datetime(range_obj.start_date)
-                    r_end = normalize_datetime(range_obj.end_date)
-                    # Stored half-open [r_start, r_end). Keep [r_start, min(r_end, norm_start)) and [max(r_start, norm_end), r_end).
-                    before_exclusive_end = min(r_end, norm_start)
-                    if r_start < before_exclusive_end:
-                        keep_start, keep_end = r_start, before_exclusive_end
+                    r_start = truncate_to_midnight(naive_utc_instant(range_obj.start_date))
+                    r_end = truncate_to_midnight(naive_utc_instant(range_obj.end_date))
+                    for keep_start, keep_end in split_interval_removing_window(
+                        r_start, r_end, norm_start, norm_end
+                    ):
                         count = db.query(EmailMetadata).filter(
                             EmailMetadata.account_id == account_id,
                             EmailMetadata.date_received >= keep_start,
@@ -283,24 +267,8 @@ def process_batch_analysis(
                             end_date=keep_end,
                             emails_count=count
                         ))
-                        logger.info(f"  Kept before portion: [{keep_start}, {keep_end}) ({count} emails)")
-                        print(f"[PRINT]   Kept before: [{keep_start.date()}, {keep_end.date()})")
-                    after_inclusive_start = max(r_start, norm_end)
-                    if after_inclusive_start < r_end:
-                        keep_start, keep_end = after_inclusive_start, r_end
-                        count = db.query(EmailMetadata).filter(
-                            EmailMetadata.account_id == account_id,
-                            EmailMetadata.date_received >= keep_start,
-                            EmailMetadata.date_received < keep_end
-                        ).count()
-                        db.add(ProcessedDateRange(
-                            account_id=account_id,
-                            start_date=keep_start,
-                            end_date=keep_end,
-                            emails_count=count
-                        ))
-                        logger.info(f"  Kept after portion: [{keep_start}, {keep_end}) ({count} emails)")
-                        print(f"[PRINT]   Kept after: [{keep_start.date()}, {keep_end.date()})")
+                        logger.info(f"  Kept portion: [{keep_start}, {keep_end}) ({count} emails)")
+                        print(f"[PRINT]   Kept: [{keep_start.date()}, {keep_end.date()})")
                     db.delete(range_obj)
                 db.commit()
                 logger.info(f"Split complete - removed overlapping ranges, kept non-overlapping portions")

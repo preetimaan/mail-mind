@@ -10,6 +10,7 @@ from app.database import EmailMetadata, AnalysisResult, AnalysisRun
 from app.encryption import EncryptionManager
 from app.nlp_analyzer import NLPAnalyzer
 from app.date_tracker import DateTracker
+from app.range_semantics import normalize_analysis_window, is_valid_half_open
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ class AnalysisService:
             run_id = self.run_id
         if run_id is None:
             raise ValueError("run_id is required for analysis results")
+
+        start_date, end_date = normalize_analysis_window(start_date, end_date)
+        if not is_valid_half_open(start_date, end_date):
+            raise ValueError("Invalid half-open analysis window: end must be after start")
         
         # Calculate date range span in days
         date_span = (end_date - start_date).days

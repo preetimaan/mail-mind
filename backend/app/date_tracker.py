@@ -3,12 +3,13 @@ from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
 import logging
 from app.database import ProcessedDateRange
+from app.range_semantics import (
+    half_open_row_overlaps_window,
+    merge_touching_or_overlapping_sorted,
+    naive_utc_instant,
+)
 
 logger = logging.getLogger(__name__)
-
-# ProcessedDateRange and all analysis windows use half-open intervals:
-# [start_date, end_date) — start inclusive at midnight, end exclusive at midnight.
-# Example: [2010-01-01, 2016-01-01) includes mail through 2015-12-31, not 2016-01-01.
 
 
 class DateTracker:
@@ -17,16 +18,6 @@ class DateTracker:
     def __init__(self, db: Session, account_id: int):
         self.db = db
         self.account_id = account_id
-    
-    def _normalize_datetime(self, dt: datetime) -> datetime:
-        """Normalize datetime to timezone-naive UTC for comparison"""
-        if dt is None:
-            return dt
-        if dt.tzinfo is not None:
-            from dateutil import tz as dateutil_tz
-            utc_dt = dt.astimezone(dateutil_tz.UTC)
-            return utc_dt.replace(tzinfo=None)
-        return dt
     
     def get_unprocessed_ranges(
         self, 
@@ -38,8 +29,8 @@ class DateTracker:
         Processed ranges are stored as [proc_start, proc_end) half-open.
         Returns list of (gap_start, gap_end) tuples, each half-open.
         """
-        start_date = self._normalize_datetime(start_date)
-        end_date = self._normalize_datetime(end_date)
+        start_date = naive_utc_instant(start_date)
+        end_date = naive_utc_instant(end_date)
         
         if end_date <= start_date:
             return []
@@ -53,28 +44,14 @@ class DateTracker:
         
         normalized_ranges = []
         for proc_range in all_processed:
-            proc_start = self._normalize_datetime(proc_range.start_date)
-            proc_end = self._normalize_datetime(proc_range.end_date)
-            normalized_ranges.append((proc_start, proc_end))
-        
-        # Merge touching/overlapping half-open ranges: [a,b) and [b,c) share boundary b → merge
-        merged_ranges = []
-        normalized_ranges.sort(key=lambda x: x[0])
-
-        for proc_start, proc_end in normalized_ranges:
+            proc_start = naive_utc_instant(proc_range.start_date)
+            proc_end = naive_utc_instant(proc_range.end_date)
             if proc_end <= proc_start:
                 continue
-            if not merged_ranges:
-                merged_ranges.append((proc_start, proc_end))
-            else:
-                last_start, last_end = merged_ranges[-1]
-                # Overlap or touch: new start < last exclusive end (strict half-open touch: ps == le)
-                if proc_start < last_end:
-                    merged_ranges[-1] = (last_start, max(last_end, proc_end))
-                elif proc_start == last_end:
-                    merged_ranges[-1] = (last_start, proc_end)
-                else:
-                    merged_ranges.append((proc_start, proc_end))
+            normalized_ranges.append((proc_start, proc_end))
+
+        normalized_ranges.sort(key=lambda x: x[0])
+        merged_ranges = merge_touching_or_overlapping_sorted(normalized_ranges)
         
         buffer = timedelta(days=365)
         relevant_ranges = [
@@ -125,8 +102,8 @@ class DateTracker:
         Mark [start_date, end_date) as processed (half-open).
         end_date is exclusive (first instant not covered).
         """
-        start_date = self._normalize_datetime(start_date)
-        end_date = self._normalize_datetime(end_date)
+        start_date = naive_utc_instant(start_date)
+        end_date = naive_utc_instant(end_date)
         
         if end_date <= start_date:
             logger.warning(
@@ -147,9 +124,9 @@ class DateTracker:
         
         overlapping = []
         for r in all_ranges:
-            r_start = self._normalize_datetime(r.start_date)
-            r_end = self._normalize_datetime(r.end_date)
-            if r_start < end_date and r_end > start_date:
+            r_start = naive_utc_instant(r.start_date)
+            r_end = naive_utc_instant(r.end_date)
+            if half_open_row_overlaps_window(r_start, r_end, start_date, end_date):
                 overlapping.append(r)
                 logger.info(f"Overlapping/touching stored range: [{r_start}, {r_end})")
         
@@ -158,7 +135,7 @@ class DateTracker:
         
         if overlapping:
             normalized_overlapping = [
-                (self._normalize_datetime(r.start_date), self._normalize_datetime(r.end_date))
+                (naive_utc_instant(r.start_date), naive_utc_instant(r.end_date))
                 for r in overlapping
             ]
             min_start = min([r[0] for r in normalized_overlapping] + [start_date])

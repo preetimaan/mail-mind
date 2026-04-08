@@ -12,19 +12,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from app.range_semantics import half_open_contains_instant
+
 # Per date-range fetch cap (analysis passes the default). Gmail queries can match far more than this.
 DEFAULT_MAX_RESULTS_PER_RANGE = 250_000
-
-
-def _naive_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
-
-
-def _in_half_open(dr: datetime, start: datetime, end: datetime) -> bool:
-    """True if start <= dr < end (exclusive end), using naive UTC components for comparison."""
-    return _naive_utc(start) <= _naive_utc(dr) < _naive_utc(end)
 
 
 def _gmail_query_half_open(start_date: datetime, end_date: datetime, exclude_sent: bool) -> str:
@@ -110,7 +101,7 @@ class GmailConnector:
                             int(msg_detail['internalDate']) / 1000.0,
                             tz=timezone.utc,
                         )
-                        if _in_half_open(dr, start_date, end_date):
+                        if half_open_contains_instant(dr, start_date, end_date):
                             total += 1
                     except Exception as e:
                         logger.warning(f"Error counting message {msg.get('id')}: {e}")
@@ -187,7 +178,7 @@ class GmailConnector:
                                 tz=timezone.utc,
                             )
                         
-                        if not _in_half_open(date_received, start_date, end_date):
+                        if not half_open_contains_instant(date_received, start_date, end_date):
                             continue
                         
                         # Parse sender

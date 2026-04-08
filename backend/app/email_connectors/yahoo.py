@@ -9,15 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
-def _naive_utc(dt: datetime) -> datetime:
-    if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
-
-
-def _in_half_open(dr: datetime, start: datetime, end: datetime) -> bool:
-    return _naive_utc(start) <= _naive_utc(dr) < _naive_utc(end)
+from app.range_semantics import half_open_contains_instant
 
 # Per date-range cap (Yahoo IMAP); larger mailboxes may need smaller ranges instead of one huge pull.
 MAILMIND_YAHOO_MAX_PER_RANGE = 250_000
@@ -267,7 +259,7 @@ class YahooConnector:
                         except Exception:
                             date_received = datetime.now()
                         
-                        if not _in_half_open(date_received, start_date, end_date):
+                        if not half_open_contains_instant(date_received, start_date, end_date):
                             continue
                         
                         # Extract sender

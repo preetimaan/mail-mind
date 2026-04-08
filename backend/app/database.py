@@ -125,7 +125,7 @@ class AnalysisResult(Base):
     email = relationship("EmailMetadata", back_populates="analysis_results")
 
 class ProcessedDateRange(Base):
-    """Coverage is half-open: [start_date, end_date) — end_date is exclusive (first instant not covered)."""
+    """Coverage is half-open: [start_date, end_date); end_date is exclusive. See app.range_semantics."""
     __tablename__ = "processed_date_ranges"
     
     id = Column(Integer, primary_key=True, index=True)
