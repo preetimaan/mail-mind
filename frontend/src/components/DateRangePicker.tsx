@@ -10,10 +10,27 @@ interface DateRangePickerProps {
   initialEndDate?: Date
 }
 
-export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, hasRunningAnalysis, initialStartDate, initialEndDate }: DateRangePickerProps) {
-  const formatDateForInput = (date: Date) => {
-    return date.toISOString().split('T')[0]
+/** Browser-local calendar YYYY-MM-DD (avoid toISOString shifting the day vs UTC). */
+function formatDateForInput(date: Date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Parse <input type="date"> value as local midnight / local end-of-day — not UTC (new Date('yyyy-mm-dd') is UTC). */
+function parseLocalDateParts(ymd: string, endOfDay: boolean): Date {
+  const parts = ymd.split('-').map(Number)
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+    return new Date(NaN)
   }
+  const [y, m, d] = parts
+  return endOfDay
+    ? new Date(y, m - 1, d, 23, 59, 59, 999)
+    : new Date(y, m - 1, d, 0, 0, 0, 0)
+}
+
+export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, hasRunningAnalysis, initialStartDate, initialEndDate }: DateRangePickerProps) {
   
   const [startDate, setStartDate] = useState(initialStartDate ? formatDateForInput(initialStartDate) : '')
   const [endDate, setEndDate] = useState(initialEndDate ? formatDateForInput(initialEndDate) : '')
@@ -96,8 +113,8 @@ export default function DateRangePicker({ onAnalyze, onStop, loading, disabled, 
       return
     }
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    const start = parseLocalDateParts(startDate, false)
+    const end = parseLocalDateParts(endDate, true)
 
     if (start > end) {
       alert('Start date must be before end date')

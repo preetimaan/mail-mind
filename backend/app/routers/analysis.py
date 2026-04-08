@@ -186,6 +186,11 @@ def process_batch_analysis(
         start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
         
+        # Keep AnalysisRun in sync with the range we actually process (full local/naive day bounds)
+        analysis_run.start_date = start_date
+        analysis_run.end_date = end_date
+        db.commit()
+        
         # If force_reanalysis is True, remove existing data for this range
         if force_reanalysis:
             logger.info(f"Force reanalysis requested - removing existing data for {start_date} to {end_date}")
