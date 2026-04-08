@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, extract
+from sqlalchemy import func, and_, extract, text
 from typing import Optional, List
 from datetime import datetime, timedelta
 from collections import Counter
@@ -19,6 +19,45 @@ from app.database import (
 from app.encryption import EncryptionManager
 
 router = APIRouter()
+
+
+def _top_domains_with_common_display_name(db: Session, account_id: int, limit: int = 50) -> list:
+    """Aggregate email counts by domain (whole account) and pick the most frequent non-empty sender_name per domain."""
+    stmt = text(
+        """
+        SELECT
+            LOWER(SUBSTR(sender_email, INSTR(sender_email, '@') + 1)) AS domain,
+            TRIM(COALESCE(sender_name, '')) AS disp,
+            COUNT(*) AS cnt
+        FROM email_metadata
+        WHERE account_id = :aid AND INSTR(sender_email, '@') > 0
+        GROUP BY domain, disp
+        """
+    )
+    rows = db.execute(stmt, {"aid": account_id}).fetchall()
+    domain_total: Counter = Counter()
+    domain_disp_counts: dict = {}
+    for row in rows:
+        domain = (row[0] or "").strip()
+        disp = (row[1] or "").strip()
+        cnt = int(row[2] or 0)
+        if not domain:
+            continue
+        domain_total[domain] += cnt
+        if disp:
+            if domain not in domain_disp_counts:
+                domain_disp_counts[domain] = Counter()
+            domain_disp_counts[domain][disp] += cnt
+    result = []
+    for domain, count in domain_total.most_common(limit):
+        common = None
+        if domain in domain_disp_counts and domain_disp_counts[domain]:
+            common = domain_disp_counts[domain].most_common(1)[0][0]
+        result.append(
+            {"domain": domain, "count": count, "common_display_name": common}
+        )
+    return result
+
 
 @router.get("/summary")
 async def get_summary(
@@ -176,22 +215,15 @@ async def get_sender_insights(
         for sender, name, count in sender_counts
     ]
     
-    # Domain analysis (only for current page of senders)
-    domain_counts = Counter()
-    for sender, _, count in sender_counts:
-        if '@' in sender:
-            domain = sender.split('@')[1]
-            domain_counts[domain] += count
-    
+    # Top domains across the entire account (not just paginated senders), with most common From display name
+    top_domains = _top_domains_with_common_display_name(db, account_id, limit=50)
+
     # Calculate pagination info
     has_more = (offset or 0) + len(sender_counts) < total_senders
     
     return {
         'top_senders': senders,
-        'top_domains': [
-            {'domain': domain, 'count': count}
-            for domain, count in domain_counts.most_common(50)
-        ],
+        'top_domains': top_domains,
         'total_emails': total_emails,
         'total_senders': total_senders,
         'offset': offset or 0,

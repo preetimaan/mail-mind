@@ -21,6 +21,7 @@ export default function SenderChart({ insights, username, accountId, customCateg
   const data = allDomains.slice(0, 20).map((domain) => ({
     name: domain.domain,
     count: domain.count,
+    commonDisplayName: domain.common_display_name?.trim() || null,
     percentage: (domain.count / insights.total_emails) * 100,
   }))
   
@@ -92,6 +93,11 @@ export default function SenderChart({ insights, username, accountId, customCateg
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
           <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#2c3e50' }}>{data.name}</p>
+          {data.commonDisplayName && (
+            <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#374151' }}>
+              Common From name: <strong>{data.commonDisplayName}</strong>
+            </p>
+          )}
           <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#667eea' }}>
             Emails: <strong>{data.count.toLocaleString()}</strong>
           </p>
@@ -258,7 +264,14 @@ export default function SenderChart({ insights, username, accountId, customCateg
                 }}
               />
               <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: '500', fontSize: '1rem', color: '#2c3e50' }}>
+                <span
+                  style={{ fontWeight: '500', fontSize: '1rem', color: '#2c3e50' }}
+                  title={
+                    domainItem.common_display_name
+                      ? `Common From name: ${domainItem.common_display_name}`
+                      : undefined
+                  }
+                >
                   {domainItem.domain}
                 </span>
                 <span style={{ fontSize: '0.85rem', color: '#999', whiteSpace: 'nowrap' }}>

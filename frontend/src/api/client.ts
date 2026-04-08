@@ -115,6 +115,8 @@ export interface SenderInsights {
   top_domains: Array<{
     domain: string
     count: number
+    /** Most frequent non-empty From: display name for this domain in analyzed mail */
+    common_display_name?: string | null
   }>
   total_emails: number
   total_senders: number
