@@ -9,6 +9,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Per date-range cap (Yahoo IMAP); larger mailboxes may need smaller ranges instead of one huge pull.
+MAILMIND_YAHOO_MAX_PER_RANGE = 250_000
+
+
 class YahooConnector:
     """Yahoo Mail IMAP connector for fetching emails"""
     
@@ -92,7 +96,7 @@ class YahooConnector:
         self, 
         start_date: datetime, 
         end_date: datetime,
-        max_results: int = 5000,
+        max_results: int = MAILMIND_YAHOO_MAX_PER_RANGE,
         progress_callback: callable = None
     ) -> List[Dict]:
         """
@@ -137,8 +141,17 @@ class YahooConnector:
             
             emails = []
             
-            # Limit results
-            email_uids = email_uids[:max_results] if len(email_uids) > max_results else email_uids
+            # Limit results (IMAP search can return more than we ingest — same as Gmail cap)
+            if len(email_uids) > max_results:
+                logger.warning(
+                    "Yahoo IMAP found %s UIDs in %s–%s; ingesting first %s. "
+                    "Insights reflect only ingested mail. Use a smaller date range if you need full coverage.",
+                    len(email_uids),
+                    start_date.date(),
+                    end_date.date(),
+                    max_results,
+                )
+                email_uids = email_uids[:max_results]
             
             # Process emails with progress logging
             logger.info(f"Starting to process {len(email_uids)} emails...")

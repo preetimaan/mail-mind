@@ -8,6 +8,13 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from email.utils import parsedate_to_datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Per date-range fetch cap (analysis passes the default). Gmail queries can match far more than this.
+DEFAULT_MAX_RESULTS_PER_RANGE = 250_000
+
 
 class GmailConnector:
     """Gmail API connector for fetching emails"""
@@ -86,7 +93,7 @@ class GmailConnector:
         self, 
         start_date: datetime, 
         end_date: datetime,
-        max_results: int = 5000,
+        max_results: int = DEFAULT_MAX_RESULTS_PER_RANGE,
         progress_callback: callable = None,
         exclude_sent: bool = True
     ) -> List[Dict]:
@@ -95,6 +102,8 @@ class GmailConnector:
         Returns list of email metadata dicts
         
         Args:
+            max_results: Safety cap per fetch; if the query matches more, remaining messages are skipped
+                (insights then reflect only what was ingested). Default is very large for full-mailbox runs.
             exclude_sent: If True, excludes sent emails (only fetches received emails)
         """
         query = f'after:{int(start_date.timestamp())} before:{int(end_date.timestamp())}'
@@ -103,6 +112,7 @@ class GmailConnector:
         
         emails = []
         page_token = None
+        truncated = False
         
         try:
             while len(emails) < max_results:
@@ -114,6 +124,7 @@ class GmailConnector:
                 )
                 response = request.execute()
                 
+                next_page = response.get('nextPageToken')
                 messages = response.get('messages', [])
                 if not messages:
                     break
@@ -166,13 +177,26 @@ class GmailConnector:
                         print(f"Error fetching message {msg['id']}: {e}")
                         continue
                 
-                page_token = response.get('nextPageToken')
+                if len(emails) >= max_results:
+                    if next_page:
+                        truncated = True
+                    break
+                page_token = next_page
                 if not page_token:
                     break
                     
         except Exception as e:
             print(f"Error fetching emails: {e}")
             raise
+        
+        if truncated:
+            logger.warning(
+                "Gmail fetch for range %s–%s hit max_results=%s with more pages available. "
+                "Insights use only ingested messages; raise max_results or use smaller date chunks.",
+                start_date.date(),
+                end_date.date(),
+                max_results,
+            )
         
         return emails
     
