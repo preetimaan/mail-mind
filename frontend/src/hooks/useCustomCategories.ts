@@ -9,7 +9,7 @@ export function useCustomCategories(username: string | null) {
     if (!username) return
     setLoading(true)
     try {
-      const res = await api.get<CustomCategory[]>(`/api/insights/custom-categories?username=${username}`)
+      const res = await api.get<CustomCategory[]>('/api/insights/custom-categories')
       setCustomCategories(Array.isArray(res.data) ? res.data : [])
     } catch (err) {
       console.error('Failed to load custom categories:', err)

@@ -11,6 +11,32 @@ export const api = axios.create({
   timeout: 30000, // 30 second timeout
 })
 
+/** Stored after POST /api/auth/login or Gmail OAuth return. */
+export const ACCESS_TOKEN_KEY = 'mailmind_access_token'
+
+api.interceptors.request.use((config) => {
+  const url = config.url || ''
+  if (url.includes('/api/auth/login')) return config
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+  if (token) {
+    config.headers = config.headers ?? {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export async function login(
+  username: string,
+  loginSecret?: string | null,
+): Promise<{ access_token: string; username: string }> {
+  const body: { username: string; login_secret?: string } = { username }
+  const sec = loginSecret ?? import.meta.env.VITE_AUTH_LOGIN_SECRET
+  if (sec) body.login_secret = String(sec)
+  const res = await api.post<{ access_token: string; username: string }>('/api/auth/login', body)
+  localStorage.setItem(ACCESS_TOKEN_KEY, res.data.access_token)
+  return res.data
+}
+
 // Response interceptor for better error handling
 api.interceptors.response.use(
   (response) => response,
@@ -57,7 +83,6 @@ export interface EmailAccount {
 }
 
 export interface AnalysisRequest {
-  username: string
   account_id: number
   start_date: string
   end_date: string

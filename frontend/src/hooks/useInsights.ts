@@ -12,7 +12,7 @@ export function useInsights(username: string | null, selectedAccount: number | n
     if (!username) return
     
     try {
-      const response = await api.get(`/api/insights/summary?username=${username}`)
+      const response = await api.get('/api/insights/summary')
       setSummary(response.data)
     } catch (err: any) {
       if (err.response?.status === 404) {
@@ -35,10 +35,10 @@ export function useInsights(username: string | null, selectedAccount: number | n
     
     try {
       const [senders, categories, frequency, yearlyFrequency] = await Promise.all([
-        api.get(`/api/insights/senders?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/categories?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/frequency?username=${username}&account_id=${selectedAccount}`),
-        api.get(`/api/insights/frequency/yearly?username=${username}&account_id=${selectedAccount}`).catch(() => ({ data: null }))
+        api.get(`/api/insights/senders?account_id=${selectedAccount}`),
+        api.get(`/api/insights/categories?account_id=${selectedAccount}`),
+        api.get(`/api/insights/frequency?account_id=${selectedAccount}`),
+        api.get(`/api/insights/frequency/yearly?account_id=${selectedAccount}`).catch(() => ({ data: null }))
       ])
       
       setSenderInsights(senders.data)

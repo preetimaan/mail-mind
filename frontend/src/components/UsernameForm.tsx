@@ -3,6 +3,7 @@ interface UsernameFormProps {
   onUsernameInputChange: (value: string) => void
   onUsernameSubmit: () => void
   onUsernameKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  disabled?: boolean
 }
 
 export default function UsernameForm({
@@ -10,6 +11,7 @@ export default function UsernameForm({
   onUsernameInputChange,
   onUsernameSubmit,
   onUsernameKeyPress,
+  disabled = false,
 }: UsernameFormProps) {
   return (
     <div className="form-group">
@@ -22,13 +24,14 @@ export default function UsernameForm({
           onChange={(e) => onUsernameInputChange(e.target.value)}
           onKeyPress={onUsernameKeyPress}
           placeholder="Enter your username"
+          disabled={disabled}
         />
         <button
           onClick={onUsernameSubmit}
           className="submit-button"
-          disabled={!usernameInput.trim()}
+          disabled={disabled || !usernameInput.trim()}
         >
-          Load
+          {disabled ? 'Signing in…' : 'Load'}
         </button>
       </div>
     </div>

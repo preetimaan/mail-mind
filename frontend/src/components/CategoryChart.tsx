@@ -48,7 +48,9 @@ export default function CategoryChart({ insights, username, accountId }: Categor
       setLoadingDomains(true)
       
       try {
-        const response = await api.get(`/api/insights/category-domains?username=${username}&account_id=${accountId}&category=${category}`)
+        const response = await api.get(
+          `/api/insights/category-domains?account_id=${accountId}&category=${encodeURIComponent(category)}`,
+        )
         setCategoryDomains(response.data.domains || [])
       } catch (err) {
         console.error('Failed to load category domains:', err)

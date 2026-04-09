@@ -39,7 +39,7 @@ export default function AISuggestModal({
     }
     setLoading(true)
     api
-      .post<AISuggestResponse>(`/api/insights/ai-suggest-categories?username=${username}`, {
+      .post<AISuggestResponse>('/api/insights/ai-suggest-categories', {
         senders: senders.map((s) => ({ email: s.email, name: s.name ?? undefined, count: s.count })),
       })
       .then((res) => {
@@ -62,7 +62,7 @@ export default function AISuggestModal({
       let categoryId: number
       if (target === 'new') {
         const name = (newCategoryName[index] || sug.suggested_category).trim() || sug.suggested_category
-        const createRes = await api.post<CustomCategory>(`/api/insights/custom-categories?username=${username}`, { name })
+        const createRes = await api.post<CustomCategory>('/api/insights/custom-categories', { name })
         categoryId = createRes.data.id
       } else if (typeof target === 'number') {
         categoryId = target
@@ -70,7 +70,7 @@ export default function AISuggestModal({
         setApplying(false)
         return
       }
-      await api.post(`/api/insights/custom-categories/${categoryId}/senders?username=${username}`, {
+      await api.post(`/api/insights/custom-categories/${categoryId}/senders`, {
         sender_emails: [sug.sender_email],
       })
       onApplied()

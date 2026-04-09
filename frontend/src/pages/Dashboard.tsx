@@ -54,6 +54,8 @@ export default function Dashboard() {
     handleUsernameSubmit,
     handleUsernameKeyPress,
     handleLogout,
+    authError,
+    loginSubmitting,
   } = useUsername()
 
   const { customCategories, loadCustomCategories } = useCustomCategories(username)
@@ -106,7 +108,7 @@ export default function Dashboard() {
     },
     checkAccountStatus: async (accountId) => {
       try {
-        const accountsResponse = await api.get(`/api/emails/accounts?username=${username}`, {
+        const accountsResponse = await api.get('/api/emails/accounts', {
           timeout: 60000, // 60 seconds timeout
         })
         const updatedAccounts = accountsResponse.data || []
@@ -184,7 +186,9 @@ export default function Dashboard() {
     const limit = 5
     
     try {
-      const response = await api.get(`/api/analysis/runs?username=${username}&account_id=${selectedAccount}&limit=${limit}&offset=${offset}`)
+      const response = await api.get(
+        `/api/analysis/runs?account_id=${selectedAccount}&limit=${limit}&offset=${offset}`,
+      )
       const data = response.data
       
       if (reset) {
@@ -222,7 +226,7 @@ export default function Dashboard() {
     setSuccess(null)
 
     try {
-      const response = await api.post(`/api/analysis/runs/${runId}/retry?username=${username}`)
+      const response = await api.post(`/api/analysis/runs/${runId}/retry`)
       setSuccess(`Analysis retry started! Run ID: ${response.data.run_id}`)
       
       loadAnalysisRuns(true)
@@ -246,7 +250,7 @@ export default function Dashboard() {
     setSuccess(null)
 
     try {
-      const response = await api.post(`/api/analysis/runs/${currentRunningRunId}/stop?username=${username}`)
+      const response = await api.post(`/api/analysis/runs/${currentRunningRunId}/stop`)
       setSuccess(response.data.message || 'Analysis stopped successfully')
       
       setCurrentRunningRunId(null)
@@ -279,7 +283,6 @@ export default function Dashboard() {
 
     try {
       const response = await api.post('/api/analysis/batch', {
-        username,
         account_id: selectedAccount,
         // Calendar YYYY-MM-DD only — avoids toISOString() moving local midnight across UTC date line
         start_date: formatLocalYmd(startDate),
@@ -332,7 +335,7 @@ export default function Dashboard() {
     setError(null)
     
     try {
-      const response = await api.post(`/api/insights/cleanup-duplicates?username=${username}&account_id=${selectedAccount}`)
+      const response = await api.post(`/api/insights/cleanup-duplicates?account_id=${selectedAccount}`)
       setCleanupResult(response.data)
       if (response.data.duplicates_removed > 0) {
         setSuccess(`Cleaned up ${response.data.duplicates_removed} duplicate records`)
@@ -357,7 +360,7 @@ export default function Dashboard() {
     setError(null)
     
     try {
-      const response = await api.post(`/api/insights/recalculate?username=${username}&account_id=${selectedAccount}`)
+      const response = await api.post(`/api/insights/recalculate?account_id=${selectedAccount}`)
       setRecalculateResult(response.data)
       setSuccess(`Recalculated insights for ${response.data.emails_processed} emails`)
       loadSummary()
@@ -427,12 +430,15 @@ export default function Dashboard() {
         {!username && (
           <div className="card" style={{ marginTop: '1.5rem', maxWidth: '700px', margin: '1.5rem auto 0' }}>
             <h2>Login</h2>
-            {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
+            {(authError || error) && (
+              <div className="error" style={{ marginBottom: '1rem' }}>{authError || error}</div>
+            )}
             <UsernameForm
               usernameInput={usernameInput}
               onUsernameInputChange={setUsernameInput}
-              onUsernameSubmit={handleUsernameSubmit}
+              onUsernameSubmit={() => void handleUsernameSubmit()}
               onUsernameKeyPress={handleUsernameKeyPress}
+              disabled={loginSubmitting}
             />
           </div>
         )}
@@ -556,7 +562,7 @@ export default function Dashboard() {
                         customCategories={customCategories}
                         onAssignToCategory={async (senderEmail, categoryId) => {
                           try {
-                            await api.post(`/api/insights/custom-categories/${categoryId}/senders?username=${username}`, {
+                            await api.post(`/api/insights/custom-categories/${categoryId}/senders`, {
                               sender_emails: [senderEmail],
                             })
                             setSuccess(`Added sender to category`)
