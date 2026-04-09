@@ -174,8 +174,7 @@ class NLPAnalyzer:
             return sorted(result, key=lambda x: x['count'], reverse=True)
             
         except Exception as e:
-            print(f"Clustering error: {e}")
-            logger.error(f"Clustering error: {e}")
+            logger.error(f"Clustering error: {e}", exc_info=True)
             return [{'cluster_id': 0, 'subjects': subjects[:10], 'count': len(subjects)}]
     
     def _clean_subject(self, subject: str) -> str:

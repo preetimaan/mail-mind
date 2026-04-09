@@ -116,7 +116,6 @@ class DateTracker:
             f"mark_range_processed: account_id={self.account_id}, "
             f"[{start_date}, {end_date}), count={emails_count}"
         )
-        print(f"[PRINT] mark_range_processed: [{start_date}, {end_date}), count={emails_count}")
         
         all_ranges = self.db.query(ProcessedDateRange).filter(
             ProcessedDateRange.account_id == self.account_id
@@ -131,7 +130,6 @@ class DateTracker:
                 logger.info(f"Overlapping/touching stored range: [{r_start}, {r_end})")
         
         logger.info(f"Found {len(overlapping)} ranges to merge with new [{start_date}, {end_date})")
-        print(f"[PRINT] Merging with {len(overlapping)} existing ranges")
         
         if overlapping:
             normalized_overlapping = [
@@ -143,7 +141,6 @@ class DateTracker:
             total_count = sum(r.emails_count for r in overlapping) + emails_count
             
             logger.info(f"Merged half-open range: [{min_start}, {max_end}), total emails: {total_count}")
-            print(f"[PRINT] Merged into [{min_start}, {max_end})")
             
             for r in overlapping:
                 self.db.delete(r)
@@ -168,10 +165,8 @@ class DateTracker:
         try:
             self.db.commit()
             logger.info("Committed ProcessedDateRange")
-            print(f"[PRINT] Successfully committed ProcessedDateRange")
         except Exception as e:
             logger.error(f"ERROR committing ProcessedDateRange: {e}", exc_info=True)
-            print(f"[PRINT] ERROR committing ProcessedDateRange: {e}")
             import traceback
             traceback.print_exc()
             self.db.rollback()
@@ -189,7 +184,6 @@ class DateTracker:
             return
         
         logger.info(f"Removing processed ranges overlapping {len(ranges)} half-open window(s)")
-        print(f"[PRINT] Removing ranges for rollback")
         
         for range_start, range_end in ranges:
             overlapping = self.db.query(ProcessedDateRange).filter(

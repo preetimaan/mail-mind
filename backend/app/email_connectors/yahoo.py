@@ -139,7 +139,6 @@ class YahooConnector:
             email_uids = message_uids[0].split()
             total_found = len(email_uids)
             logger.info(f"Found {total_found} emails in date range, limiting to {max_results}")
-            print(f"[PRINT] Found {total_found} emails, processing...")
             
             emails = []
             
@@ -157,7 +156,6 @@ class YahooConnector:
             
             # Process emails with progress logging
             logger.info(f"Starting to process {len(email_uids)} emails...")
-            print(f"[PRINT] Processing {len(email_uids)} emails...")
             
             # Process in smaller batches to avoid timeouts
             # Use smaller batches (50) for better progress tracking and timeout recovery
@@ -168,7 +166,6 @@ class YahooConnector:
                 batch_uids = email_uids[batch_start:batch_end]
                 
                 logger.info(f"Processing batch {batch_start//batch_size + 1}: emails {batch_start+1}-{batch_end} of {len(email_uids)}")
-                print(f"[PRINT] Processing batch {batch_start//batch_size + 1}: {batch_start+1}-{batch_end}/{len(email_uids)}")
                 
                 # Refresh connection every few batches to avoid stale connections
                 if batch_start > 0 and batch_start % (batch_size * 3) == 0:
@@ -184,7 +181,6 @@ class YahooConnector:
                     global_idx = batch_start + idx
                     if global_idx > 0 and global_idx % 25 == 0:
                         logger.info(f"Processed {global_idx}/{len(email_uids)} emails...")
-                        print(f"[PRINT] Processed {global_idx}/{len(email_uids)} emails...")
                         # Call progress callback to update database
                         if progress_callback:
                             try:
@@ -202,11 +198,9 @@ class YahooConnector:
                             status, msg_data = self.imap.uid('FETCH', email_uid, '(BODY.PEEK[HEADER])')
                         except socket.timeout:
                             logger.warning(f"Timeout fetching email UID {email_uid} (email {global_idx+1}), skipping")
-                            print(f"[PRINT] Timeout on email {global_idx+1}, skipping")
                             continue
                         except Exception as e:
                             logger.warning(f"Error fetching email UID {email_uid} (email {global_idx+1}): {e}, skipping")
-                            print(f"[PRINT] Error on email {global_idx+1}: {e}, skipping")
                             continue
                         finally:
                             # Restore original timeout
@@ -238,7 +232,6 @@ class YahooConnector:
                                 msg = email.message_from_bytes(raw_headers)
                         except Exception as e:
                             logger.warning(f"Error parsing headers for UID {email_uid} (email {global_idx+1}): {e}, skipping")
-                            print(f"[PRINT] Parse error on email {global_idx+1}: {e}, skipping")
                             continue
                         
                         # Extract headers
@@ -292,7 +285,6 @@ class YahooConnector:
                     except Exception as e:
                         uid_str = email_uid.decode() if isinstance(email_uid, bytes) else str(email_uid)
                         logger.warning(f"Error processing email UID {uid_str} (email {global_idx+1}): {e}, skipping")
-                        print(f"[PRINT] Error processing email {global_idx+1}: {e}, skipping")
                         continue
             
             logger.info(f"Successfully fetched {len(emails)} emails from date range {start_str} to {end_str}")
