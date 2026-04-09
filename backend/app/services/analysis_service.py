@@ -69,7 +69,6 @@ class AnalysisService:
         # If range is larger than 2 years, chunk it into yearly chunks
         if date_span > 730:  # 2 years
             logger.info(f"Large date range detected ({date_span} days). Chunking into yearly segments...")
-            print(f"[PRINT] Large date range detected ({date_span} days). Chunking...")
             
             chunks = chunk_date_range(start_date, end_date, chunk_size_days=365)
             total_emails = 0
@@ -82,7 +81,6 @@ class AnalysisService:
             
             for chunk_idx, (chunk_start, chunk_end) in enumerate(chunks, 1):
                 logger.info(f"Processing chunk {chunk_idx}/{len(chunks)}: {chunk_start} to {chunk_end}")
-                print(f"[PRINT] Processing chunk {chunk_idx}/{len(chunks)}")
                 
                 # Update analysis run with current chunk info
                 analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
@@ -132,11 +130,9 @@ class AnalysisService:
         unprocessed_ranges = self.date_tracker.get_unprocessed_ranges(start_date, end_date)
         
         logger.info(f"Found {len(unprocessed_ranges)} unprocessed ranges to analyze")
-        print(f"[PRINT] Found {len(unprocessed_ranges)} unprocessed ranges to analyze")
         
         if not unprocessed_ranges:
             logger.info("All dates in range already processed")
-            print("[PRINT] All dates in range already processed")
             return {
                 'emails_processed': 0,
                 'message': 'All dates in range already processed'
@@ -150,7 +146,6 @@ class AnalysisService:
         if analysis_run and hasattr(connector, 'get_email_count_by_date_range'):
             try:
                 logger.info("Calculating total email count for progress tracking...")
-                print("[PRINT] Calculating total email count...")
                 total_count = 0
                 for range_start, range_end in unprocessed_ranges:
                     try:
@@ -168,10 +163,8 @@ class AnalysisService:
                     analysis_run.total_emails = total_emails_expected
                     self.db.commit()
                     logger.info(f"Total emails to process: {total_emails_expected}")
-                    print(f"[PRINT] Total emails to process: {total_emails_expected}")
             except Exception as e:
                 logger.warning(f"Failed to calculate total email count: {e}, continuing without total")
-                print(f"[PRINT] Failed to calculate total email count: {e}")
         
         total_emails = 0
         # Track ranges that have been marked as processed in this analysis
@@ -186,45 +179,33 @@ class AnalysisService:
                     analysis_run = self.db.query(AnalysisRun).filter(AnalysisRun.id == self.run_id).first()
                     if analysis_run and analysis_run.status == "cancelled":
                         logger.info(f"Analysis run {self.run_id} was cancelled, stopping processing")
-                        print(f"[PRINT] Analysis run {self.run_id} was cancelled, stopping processing")
                         break
                 
                 logger.info(f"Processing range: {range_start} to {range_end}")
-                print(f"[PRINT] Processing range: {range_start} to {range_end}")
                 
                 # Create progress callback to update database during fetching
                 def update_fetch_progress(fetched_count, total_count):
                     if run_id:
                         try:
-                            import sqlite3
-                            import os
-                            db_url = os.getenv("DATABASE_URL", "sqlite:///./data/mailmind.db")
-                            db_path = db_url.replace("sqlite:///", "")
-                            if not os.path.isabs(db_path):
-                                db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), db_path)
-                            
-                            conn = sqlite3.connect(db_path)
-                            cursor = conn.cursor()
-                            # Update emails_processed to show fetching progress
-                            cursor.execute(
-                                "UPDATE analysis_runs SET emails_processed = ? WHERE id = ?",
-                                (total_emails + fetched_count, run_id)
+                            self.db.execute(
+                                text(
+                                    "UPDATE analysis_runs SET emails_processed = :count WHERE id = :run_id"
+                                ),
+                                {"count": total_emails + fetched_count, "run_id": run_id},
                             )
-                            conn.commit()
-                            conn.close()
-                            logger.info(f"Fetch progress: {fetched_count}/{total_count} emails fetched (run_id={run_id})")
-                            print(f"[PRINT] Fetch progress: {fetched_count}/{total_count} emails fetched (run_id={run_id})")
+                            self.db.commit()
+                            logger.info(
+                                f"Fetch progress: {fetched_count}/{total_count} emails fetched (run_id={run_id})"
+                            )
                         except Exception as e:
                             logger.warning(f"Failed to update fetch progress: {e}")
                 
                 # Fetch emails with progress callback
                 emails = connector.fetch_emails_by_date_range(range_start, range_end, progress_callback=update_fetch_progress)
                 logger.info(f"Fetched {len(emails)} emails for this range")
-                print(f"[PRINT] Fetched {len(emails)} emails for this range")
                 
                 if not emails:
                     logger.info(f"No emails in range {range_start} to {range_end}, marking as processed anyway")
-                    print(f"[PRINT] No emails in range, marking as processed anyway")
                     # Mark range as processed even if no emails (to prevent gaps from getting stuck)
                     self.date_tracker.mark_range_processed(range_start, range_end, 0)
                     processed_ranges_in_this_run.append((range_start, range_end))
@@ -279,11 +260,9 @@ class AnalysisService:
                     try:
                         self.db.commit()
                         logger.info(f"Committed chunk {chunk_start//chunk_size + 1}: {len(stored_emails)} email metadata records")
-                        print(f"[PRINT] Committed chunk {chunk_start//chunk_size + 1}: {len(stored_emails)} emails")
                     except IntegrityError as e:
                         # Handle race condition: another process may have inserted the same email
                         logger.warning(f"IntegrityError during email commit (likely race condition): {e}")
-                        print(f"[PRINT] IntegrityError during email commit (likely race condition): {e}")
                         self.db.rollback()
                         
                         # Re-fetch existing emails that may have been inserted by another process
@@ -299,7 +278,6 @@ class AnalysisService:
                             else:
                                 # Try to insert again (shouldn't happen, but handle gracefully)
                                 logger.warning(f"Email {email_data['message_id']} not found after rollback, skipping")
-                                print(f"[PRINT] Email {email_data['message_id']} not found after rollback, skipping")
                     
                     # Refresh to get IDs
                     for email_meta in stored_emails:
@@ -311,7 +289,6 @@ class AnalysisService:
                     # and updating would reset the fetch progress which confuses the UI)
                     total_emails += len(email_chunk)
                     logger.info(f"Stored chunk: {total_emails}/{len(emails)} emails (run_id={run_id})")
-                    print(f"[PRINT] Stored chunk: {total_emails}/{len(emails)} emails (run_id={run_id})")
                 
                 # Analyze all emails together (analysis is more efficient on larger batches)
                 analysis_data = self.nlp_analyzer.analyze_batch(emails)
@@ -353,7 +330,6 @@ class AnalysisService:
                 
                 self.db.commit()
                 logger.info(f"Committed analysis results for {len(emails)} emails")
-                print(f"[PRINT] Committed analysis results for {len(emails)} emails")
                 
                 # Note: total_emails was already updated after storing emails, before analysis
                 # So we don't need to update it again here
@@ -361,14 +337,11 @@ class AnalysisService:
                 # Mark range as processed
                 try:
                     logger.info(f"Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
-                    print(f"[PRINT] Marking range as processed: {range_start} to {range_end}, emails: {len(emails)}")
                     self.date_tracker.mark_range_processed(range_start, range_end, len(emails))
                     processed_ranges_in_this_run.append((range_start, range_end))
                     logger.info(f"Successfully marked range as processed")
-                    print(f"[PRINT] Successfully marked range as processed")
                 except Exception as e:
                     logger.error(f"ERROR: Failed to mark range as processed: {e}", exc_info=True)
-                    print(f"[PRINT] ERROR: Failed to mark range as processed: {e}")
                     import traceback
                     traceback.print_exc()
                     # Don't fail the whole analysis if marking fails, but log it
@@ -383,14 +356,11 @@ class AnalysisService:
             # If analysis fails, rollback any processed ranges that were marked
             if processed_ranges_in_this_run:
                 logger.error(f"Analysis failed, rolling back {len(processed_ranges_in_this_run)} processed date ranges")
-                print(f"[PRINT] Analysis failed, rolling back {len(processed_ranges_in_this_run)} processed date ranges")
                 try:
                     self.date_tracker.remove_ranges(processed_ranges_in_this_run)
                     logger.info("Successfully rolled back processed date ranges.")
-                    print("Successfully rolled back processed date ranges.")
                 except Exception as rollback_e:
                     logger.error(f"ERROR: Failed to rollback processed date ranges: {rollback_e}", exc_info=True)
-                    print(f"ERROR: Failed to rollback processed date ranges: {rollback_e}")
             raise  # Re-raise the original exception
     
     def _get_sender_cluster(self, sender_email: str, sender_patterns: Dict) -> str:
@@ -434,7 +404,6 @@ class AnalysisService:
             return
         
         logger.info(f"Reverting changes for run {self.run_id}")
-        print(f"[PRINT] Reverting changes for run {self.run_id}")
         
         try:
             # Delete analysis results created by this run
@@ -471,11 +440,9 @@ class AnalysisService:
             
             self.db.commit()
             logger.info(f"Successfully reverted changes for run {self.run_id}")
-            print(f"[PRINT] Successfully reverted changes for run {self.run_id}")
             
         except Exception as e:
             logger.error(f"Error reverting changes for run {self.run_id}: {e}", exc_info=True)
-            print(f"[PRINT] Error reverting changes for run {self.run_id}: {e}")
             self.db.rollback()
             raise
 
