@@ -5,6 +5,7 @@ from typing import Optional, List
 from datetime import datetime
 import json
 
+from app.auth import get_current_username
 from app.database import get_db, User, EmailAccount
 from app.encryption import EncryptionManager
 from app.email_connectors.gmail import GmailConnector
@@ -16,12 +17,10 @@ class EmailAccountCreate(BaseModel):
     provider: str  # 'gmail' or 'yahoo'
     email: str
     credentials: str  # Encrypted credentials JSON (for Gmail) or app password (for Yahoo)
-    username: str
 
 class YahooAccountCreate(BaseModel):
     email: str
     app_password: str
-    username: str
 
 class TestConnectionRequest(BaseModel):
     provider: str
@@ -41,13 +40,14 @@ class EmailAccountResponse(BaseModel):
 @router.post("/accounts", response_model=EmailAccountResponse)
 async def create_email_account(
     account: EmailAccountCreate,
-    db: Session = Depends(get_db)
+    username: str = Depends(get_current_username),
+    db: Session = Depends(get_db),
 ):
     """Create a new email account connection"""
     # Get or create user
-    user = db.query(User).filter(User.username == account.username).first()
+    user = db.query(User).filter(User.username == username).first()
     if not user:
-        user = User(username=account.username)
+        user = User(username=username)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -72,8 +72,8 @@ async def create_email_account(
 
 @router.get("/accounts", response_model=List[EmailAccountResponse])
 async def list_email_accounts(
-    username: str,
-    db: Session = Depends(get_db)
+    username: str = Depends(get_current_username),
+    db: Session = Depends(get_db),
 ):
     """List all email accounts for a user"""
     import logging
@@ -95,16 +95,13 @@ async def list_email_accounts(
         return accounts
     except Exception as e:
         logger.error(f"Error listing accounts for user {username}: {e}", exc_info=True)
-        print(f"Error listing accounts for user {username}: {e}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to load accounts: {str(e)}")
 
 @router.delete("/accounts/{account_id}")
 async def delete_email_account(
     account_id: int,
-    username: str,
-    db: Session = Depends(get_db)
+    username: str = Depends(get_current_username),
+    db: Session = Depends(get_db),
 ):
     """Delete an email account"""
     user = db.query(User).filter(User.username == username).first()
@@ -127,13 +124,14 @@ async def delete_email_account(
 @router.post("/accounts/yahoo", response_model=EmailAccountResponse)
 async def create_yahoo_account(
     account: YahooAccountCreate,
-    db: Session = Depends(get_db)
+    username: str = Depends(get_current_username),
+    db: Session = Depends(get_db),
 ):
     """Create a new Yahoo email account connection"""
     # Get or create user
-    user = db.query(User).filter(User.username == account.username).first()
+    user = db.query(User).filter(User.username == username).first()
     if not user:
-        user = User(username=account.username)
+        user = User(username=username)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -177,7 +175,8 @@ async def create_yahoo_account(
 @router.post("/accounts/test-connection")
 async def test_connection(
     request: TestConnectionRequest,
-    db: Session = Depends(get_db)
+    _username: str = Depends(get_current_username),
+    db: Session = Depends(get_db),
 ):
     """Test email account connection before saving"""
     try:
