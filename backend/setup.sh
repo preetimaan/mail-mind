@@ -29,8 +29,8 @@ mkdir -p data
 # Generate encryption key if not exists
 if [ ! -f .env ]; then
     echo "Generating encryption key..."
-    python generate_key.py > .env.tmp
-    ENCRYPTION_KEY=$(python generate_key.py | grep "ENCRYPTION_KEY=" | cut -d'=' -f2)
+    python scripts/generate_key.py > .env.tmp
+    ENCRYPTION_KEY=$(python scripts/generate_key.py | grep "ENCRYPTION_KEY=" | cut -d'=' -f2)
     cat > .env << EOF
 # Database
 DATABASE_URL=sqlite:///./data/mailmind.db

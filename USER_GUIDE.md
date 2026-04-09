@@ -285,7 +285,7 @@ curl -X POST http://localhost:8000/api/emails/accounts \
 curl "http://localhost:8000/api/emails/accounts?username=your_username"
 ```
 
-For Gmail via API, you'll need OAuth tokens. See the backend helper script: `python backend/get_gmail_tokens.py`
+For Gmail via API, you'll need OAuth tokens. See the backend helper script: `cd backend && python scripts/get_gmail_tokens.py`
 
 ---
 

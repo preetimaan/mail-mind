@@ -60,6 +60,10 @@ npm run dev
 | **Developer (First Time)** | [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md#first-time-setup) | Full setup: environment, Google Cloud Project, OAuth |
 | **End User** | [USER_GUIDE.md](USER_GUIDE.md) | Add email accounts and use the dashboard |
 
+### Ops scripts (backend)
+
+One-off helpers live in `backend/scripts/` (from the `backend/` directory run `python scripts/<name>.py`), including Gmail token generation (`get_gmail_tokens.py`), encryption key output (`generate_key.py`), and account utilities (`add_account.py`, `add_gmail_account.py`). Schema migrations live under `backend/migrations/`.
+
 ### Prerequisites
 
 - Python 3.10+
@@ -117,7 +121,7 @@ After analysis completes, view (Insights tab):
 
 ### Email Accounts
 - `POST /api/emails/accounts` - Add email account
-- `GET /api/emails/accounts?username=...` - List accounts
+- `GET /api/emails/accounts` - List accounts (requires `Authorization: Bearer` JWT)
 - `DELETE /api/emails/accounts/{id}` - Remove account
 
 ### Analysis

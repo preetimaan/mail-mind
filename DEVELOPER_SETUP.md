@@ -55,7 +55,7 @@ npm run dev
 
 2. **Generate encryption key:**
    ```bash
-   python generate_key.py
+   python scripts/generate_key.py
    # Copy the output to .env as ENCRYPTION_KEY=...
    ```
 
@@ -229,7 +229,7 @@ GMAIL_CLIENT_SECRET=your-client-secret-here
 #### "Encryption key not found"
 ```bash
 cd backend
-python generate_key.py
+python scripts/generate_key.py
 # Copy output to .env as ENCRYPTION_KEY=...
 ```
 
