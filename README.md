@@ -71,6 +71,16 @@ One-off helpers live in `backend/scripts/` (from the `backend/` directory run `p
 - **For Gmail**: Google Cloud Project with OAuth credentials (one-time developer setup)
 - **For Yahoo**: App-specific password (per email account)
 
+### Authentication (API)
+
+The dashboard obtains a **JWT** via `POST /api/auth/login` and sends `Authorization: Bearer <token>` on subsequent requests. Configure the backend (see `backend/env.example` → copy to `backend/.env`):
+
+- **`JWT_SECRET`** (required) — sign/verify tokens; without it protected routes respond with an error.
+- **`JWT_EXPIRE_DAYS`** (optional, default 7).
+- **`AUTH_LOGIN_SECRET`** (optional) — if set, the login request must include the same `login_secret`; set **`VITE_AUTH_LOGIN_SECRET`** in `frontend/.env` to match.
+
+Frontend template: `frontend/.env.example`.
+
 ---
 
 ## Using Mail Mind
@@ -119,6 +129,12 @@ After analysis completes, view (Insights tab):
 
 ## API Endpoints
 
+Most routes below require a **Bearer JWT** from `POST /api/auth/login` (except login, health, and root).
+
+### Auth
+- `POST /api/auth/login` — body: `{ "username": "..." }` (optional `login_secret` if `AUTH_LOGIN_SECRET` is set); returns `access_token`
+- `GET /api/auth/me` — current user from token
+
 ### Email Accounts
 - `POST /api/emails/accounts` - Add email account
 - `GET /api/emails/accounts` - List accounts (requires `Authorization: Bearer` JWT)
@@ -162,6 +178,8 @@ After analysis completes, view (Insights tab):
 | Database issues | Database is at `backend/data/mailmind.db` - delete to reset |
 | Port conflicts | Backend: change `PORT` in `.env`. Frontend: change port in `vite.config.ts` |
 | "Suggest categories" uses rules only | Set `OPENAI_API_KEY` in backend `.env` for AI-powered suggestions (see [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md)) |
+| `401` / "Not authenticated" on API calls | Log in from the UI first, or call `POST /api/auth/login` and send `Authorization: Bearer …` |
+| `503` / JWT not configured | Set `JWT_SECRET` in `backend/.env` (see `backend/env.example`) |
 
 **Notes:** Custom categories are **sender-based** (assign senders to a category; filter shows emails from those senders). Gmail requires OAuth credentials from Google Cloud Console; Yahoo requires an app-specific password. Backend: port 8000; frontend: port 3000.
 
