@@ -300,33 +300,6 @@ export default function SenderChart({ insights, username, accountId, customCateg
               >
                 {copiedIndex === index ? '✓' : '📋'}
               </button>
-              {onAssignToCategory && customCategories.length > 0 && (
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const id = Number(e.target.value)
-                    if (id) onAssignToCategory(sender.email, id)
-                    e.target.value = ''
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    padding: '0.2rem 0.4rem',
-                    fontSize: '0.8rem',
-                    borderRadius: 4,
-                    border: '1px solid #ddd',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
-                  title="Add to custom category"
-                >
-                  <option value="">Add to category...</option>
-                  {customCategories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
             </li>
           ))}
         </ul>
