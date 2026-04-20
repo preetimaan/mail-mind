@@ -380,7 +380,7 @@ class AnalysisService:
     
     def _get_category(self, email_data: Dict, categories: Dict) -> str:
         """Get email category"""
-        # This matches the categorization logic from NLP analyzer
+        # Rule-based category (aligned with email_batch_analysis heuristics)
         subject = (email_data.get('subject', '') or '').lower()
         sender = (email_data.get('sender_email', '') or '').lower()
         
