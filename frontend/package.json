@@ -29,5 +29,8 @@
     "eslint-plugin-react-refresh": "^0.4.5",
     "typescript": "^5.2.2",
     "vite": "^7.2.2"
+  },
+  "overrides": {
+    "minimatch": "^9.0.7"
   }
 }
