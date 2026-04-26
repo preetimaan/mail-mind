@@ -33,7 +33,7 @@ export function useAnalysisPolling({
     return new Promise((resolve) => {
       const pollInterval = setInterval(async () => {
         try {
-          const runResponse = await api.get(`/api/analysis/runs/${runId}`)
+          const runResponse = await api.get(`/api/analysis/runs/${runId}?username=${username}`)
           const run = runResponse.data
           
           // Update progress - always update if status is processing
@@ -44,15 +44,7 @@ export function useAnalysisPolling({
           if (run.status === 'processing' || run.status === 'pending') {
             // Always create a new object to ensure React detects the change
             // This is important because emails_processed increments during processing
-            if (import.meta.env.DEV) {
-              console.debug(
-                `[Progress] Polling: ${emailsProcessed}${
-                  totalEmails ? `/${totalEmails}` : ''
-                } emails, status: ${run.status}${
-                  run.current_chunk ? `, chunk ${run.current_chunk}/${run.total_chunks}` : ''
-                }`,
-              )
-            }
+            console.log(`[Progress] Polling: ${emailsProcessed}${totalEmails ? `/${totalEmails}` : ''} emails, status: ${run.status}${run.current_chunk ? `, chunk ${run.current_chunk}/${run.total_chunks}` : ''}`)
             setProgress({ 
               emailsProcessed, 
               totalEmails, 

@@ -17,7 +17,6 @@ from app.database import (
     SenderCategoryMapping,
 )
 from app.encryption import EncryptionManager
-from app.auth import get_current_username
 from app.range_semantics import (
     half_open_sorted_mergeable,
     reconstruct_bounds_from_email_min_max,
@@ -66,9 +65,9 @@ def _top_domains_with_common_display_name(db: Session, account_id: int, limit: i
 
 @router.get("/summary")
 async def get_summary(
+    username: str,
     account_id: Optional[int] = None,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get summary insights for user"""
     user = db.query(User).filter(User.username == username).first()
@@ -142,11 +141,11 @@ async def get_summary(
 
 @router.get("/senders")
 async def get_sender_insights(
+    username: str,
     account_id: int,
     limit: Optional[int] = 20,
     offset: Optional[int] = 0,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get top senders and patterns with pagination
     
@@ -238,9 +237,9 @@ async def get_sender_insights(
 
 @router.get("/categories")
 async def get_category_insights(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get email category distribution"""
     user = db.query(User).filter(User.username == username).first()
@@ -279,10 +278,10 @@ async def get_category_insights(
 
 @router.get("/category-domains")
 async def get_category_domains(
+    username: str,
     account_id: int,
     category: str,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get top domains for a specific category"""
     user = db.query(User).filter(User.username == username).first()
@@ -328,9 +327,9 @@ async def get_category_domains(
 
 @router.get("/frequency")
 async def get_frequency_insights(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get email frequency patterns"""
     user = db.query(User).filter(User.username == username).first()
@@ -378,9 +377,9 @@ async def get_frequency_insights(
 
 @router.get("/frequency/yearly")
 async def get_yearly_frequency_insights(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get yearly frequency patterns and year-over-year comparison"""
     user = db.query(User).filter(User.username == username).first()
@@ -473,9 +472,9 @@ async def get_yearly_frequency_insights(
 
 @router.get("/processed-ranges")
 async def get_processed_ranges(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get processed date ranges for an account"""
     import logging
@@ -498,9 +497,11 @@ async def get_processed_ranges(
     ).order_by(ProcessedDateRange.start_date).all()
     
     logger.info(f"Found {len(ranges)} processed date ranges for account {account_id} (username: {username})")
+    print(f"[PRINT] Found {len(ranges)} processed date ranges for account {account_id} (username: {username})")
     if ranges:
         for r in ranges[:5]:  # Log first 5 ranges
             logger.info(f"  Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
+            print(f"[PRINT]   Range: {r.start_date.date()} to {r.end_date.date()}, {r.emails_count} emails")
     
     # Merge touching/overlapping half-open ranges (app.range_semantics)
     merged = []
@@ -543,6 +544,7 @@ async def get_processed_ranges(
         
         if email_count > 0:
             logger.info(f"No processed ranges found, but {email_count} emails exist. Attempting to reconstruct ranges from email metadata.")
+            print(f"[PRINT] No processed ranges found, but {email_count} emails exist. Attempting to reconstruct ranges from email metadata.")
             
             # Get min and max dates from emails
             min_max = db.query(
@@ -566,6 +568,7 @@ async def get_processed_ranges(
                 
                 if not existing:
                     logger.info(f"Creating reconstructed range: {min_date} to {max_date} with {email_count} emails")
+                    print(f"[PRINT] Creating reconstructed range: {min_date} to {max_date} with {email_count} emails")
                     
                     new_range = ProcessedDateRange(
                         account_id=account_id,
@@ -578,6 +581,7 @@ async def get_processed_ranges(
                     try:
                         db.commit()
                         logger.info(f"Successfully created reconstructed processed date range")
+                        print(f"[PRINT] Successfully created reconstructed processed date range")
                         
                         # Return the newly created range
                         result = [{
@@ -588,17 +592,18 @@ async def get_processed_ranges(
                         }]
                     except Exception as e:
                         logger.error(f"Failed to create reconstructed range: {e}", exc_info=True)
+                        print(f"[PRINT] Failed to create reconstructed range: {e}")
                         db.rollback()
     
     return result
 
 @router.get("/processed-ranges/gaps")
 async def get_processed_range_gaps(
+    username: str,
     account_id: int,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Get unprocessed date range gaps for an account"""
     from app.date_tracker import DateTracker
@@ -670,12 +675,12 @@ async def get_processed_range_gaps(
 
 @router.post("/recalculate")
 async def recalculate_insights(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Recalculate analysis results for all emails (re-categorize without re-fetching)"""
-    from app.nlp_analyzer import NLPAnalyzer
+    from app.email_batch_analysis import analyze_batch
     from app.encryption import EncryptionManager
     
     user = db.query(User).filter(User.username == username).first()
@@ -707,7 +712,7 @@ async def recalculate_insights(
     ).delete(synchronize_session=False)
     db.commit()
     
-    # Prepare email data for NLP analyzer
+    # Prepare email data for batch analysis
     email_data_list = [
         {
             'sender_email': e.sender_email,
@@ -719,9 +724,7 @@ async def recalculate_insights(
         for e in emails
     ]
     
-    # Run NLP analysis
-    nlp_analyzer = NLPAnalyzer()
-    analysis_data = nlp_analyzer.analyze_batch(email_data_list)
+    analysis_data = analyze_batch(email_data_list)
     
     # Helper functions for categorization
     def get_category(email_data):
@@ -776,9 +779,9 @@ async def recalculate_insights(
 
 @router.post("/cleanup-duplicates")
 async def cleanup_duplicate_analysis_results(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Remove duplicate AnalysisResult records, keeping only the most recent per email"""
     user = db.query(User).filter(User.username == username).first()
@@ -841,9 +844,9 @@ async def cleanup_duplicate_analysis_results(
 
 @router.get("/diagnostic")
 async def get_diagnostic_info(
+    username: str,
     account_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Diagnostic endpoint to check data integrity between emails and analysis results"""
     user = db.query(User).filter(User.username == username).first()
@@ -937,7 +940,7 @@ class SendersAssignRequest(BaseModel):
 
 @router.get("/custom-categories")
 async def list_custom_categories(
-    username: str = Depends(get_current_username),
+    username: str,
     db: Session = Depends(get_db),
 ):
     """List all custom categories for the user."""
@@ -963,8 +966,8 @@ async def list_custom_categories(
 
 @router.post("/custom-categories")
 async def create_custom_category(
+    username: str,
     body: CustomCategoryCreate,
-    username: str = Depends(get_current_username),
     db: Session = Depends(get_db),
 ):
     """Create a new custom category."""
@@ -997,9 +1000,9 @@ async def create_custom_category(
 
 @router.patch("/custom-categories/{category_id}")
 async def update_custom_category(
+    username: str,
     category_id: int,
     body: CustomCategoryUpdate,
-    username: str = Depends(get_current_username),
     db: Session = Depends(get_db),
 ):
     """Rename a custom category."""
@@ -1043,8 +1046,8 @@ async def update_custom_category(
 
 @router.delete("/custom-categories/{category_id}")
 async def delete_custom_category(
+    username: str,
     category_id: int,
-    username: str = Depends(get_current_username),
     db: Session = Depends(get_db),
 ):
     """Delete a custom category and all sender mappings."""
@@ -1067,9 +1070,9 @@ async def delete_custom_category(
 
 @router.post("/custom-categories/{category_id}/senders")
 async def assign_senders_to_category(
+    username: str,
     category_id: int,
     body: SendersAssignRequest,
-    username: str = Depends(get_current_username),
     db: Session = Depends(get_db),
 ):
     """Assign one or more sender emails to a custom category. Replaces existing assignment for each sender."""
@@ -1120,9 +1123,9 @@ async def assign_senders_to_category(
 
 @router.delete("/custom-categories/{category_id}/senders/{sender_email:path}")
 async def remove_sender_from_category(
+    username: str,
     category_id: int,
     sender_email: str,
-    username: str = Depends(get_current_username),
     db: Session = Depends(get_db),
 ):
     """Remove a sender from a custom category."""

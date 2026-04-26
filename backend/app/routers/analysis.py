@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 from app.database import get_db, User, EmailAccount, AnalysisRun, EmailMetadata, AnalysisResult
 from app.encryption import EncryptionManager
 from app.email_connectors import GmailConnector, YahooConnector
-from app.nlp_analyzer import NLPAnalyzer
 from app.date_tracker import DateTracker
 from app.services.analysis_service import AnalysisService
 from app.range_semantics import (
@@ -20,12 +19,12 @@ from app.range_semantics import (
     truncate_to_midnight,
     split_interval_removing_window,
 )
-from app.auth import get_current_username
 
 router = APIRouter()
 
 class AnalysisRequest(BaseModel):
     """start_date / end_date are calendar days (local user intent), not UTC instants."""
+    username: str
     account_id: int
     start_date: date
     end_date: date
@@ -40,8 +39,7 @@ class AnalysisResponse(BaseModel):
 async def start_batch_analysis(
     request: AnalysisRequest,
     background_tasks: BackgroundTasks,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """Start batch analysis for a date range"""
     import logging
@@ -49,12 +47,18 @@ async def start_batch_analysis(
     
     logger.info("=" * 50)
     logger.info("BATCH ANALYSIS REQUEST RECEIVED")
-    logger.info(f"Username: {username}")
+    logger.info(f"Username: {request.username}")
     logger.info(f"Account ID: {request.account_id}")
     logger.info(f"Start Date: {request.start_date}")
     logger.info(f"End Date: {request.end_date}")
     logger.info(f"Force Reanalysis: {request.force_reanalysis}")
     logger.info("=" * 50)
+    print("=" * 50)
+    print("[PRINT] BATCH ANALYSIS REQUEST RECEIVED")
+    print(f"[PRINT] Username: {request.username}, Account ID: {request.account_id}")
+    print(f"[PRINT] Date range: {request.start_date} to {request.end_date}")
+    print(f"[PRINT] Force Reanalysis: {request.force_reanalysis}")
+    print("=" * 50)
     
     try:
         start_dt = datetime.combine(request.start_date, time.min)
@@ -66,13 +70,16 @@ async def start_batch_analysis(
         def create_analysis_run_sync():
             # Verify user and account
             logger.info("Querying user...")
-            user = db.query(User).filter(User.username == username).first()
+            print("[PRINT] Querying user...")
+            user = db.query(User).filter(User.username == request.username).first()
             if not user:
-                logger.warning(f"User not found: {username}")
+                logger.warning(f"User not found: {request.username}")
                 raise HTTPException(status_code=404, detail="User not found")
             logger.info(f"User found: {user.id}")
+            print(f"[PRINT] User found: {user.id}")
             
             logger.info("Querying account...")
+            print("[PRINT] Querying account...")
             account = db.query(EmailAccount).filter(
                 EmailAccount.id == request.account_id,
                 EmailAccount.user_id == user.id
@@ -82,9 +89,11 @@ async def start_batch_analysis(
                 logger.warning(f"Account not found: {request.account_id}")
                 raise HTTPException(status_code=404, detail="Account not found")
             logger.info(f"Account found: {account.id}")
+            print(f"[PRINT] Account found: {account.id}")
             
             # Create analysis run (naive midnight on each calendar day)
             logger.info("Creating analysis run...")
+            print("[PRINT] Creating analysis run...")
             analysis_run = AnalysisRun(
                 user_id=user.id,
                 account_id=account.id,
@@ -94,17 +103,22 @@ async def start_batch_analysis(
             )
             db.add(analysis_run)
             logger.info("Committing analysis run...")
+            print("[PRINT] Committing analysis run...")
             db.commit()
             logger.info("Refreshing analysis run...")
+            print("[PRINT] Refreshing analysis run...")
             db.refresh(analysis_run)
             logger.info(f"Analysis run created: {analysis_run.id}")
+            print(f"[PRINT] Analysis run created: {analysis_run.id}")
             return analysis_run, user.id, account.id
         
         logger.info("Running database operations in thread pool...")
+        print("[PRINT] Running database operations in thread pool...")
         analysis_run, user_id, account_id = await loop.run_in_executor(executor, create_analysis_run_sync)
         
         # Start background analysis (force_reanalysis deletion will happen in background task)
         logger.info(f"Adding background task for run_id={analysis_run.id}")
+        print(f"[PRINT] Adding background task for run_id={analysis_run.id}")
         background_tasks.add_task(
             process_batch_analysis,
             analysis_run.id,
@@ -115,6 +129,7 @@ async def start_batch_analysis(
             request.force_reanalysis
         )
         logger.info(f"Background task added, returning response")
+        print(f"[PRINT] Background task added, returning response")
         
         response = AnalysisResponse(
             run_id=analysis_run.id,
@@ -122,11 +137,15 @@ async def start_batch_analysis(
             message="Analysis started in background"
         )
         logger.info(f"Returning response with run_id={response.run_id}")
+        print(f"[PRINT] Returning response with run_id={response.run_id}")
         return response
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error in start_batch_analysis: {e}", exc_info=True)
+        print(f"[PRINT] ERROR in start_batch_analysis: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to start analysis: {str(e)}")
 
 def process_batch_analysis(
@@ -144,6 +163,7 @@ def process_batch_analysis(
     from app.database import SessionLocal
     
     logger.info(f"Starting batch analysis: run_id={run_id}, account_id={account_id}, start={start_date}, end={end_date}")
+    print(f"[PRINT] Starting batch analysis: run_id={run_id}, account_id={account_id}")
     db = SessionLocal()
     try:
         # Update status
@@ -154,6 +174,7 @@ def process_batch_analysis(
         # Check if already cancelled
         if analysis_run.status == "cancelled":
             logger.info(f"Analysis run {run_id} was cancelled before processing started")
+            print(f"[PRINT] Analysis run {run_id} was cancelled before processing started")
             return
         
         analysis_run.status = "processing"
@@ -176,12 +197,14 @@ def process_batch_analysis(
         # If force_reanalysis is True, remove existing data for this range
         if force_reanalysis:
             logger.info(f"Force reanalysis requested - removing existing data for {start_date} to {end_date}")
+            print(f"[PRINT] Force reanalysis requested - removing existing data for {start_date} to {end_date}")
             
             from app.database import ProcessedDateRange, EmailMetadata, AnalysisResult
 
             norm_start, norm_end = start_date, end_date
             
             logger.info(f"Force re-analysis half-open window: [{norm_start}, {norm_end})")
+            print(f"[PRINT] Force re-analysis window: [{norm_start}, {norm_end})")
             
             # 1. Delete emails with norm_start <= date_received < norm_end
             emails_in_range = db.query(EmailMetadata).filter(
@@ -193,23 +216,27 @@ def process_batch_analysis(
             if emails_in_range:
                 email_ids = [e.id for e in emails_in_range]
                 logger.info(f"Found {len(email_ids)} emails to delete for re-analysis (only in requested range)")
+                print(f"[PRINT] Found {len(email_ids)} emails to delete for re-analysis")
                 
                 # 2. Delete associated AnalysisResult records first (foreign key constraint)
                 deleted_results = db.query(AnalysisResult).filter(
                     AnalysisResult.email_id.in_(email_ids)
                 ).delete(synchronize_session=False)
                 logger.info(f"Deleted {deleted_results} analysis results")
+                print(f"[PRINT] Deleted {deleted_results} analysis results")
                 
                 # 3. Delete EmailMetadata records (only these IDs - never other dates)
                 deleted_emails = db.query(EmailMetadata).filter(
                     EmailMetadata.id.in_(email_ids)
                 ).delete(synchronize_session=False)
                 logger.info(f"Deleted {deleted_emails} email metadata records")
+                print(f"[PRINT] Deleted {deleted_emails} email metadata records")
                 
                 db.commit()
             else:
                 # Do not delete emails outside the range. Only the requested window is re-analyzed.
                 logger.info(f"No existing emails in re-analysis range {norm_start.date()} to {norm_end.date()}; skipping email deletion")
+                print(f"[PRINT] No emails in range - skipping deletion (before/after untouched)")
             
             # 2. Split overlapping ProcessedDateRange records: keep before/after, remove only the window.
             #    Do not delete or override ranges before or after the re-analysis window.
@@ -221,6 +248,7 @@ def process_batch_analysis(
             
             if overlapping_ranges:
                 logger.info(f"Found {len(overlapping_ranges)} processed date ranges overlapping re-analysis window")
+                print(f"[PRINT] Splitting {len(overlapping_ranges)} overlapping ranges, keeping portions outside re-analysis window")
                 for range_obj in overlapping_ranges:
                     r_start = truncate_to_midnight(naive_utc_instant(range_obj.start_date))
                     r_end = truncate_to_midnight(naive_utc_instant(range_obj.end_date))
@@ -239,13 +267,17 @@ def process_batch_analysis(
                             emails_count=count
                         ))
                         logger.info(f"  Kept portion: [{keep_start}, {keep_end}) ({count} emails)")
+                        print(f"[PRINT]   Kept: [{keep_start.date()}, {keep_end.date()})")
                     db.delete(range_obj)
                 db.commit()
                 logger.info(f"Split complete - removed overlapping ranges, kept non-overlapping portions")
+                print(f"[PRINT] Split complete")
             else:
                 logger.info(f"No processed date ranges overlap the re-analysis window")
+                print(f"[PRINT] No overlapping ranges to split")
             
             logger.info(f"Force reanalysis cleanup complete - will re-fetch and re-analyze fresh data")
+            print(f"[PRINT] Force reanalysis cleanup complete - will re-fetch and re-analyze fresh data")
         
         # Get account
         account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
@@ -266,7 +298,7 @@ def process_batch_analysis(
                 creds = json.loads(credentials_json)
                 # Handle different credential formats:
                 # 1. {"app_password": "..."} - from /accounts/yahoo endpoint
-                # 2. {"email": "...", "password": "..."} - from /accounts endpoint or scripts/add_account.py
+                # 2. {"email": "...", "password": "..."} - from /accounts endpoint or add_account.py
                 if 'app_password' in creds:
                     # Format 1: app_password stored separately, use account.email
                     connector = YahooConnector(account.email, creds['app_password'])
@@ -288,10 +320,7 @@ def process_batch_analysis(
                 account.is_active = False
                 analysis_run.status = "failed"
                 db.commit()
-                logger.warning(
-                    "Account credentials expired or revoked during connector init (account_id=%s)",
-                    account.id,
-                )
+                print(f"Account {account.email} marked as inactive due to expired/revoked token")
                 return
             raise
         
@@ -309,6 +338,7 @@ def process_batch_analysis(
         db.refresh(analysis_run)
         if analysis_run.status == "cancelled":
             logger.info(f"Analysis run {run_id} was cancelled during processing, reverting changes")
+            print(f"[PRINT] Analysis run {run_id} was cancelled during processing, reverting changes")
             # Revert changes
             service.revert_run_changes()
             return
@@ -330,6 +360,7 @@ def process_batch_analysis(
             db.refresh(analysis_run)
             if analysis_run.status == "cancelled":
                 logger.info(f"Analysis run {run_id} was cancelled, reverting changes")
+                print(f"[PRINT] Analysis run {run_id} was cancelled, reverting changes")
                 try:
                     service = AnalysisService(db, user_id, account_id, run_id)
                     service.revert_run_changes()
@@ -342,18 +373,7 @@ def process_batch_analysis(
         # Handle token expiration/revocation errors
         error_msg = str(e)
         logger.error(f"ValueError during analysis: {error_msg}")
-        
-        # Rollback any processed date ranges that were marked during this failed analysis
-        # Note: We can't easily track ranges from ValueError since it happens before result is returned
-        # But we'll try to get them from the service if possible
-        try:
-            # Try to get processed ranges from the service's date tracker
-            from app.date_tracker import DateTracker
-            date_tracker = DateTracker(db, account_id)
-            # We can't easily determine which ranges were processed, so we'll skip rollback for ValueError
-            # The ranges should be minimal since ValueError typically happens early
-        except:
-            pass
+        print(f"[PRINT] ValueError during analysis: {error_msg}")
         
         # Rollback any processed date ranges that were marked during this failed analysis
         # Note: We can't easily track ranges from ValueError since it happens before result is returned
@@ -380,8 +400,10 @@ def process_batch_analysis(
                         analysis_run.error_message = "Email account credentials expired or revoked. Please reconnect your account."
                 db.commit()
                 logger.info(f"Account {account.email if account else 'unknown'} marked as inactive due to expired/revoked token")
+                print(f"[PRINT] Account {account.email if account else 'unknown'} marked as inactive due to expired/revoked token")
             except Exception as update_error:
                 logger.error(f"Failed to update account/run status: {update_error}")
+                print(f"[PRINT] Failed to update account/run status: {update_error}")
                 db.rollback()
         else:
             # Re-raise if it's a different ValueError
@@ -392,6 +414,7 @@ def process_batch_analysis(
             db.refresh(analysis_run)
             if analysis_run.status == "cancelled":
                 logger.info(f"Analysis run {run_id} was cancelled, reverting changes")
+                print(f"[PRINT] Analysis run {run_id} was cancelled, reverting changes")
                 try:
                     service = AnalysisService(db, user_id, account_id, run_id)
                     service.revert_run_changes()
@@ -403,7 +426,10 @@ def process_batch_analysis(
         
         error_msg = str(e)
         logger.error(f"Analysis error: {error_msg}", exc_info=True)
-
+        print(f"[PRINT] Analysis error: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        
         # Check for specific error types
         error_type = "unknown"
         if "expired" in error_msg.lower() or "revoked" in error_msg.lower() or "invalid_grant" in error_msg.lower():
@@ -437,6 +463,7 @@ def process_batch_analysis(
                     if account:
                         account.is_active = False
                         logger.info(f"Marking account {account.email} as inactive due to error")
+                        print(f"[PRINT] Marking account {account.email} as inactive due to error")
                 elif error_type == "connection_error":
                     analysis_run.error_message = "Connection error: Unable to connect to email service. Please check your network connection and try again."
                 elif error_type == "auth_error":
@@ -449,6 +476,7 @@ def process_batch_analysis(
                 db.commit()
         except Exception as update_error:
             logger.error(f"Failed to update analysis run status: {update_error}")
+            print(f"[PRINT] Failed to update analysis run status: {update_error}")
             db.rollback()
     finally:
         try:
@@ -459,8 +487,8 @@ def process_batch_analysis(
 @router.get("/runs/{run_id}")
 async def get_analysis_run(
     run_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    username: str,
+    db: Session = Depends(get_db)
 ):
     """Get analysis run status"""
     user = db.query(User).filter(User.username == username).first()
@@ -474,15 +502,54 @@ async def get_analysis_run(
     
     if not analysis_run:
         raise HTTPException(status_code=404, detail="Analysis run not found")
-
+    
+    # Use raw SQLite to read the latest value, completely bypassing SQLAlchemy caching
     import logging
-
+    import sqlite3
+    import os
     logger = logging.getLogger(__name__)
-    db.refresh(analysis_run)
-    logger.info(
-        f"API returning run {run_id}: emails_processed={analysis_run.emails_processed}, "
-        f"total_emails={analysis_run.total_emails}, status={analysis_run.status}"
-    )
+    
+    # Get database path
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./data/mailmind.db")
+    db_path = db_url.replace("sqlite:///", "")
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), db_path)
+    
+    try:
+        # Use raw SQLite connection to get absolute latest data
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, status, emails_processed, total_emails, start_date, end_date, created_at, completed_at, error_message FROM analysis_runs WHERE id = ?",
+            (run_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            emails_processed = row[2] or 0
+            total_emails = row[3]
+            status = row[1]
+            
+            logger.info(f"API returning run {run_id}: emails_processed={emails_processed}, total_emails={total_emails}, status={status}")
+            print(f"[PRINT] API returning run {run_id}: emails_processed={emails_processed}, total_emails={total_emails}, status={status}")
+            
+            return {
+                "id": row[0],
+                "status": status,
+                "emails_processed": emails_processed,
+                "total_emails": total_emails,
+                "start_date": row[4],
+                "end_date": row[5],
+                "created_at": row[6],
+                "completed_at": row[7],
+                "error_message": row[8]
+            }
+    except Exception as e:
+        logger.error(f"Error reading from raw SQLite: {e}")
+        print(f"[PRINT] Error reading from raw SQLite: {e}")
+    
+    # Fallback to SQLAlchemy
     return {
         "id": analysis_run.id,
         "status": analysis_run.status,
@@ -492,18 +559,16 @@ async def get_analysis_run(
         "end_date": analysis_run.end_date.isoformat(),
         "created_at": analysis_run.created_at.isoformat(),
         "completed_at": analysis_run.completed_at.isoformat() if analysis_run.completed_at else None,
-        "error_message": getattr(analysis_run, "error_message", None),
-        "current_chunk": getattr(analysis_run, "current_chunk", None),
-        "total_chunks": getattr(analysis_run, "total_chunks", None),
+        "error_message": getattr(analysis_run, 'error_message', None)
     }
 
 @router.get("/runs")
 async def list_analysis_runs(
+    username: str,
     account_id: Optional[int] = None,
     limit: Optional[int] = 50,
     offset: Optional[int] = 0,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     """List analysis runs for a user with pagination"""
     import logging
@@ -544,200 +609,12 @@ async def list_analysis_runs(
                 "end_date": run.end_date.isoformat(),
                 "created_at": run.created_at.isoformat(),
                 "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-                "error_message": getattr(run, "error_message", None),
-                "current_chunk": getattr(run, "current_chunk", None),
-                "total_chunks": getattr(run, "total_chunks", None),
+                "error_message": getattr(run, 'error_message', None)
             }
             for run in runs
         ],
         "total": total_count,
         "has_more": offset + len(runs) < total_count
-    }
-
-@router.post("/runs/{run_id}/retry", response_model=AnalysisResponse)
-async def retry_analysis_run(
-    run_id: int,
-    background_tasks: BackgroundTasks,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
-):
-    """Retry a failed analysis run with the same parameters"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    # Verify user
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Get the original failed run
-    original_run = db.query(AnalysisRun).filter(
-        AnalysisRun.id == run_id,
-        AnalysisRun.user_id == user.id
-    ).first()
-    
-    if not original_run:
-        raise HTTPException(status_code=404, detail="Analysis run not found")
-    
-    # Only allow retry for failed runs
-    if original_run.status != "failed":
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Cannot retry analysis run with status '{original_run.status}'. Only failed runs can be retried."
-        )
-    
-    # Verify account still exists and is accessible
-    account = db.query(EmailAccount).filter(
-        EmailAccount.id == original_run.account_id,
-        EmailAccount.user_id == user.id
-    ).first()
-    
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
-    # Don't start a retry if the account was marked inactive (e.g. expired token)
-    if not account.is_active:
-        raise HTTPException(
-            status_code=400,
-            detail="Account credentials expired or revoked. Reconnect the account in Settings, then try again."
-        )
-
-    logger.info(f"Retrying analysis run {run_id} for user {username}")
-    
-    # Create new analysis run with same parameters
-    new_run = AnalysisRun(
-        user_id=user.id,
-        account_id=original_run.account_id,
-        start_date=original_run.start_date,
-        end_date=original_run.end_date,
-        status="pending"
-    )
-    db.add(new_run)
-    db.commit()
-    db.refresh(new_run)
-    
-    # Start background analysis
-    logger.info(f"Adding background task for retry run_id={new_run.id}")
-    background_tasks.add_task(
-        process_batch_analysis,
-        new_run.id,
-        user.id,
-        account.id,
-        original_run.start_date,
-        original_run.end_date
-    )
-    
-    return AnalysisResponse(
-        run_id=new_run.id,
-        status="pending",
-        message="Analysis retry started in background"
-    )
-
-@router.post("/runs/{run_id}/stop")
-async def stop_analysis_run(
-    run_id: int,
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
-):
-    """Stop a running analysis and revert changes"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    # Verify user
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Get the analysis run
-    analysis_run = db.query(AnalysisRun).filter(
-        AnalysisRun.id == run_id,
-        AnalysisRun.user_id == user.id
-    ).first()
-    
-    if not analysis_run:
-        raise HTTPException(status_code=404, detail="Analysis run not found")
-    
-    # Only allow stopping runs that are pending or processing
-    if analysis_run.status not in ["pending", "processing"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot stop analysis run with status '{analysis_run.status}'. Only pending or processing runs can be stopped."
-        )
-    
-    logger.info(f"Stopping analysis run {run_id} for user {username}")
-    
-    # Mark as cancelled - the background task will check this and revert
-    analysis_run.status = "cancelled"
-    db.commit()
-    
-    # Revert changes made by this run
-    try:
-        # Delete analysis results created by this run
-        analysis_results = db.query(AnalysisResult).filter(
-            AnalysisResult.analysis_run_id == run_id
-        ).all()
-        
-        # Get email IDs that were only analyzed by this run
-        email_ids_to_check = [ar.email_id for ar in analysis_results]
-        
-        # Delete analysis results
-        for ar in analysis_results:
-            db.delete(ar)
-        
-        # Delete emails that were created during this run
-        # We'll identify them by checking if they have no other analysis results
-        if email_ids_to_check:
-            emails_to_delete = db.query(EmailMetadata).filter(
-                EmailMetadata.id.in_(email_ids_to_check),
-                EmailMetadata.account_id == analysis_run.account_id
-            ).all()
-            
-            for email in emails_to_delete:
-                # Check if this email has any other analysis results
-                other_results = db.query(AnalysisResult).filter(
-                    AnalysisResult.email_id == email.id,
-                    AnalysisResult.analysis_run_id != run_id
-                ).count()
-                
-                if other_results == 0:
-                    # This email was only analyzed by this run, delete it
-                    db.delete(email)
-        
-        # Revert processed date ranges that were created during this run
-        # We need to track which ranges were processed by this run
-        # For now, we'll remove ranges that were processed after the run was created
-        # and overlap with the run's date range
-        from app.database import ProcessedDateRange
-        from datetime import timedelta
-        
-        # Remove ranges that were processed during this run's timeframe
-        # We'll be conservative and only remove ranges created very recently
-        # (within the last hour) that overlap with this run's date range
-        recent_cutoff = datetime.utcnow() - timedelta(hours=1)
-        overlapping_ranges = db.query(ProcessedDateRange).filter(
-            ProcessedDateRange.account_id == analysis_run.account_id,
-            ProcessedDateRange.start_date < analysis_run.end_date,
-            ProcessedDateRange.end_date > analysis_run.start_date,
-            ProcessedDateRange.processed_at >= analysis_run.created_at
-        ).all()
-        
-        for range_obj in overlapping_ranges:
-            db.delete(range_obj)
-        
-        db.commit()
-        logger.info(f"Successfully reverted changes for cancelled run {run_id}")
-        
-    except Exception as e:
-        logger.error(f"Error reverting changes for run {run_id}: {e}", exc_info=True)
-        db.rollback()
-        # Still mark as cancelled even if revert fails
-        analysis_run.status = "cancelled"
-        db.commit()
-    
-    return {
-        "run_id": run_id,
-        "status": "cancelled",
-        "message": "Analysis stopped and changes reverted"
     }
 
 @router.post("/runs/{run_id}/retry", response_model=AnalysisResponse)
@@ -820,4 +697,114 @@ async def retry_analysis_run(
         status="pending",
         message="Analysis retry started in background"
     )
+
+@router.post("/runs/{run_id}/stop")
+async def stop_analysis_run(
+    run_id: int,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """Stop a running analysis and revert changes"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Verify user
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get the analysis run
+    analysis_run = db.query(AnalysisRun).filter(
+        AnalysisRun.id == run_id,
+        AnalysisRun.user_id == user.id
+    ).first()
+    
+    if not analysis_run:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+    
+    # Only allow stopping runs that are pending or processing
+    if analysis_run.status not in ["pending", "processing"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot stop analysis run with status '{analysis_run.status}'. Only pending or processing runs can be stopped."
+        )
+    
+    logger.info(f"Stopping analysis run {run_id} for user {username}")
+    print(f"[PRINT] Stopping analysis run {run_id} for user {username}")
+    
+    # Mark as cancelled - the background task will check this and revert
+    analysis_run.status = "cancelled"
+    db.commit()
+    
+    # Revert changes made by this run
+    try:
+        # Delete analysis results created by this run
+        analysis_results = db.query(AnalysisResult).filter(
+            AnalysisResult.analysis_run_id == run_id
+        ).all()
+        
+        # Get email IDs that were only analyzed by this run
+        email_ids_to_check = [ar.email_id for ar in analysis_results]
+        
+        # Delete analysis results
+        for ar in analysis_results:
+            db.delete(ar)
+        
+        # Delete emails that were created during this run
+        # We'll identify them by checking if they have no other analysis results
+        if email_ids_to_check:
+            emails_to_delete = db.query(EmailMetadata).filter(
+                EmailMetadata.id.in_(email_ids_to_check),
+                EmailMetadata.account_id == analysis_run.account_id
+            ).all()
+            
+            for email in emails_to_delete:
+                # Check if this email has any other analysis results
+                other_results = db.query(AnalysisResult).filter(
+                    AnalysisResult.email_id == email.id,
+                    AnalysisResult.analysis_run_id != run_id
+                ).count()
+                
+                if other_results == 0:
+                    # This email was only analyzed by this run, delete it
+                    db.delete(email)
+        
+        # Revert processed date ranges that were created during this run
+        # We need to track which ranges were processed by this run
+        # For now, we'll remove ranges that were processed after the run was created
+        # and overlap with the run's date range
+        from app.database import ProcessedDateRange
+        from datetime import timedelta
+        
+        # Remove ranges that were processed during this run's timeframe
+        # We'll be conservative and only remove ranges created very recently
+        # (within the last hour) that overlap with this run's date range
+        recent_cutoff = datetime.utcnow() - timedelta(hours=1)
+        overlapping_ranges = db.query(ProcessedDateRange).filter(
+            ProcessedDateRange.account_id == analysis_run.account_id,
+            ProcessedDateRange.start_date < analysis_run.end_date,
+            ProcessedDateRange.end_date > analysis_run.start_date,
+            ProcessedDateRange.processed_at >= analysis_run.created_at
+        ).all()
+        
+        for range_obj in overlapping_ranges:
+            db.delete(range_obj)
+        
+        db.commit()
+        logger.info(f"Successfully reverted changes for cancelled run {run_id}")
+        print(f"[PRINT] Successfully reverted changes for cancelled run {run_id}")
+        
+    except Exception as e:
+        logger.error(f"Error reverting changes for run {run_id}: {e}", exc_info=True)
+        print(f"[PRINT] Error reverting changes for run {run_id}: {e}")
+        db.rollback()
+        # Still mark as cancelled even if revert fails
+        analysis_run.status = "cancelled"
+        db.commit()
+    
+    return {
+        "run_id": run_id,
+        "status": "cancelled",
+        "message": "Analysis stopped and changes reverted"
+    }
 

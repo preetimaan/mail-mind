@@ -41,8 +41,8 @@ export default function ProcessedRanges({ username, accountId, refreshTrigger, o
     setError(null)
     try {
       const [rangesResponse, gapsResponse] = await Promise.all([
-        api.get(`/api/insights/processed-ranges?account_id=${accountId}`),
-        api.get(`/api/insights/processed-ranges/gaps?account_id=${accountId}`).catch(() => ({ data: [] }))
+        api.get(`/api/insights/processed-ranges?username=${username}&account_id=${accountId}`),
+        api.get(`/api/insights/processed-ranges/gaps?username=${username}&account_id=${accountId}`).catch(() => ({ data: [] }))
       ])
       // Ensure response.data is an array
       const data = Array.isArray(rangesResponse.data) ? rangesResponse.data : []

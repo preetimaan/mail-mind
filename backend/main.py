@@ -7,7 +7,7 @@ import logging
 from dotenv import load_dotenv
 
 from app.database import init_db
-from app.routers import auth, emails, analysis, insights, oauth
+from app.routers import emails, analysis, insights, oauth
 from app.exceptions import MailMindException
 
 load_dotenv()
@@ -21,6 +21,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("=== Mail Mind API Starting ===")
 logger.info("Logging configured successfully")
+print("[PRINT] === Mail Mind API Starting ===")
+print("[PRINT] Logging configured successfully")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,20 +67,22 @@ async def mailmind_exception_handler(request: Request, exc: MailMindException):
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions"""
-    logger.error("Unhandled exception", exc_info=exc)
+    import traceback
+    error_trace = traceback.format_exc()
+    print(f"Unhandled exception: {exc}")
+    print(error_trace)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": {
                 "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred. Please try again later.",
+                "message": f"An unexpected error occurred: {str(exc)}",
                 "metadata": {}
             }
         }
     )
 
 # Routers
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(emails.router, prefix="/api/emails", tags=["emails"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(insights.router, prefix="/api/insights", tags=["insights"])

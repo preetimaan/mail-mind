@@ -201,9 +201,10 @@ class GmailConnector:
                             try:
                                 progress_callback(len(emails), max_results)
                             except Exception as e:
-                                logger.warning("Progress callback failed: %s", e, exc_info=True)
+                                print(f"Progress callback failed: {e}")
+                                
                     except Exception as e:
-                        logger.warning("Error fetching message %s: %s", msg["id"], e, exc_info=True)
+                        print(f"Error fetching message {msg['id']}: {e}")
                         continue
                 
                 if len(emails) >= max_results:
@@ -215,6 +216,7 @@ class GmailConnector:
                     break
                     
         except Exception as e:
+            print(f"Error fetching emails: {e}")
             raise
         
         if truncated:

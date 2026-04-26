@@ -22,7 +22,7 @@ export function useAccounts(username: string | null) {
     try {
       setError(null)
       setLoading(true)
-      const response = await api.get('/api/emails/accounts', {
+      const response = await api.get(`/api/emails/accounts?username=${username}`, {
         timeout: 30000, // 30 seconds timeout (reduced from 60)
       })
       const loadedAccounts = response.data || []
@@ -103,7 +103,7 @@ export function useAccounts(username: string | null) {
     
     // Note: Confirmation is handled in AccountSelector component before calling this function
     try {
-      await api.delete(`/api/emails/accounts/${accountId}`)
+      await api.delete(`/api/emails/accounts/${accountId}?username=${username}`)
       loadAccounts()
       if (selectedAccount === accountId) {
         setSelectedAccount(null)

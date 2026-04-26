@@ -28,7 +28,7 @@ export default function CustomCategoriesManager({
     if (!name) return
     setCreating(true)
     try {
-      await api.post('/api/insights/custom-categories', { name })
+      await api.post(`/api/insights/custom-categories?username=${username}`, { name })
       setNewName('')
       onUpdate()
     } catch (err: any) {
@@ -49,7 +49,7 @@ export default function CustomCategoriesManager({
     const name = editName.trim()
     if (!name) return
     try {
-      await api.patch(`/api/insights/custom-categories/${editingId}`, { name })
+      await api.patch(`/api/insights/custom-categories/${editingId}?username=${username}`, { name })
       setEditingId(null)
       setEditName('')
       onUpdate()
@@ -62,7 +62,7 @@ export default function CustomCategoriesManager({
   const handleDelete = async () => {
     if (!deleteConfirm) return
     try {
-      await api.delete(`/api/insights/custom-categories/${deleteConfirm.id}`)
+      await api.delete(`/api/insights/custom-categories/${deleteConfirm.id}?username=${username}`)
       setDeleteConfirm(null)
       onUpdate()
     } catch (err: any) {
@@ -73,7 +73,7 @@ export default function CustomCategoriesManager({
 
   const loadSubjectRules = useCallback(async (categoryId: number) => {
     try {
-      const res = await api.get<SubjectRule[]>(`/api/insights/custom-categories/${categoryId}/subject-rules`)
+      const res = await api.get<SubjectRule[]>(`/api/insights/custom-categories/${categoryId}/subject-rules?username=${username}`)
       setSubjectRulesByCategory((prev) => ({ ...prev, [categoryId]: Array.isArray(res.data) ? res.data : [] }))
     } catch {
       setSubjectRulesByCategory((prev) => ({ ...prev, [categoryId]: [] }))
@@ -92,7 +92,7 @@ export default function CustomCategoriesManager({
     if (!pattern) return
     setAddingRuleForCategory(categoryId)
     try {
-      await api.post(`/api/insights/custom-categories/${categoryId}/subject-rules`, { subject_contains: pattern })
+      await api.post(`/api/insights/custom-categories/${categoryId}/subject-rules?username=${username}`, { subject_contains: pattern })
       setNewRulePattern((prev) => ({ ...prev, [categoryId]: '' }))
       loadSubjectRules(categoryId)
     } catch (err: any) {
@@ -104,7 +104,7 @@ export default function CustomCategoriesManager({
 
   const removeSubjectRule = async (categoryId: number, ruleId: number) => {
     try {
-      await api.delete(`/api/insights/custom-categories/${categoryId}/subject-rules/${ruleId}`)
+      await api.delete(`/api/insights/custom-categories/${categoryId}/subject-rules/${ruleId}?username=${username}`)
       loadSubjectRules(categoryId)
     } catch (err: any) {
       alert(err.response?.data?.detail || err.userMessage || 'Failed to remove rule')

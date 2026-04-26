@@ -24,11 +24,11 @@
   - [x] Header decoding and parsing
 
 ### Analysis Engine
-- [x] NLP analyzer with spaCy integration
-  - [x] Subject line clustering (DBSCAN)
+- [x] Heuristic email batch analysis (`email_batch_analysis`)
+  - [x] Subject grouping (batch-level cluster view)
   - [x] Sender pattern analysis
   - [x] Email categorization (notifications, newsletters, social, shopping, work, personal, other)
-  - [x] Frequency analysis (hourly, daily, weekday patterns)
+  - [x] Frequency analysis (daily average)
 - [x] Batch processing service
   - [x] Date range tracking to avoid reprocessing
   - [x] Incremental processing (only unprocessed dates)
@@ -265,7 +265,7 @@
 **Description**: Add comprehensive test coverage.
 
 **Tasks**:
-- [ ] Unit tests for NLP analyzer
+- [ ] Unit tests for email batch analysis
 - [ ] Unit tests for date tracker
 - [ ] Integration tests for API endpoints
 - [ ] Frontend component tests
@@ -309,5 +309,4 @@
 - **Batch analysis dates** are calendar days: API accepts `YYYY-MM-DD`, combined to naive local midnights; ranges are half-open `[start, end)` (start inclusive, end exclusive). The frontend sends wall-calendar strings, not `Date.toISOString()`, to avoid UTC shifting the intended bounds.
 - **Processed ranges** in the DB use the same half-open convention for `ProcessedDateRange`; optional migration script: `python -m scripts.migrate_processed_ranges_exclusive_end` from `backend/`.
 - Gmail requires OAuth 2.0 credentials from Google Cloud Console; Yahoo uses an app-specific password per account.
-- spaCy model (for NLP): `pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl`
 - Default dev ports: backend **8000**, frontend **3000** (Vite).

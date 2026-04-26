@@ -285,13 +285,7 @@ curl -X POST http://localhost:8000/api/emails/accounts \
 curl "http://localhost:8000/api/emails/accounts?username=your_username"
 ```
 
-For Gmail via API, you'll need OAuth tokens. See the backend helper script: `cd backend && python scripts/get_gmail_tokens.py`
-
----
-
-### 🤖 Suggest Categories (AI or Rules)
-
-In **Insights** → **Top Senders**, click **Suggest categories**. A modal opens with a table: each sender gets a suggested category (e.g. Essentials, Life, Software/Tech, Work, Social, Other). You can **Apply** each row to an existing custom category or **Create new** and then apply. Suggestions use OpenAI if the server has `OPENAI_API_KEY` set; otherwise rule-based keyword matching is used. Custom categories are always **sender-based**: applying adds that sender to the chosen category.
+For Gmail via API, you'll need OAuth tokens. See the backend helper script: `python backend/get_gmail_tokens.py`
 
 ---
 

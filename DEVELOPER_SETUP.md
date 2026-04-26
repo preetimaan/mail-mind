@@ -55,7 +55,7 @@ npm run dev
 
 2. **Generate encryption key:**
    ```bash
-   python scripts/generate_key.py
+   python generate_key.py
    # Copy the output to .env as ENCRYPTION_KEY=...
    ```
 
@@ -80,7 +80,6 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 # Optional: for AI category suggestions (otherwise rule-based suggestions are used)
 # pip install openai
 mkdir -p data
@@ -229,13 +228,8 @@ GMAIL_CLIENT_SECRET=your-client-secret-here
 #### "Encryption key not found"
 ```bash
 cd backend
-python scripts/generate_key.py
+python generate_key.py
 # Copy output to .env as ENCRYPTION_KEY=...
-```
-
-#### "spaCy model not found"
-```bash
-pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 ```
 
 ### FAQ

@@ -5,11 +5,9 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 import time
-from urllib.parse import quote
 
 from app.exceptions import ValidationError, ConfigurationError
 
-from app.auth import create_access_token, get_current_username
 from app.database import get_db, User, EmailAccount
 from app.encryption import EncryptionManager
 from app.email_connectors.gmail import GmailConnector
@@ -30,18 +28,22 @@ def cleanup_expired_states():
     for state in expired:
         oauth_states.pop(state, None)
 
+class OAuthAuthorizeRequest(BaseModel):
+    username: str
+    email: str
+
 @router.get("/authorize")
 async def authorize_oauth(
+    username: str = Query(...),
     email: str = Query(...),
-    username: str = Depends(get_current_username),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
-    """Generate OAuth authorization URL for Gmail (authenticated user from Bearer token)."""
+    """Generate OAuth authorization URL for Gmail"""
     cleanup_expired_states()
     
     # Validate inputs
-    if not email:
-        raise ValidationError("Email is required")
+    if not username or not email:
+        raise ValidationError("Username and email are required")
     
     # Get OAuth credentials from environment
     client_id = os.getenv("GMAIL_CLIENT_ID")
@@ -181,11 +183,9 @@ async def oauth_callback(
         # Clean up state
         oauth_states.pop(state, None)
         
-        access_token = create_access_token(username)
-        # Redirect to frontend with success and fresh JWT (OAuth flow had no Authorization header)
+        # Redirect to frontend with success
         return RedirectResponse(
-            url=f"{frontend_url}/?oauth_success=1&username={quote(username, safe='')}"
-            f"&access_token={quote(access_token, safe='')}"
+            url=f"{frontend_url}/?oauth_success=1&username={username}"
         )
         
     except Exception as e:

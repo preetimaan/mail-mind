@@ -64,8 +64,9 @@ export default function AddAccountModal({ isOpen, onClose, username, onAccountAd
     try {
       const response = await api.get<OAuthAuthorizeResponse>('/api/oauth/authorize', {
         params: {
-          email: gmailEmail.trim(),
-        },
+          username,
+          email: gmailEmail.trim()
+        }
       })
 
       // Redirect to Google OAuth
@@ -125,6 +126,7 @@ export default function AddAccountModal({ isOpen, onClose, username, onAccountAd
       await api.post('/api/emails/accounts/yahoo', {
         email: yahooEmail.trim(),
         app_password: yahooPassword.trim(),
+        username
       })
 
       // Success
