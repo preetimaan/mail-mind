@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlalchemy
 alembic
 pydantic
+email-validator
 pydantic-settings
 python-multipart
 httpx
