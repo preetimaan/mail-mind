@@ -7,7 +7,7 @@ An intelligent email management system that analyzes and categorizes emails base
 - **Batch Analysis**: Process thousands of emails by date range with real-time progress tracking
 - **Analysis Control**: Stop running analyses and automatically revert changes
 - **Smart Tracking**: Maintains previously analyzed dates to avoid reprocessing, can be over-ridden
-- **NLP-Powered**: Uses natural language processing for pattern detection and clustering
+- **Pattern analysis**: Heuristic categorization and subject/sender grouping
 - **Multi-Provider**: Supports Gmail and Yahoo Mail
 - **Secure Storage**: Encrypted local-only storage of metadata and analysis results
 - **Web Dashboard**: Interactive dashboard with tab-based navigation (Analysis, Insights, Emails, Settings)
@@ -24,7 +24,7 @@ An intelligent email management system that analyzes and categorizes emails base
 - **Backend**: FastAPI (Python)
 - **Frontend**: React with TypeScript
 - **Database**: SQLite with encryption
-- **NLP**: spaCy for text analysis and clustering
+- **Analysis**: Heuristic batch processing (no spaCy/sklearn in the default backend)
 
 ## 🚀 Quick Start (5 Minutes)
 
@@ -60,26 +60,12 @@ npm run dev
 | **Developer (First Time)** | [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md#first-time-setup) | Full setup: environment, Google Cloud Project, OAuth |
 | **End User** | [USER_GUIDE.md](USER_GUIDE.md) | Add email accounts and use the dashboard |
 
-### Ops scripts (backend)
-
-One-off helpers live in `backend/scripts/` (from the `backend/` directory run `python scripts/<name>.py`), including Gmail token generation (`get_gmail_tokens.py`), encryption key output (`generate_key.py`), and account utilities (`add_account.py`, `add_gmail_account.py`). Schema migrations live under `backend/migrations/`.
-
 ### Prerequisites
 
 - Python 3.10+
 - Node.js 18+ and npm
 - **For Gmail**: Google Cloud Project with OAuth credentials (one-time developer setup)
 - **For Yahoo**: App-specific password (per email account)
-
-### Authentication (API)
-
-The dashboard obtains a **JWT** via `POST /api/auth/login` and sends `Authorization: Bearer <token>` on subsequent requests. Configure the backend (see `backend/env.example` → copy to `backend/.env`):
-
-- **`JWT_SECRET`** (required) — sign/verify tokens; without it protected routes respond with an error.
-- **`JWT_EXPIRE_DAYS`** (optional, default 7).
-- **`AUTH_LOGIN_SECRET`** (optional) — if set, the login request must include the same `login_secret`; set **`VITE_AUTH_LOGIN_SECRET`** in `frontend/.env` to match.
-
-Frontend template: `frontend/.env.example`.
 
 ---
 
@@ -129,15 +115,9 @@ After analysis completes, view (Insights tab):
 
 ## API Endpoints
 
-Most routes below require a **Bearer JWT** from `POST /api/auth/login` (except login, health, and root).
-
-### Auth
-- `POST /api/auth/login` — body: `{ "username": "..." }` (optional `login_secret` if `AUTH_LOGIN_SECRET` is set); returns `access_token`
-- `GET /api/auth/me` — current user from token
-
 ### Email Accounts
 - `POST /api/emails/accounts` - Add email account
-- `GET /api/emails/accounts` - List accounts (requires `Authorization: Bearer` JWT)
+- `GET /api/emails/accounts?username=...` - List accounts
 - `DELETE /api/emails/accounts/{id}` - Remove account
 
 ### Analysis
@@ -172,14 +152,11 @@ Most routes below require a **Bearer JWT** from `POST /api/auth/login` (except l
 
 | Issue | Solution |
 |-------|----------|
-| "spaCy model not found" | Run: `pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl` |
 | "Connection refused" | Make sure backend is running on port 8000 |
 | "No accounts found" | Add an account via dashboard UI (see [USER_GUIDE.md](USER_GUIDE.md)) |
 | Database issues | Database is at `backend/data/mailmind.db` - delete to reset |
 | Port conflicts | Backend: change `PORT` in `.env`. Frontend: change port in `vite.config.ts` |
 | "Suggest categories" uses rules only | Set `OPENAI_API_KEY` in backend `.env` for AI-powered suggestions (see [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md)) |
-| `401` / "Not authenticated" on API calls | Log in from the UI first, or call `POST /api/auth/login` and send `Authorization: Bearer …` |
-| `503` / JWT not configured | Set `JWT_SECRET` in `backend/.env` (see `backend/env.example`) |
 
 **Notes:** Custom categories are **sender-based** (assign senders to a category; filter shows emails from those senders). Gmail requires OAuth credentials from Google Cloud Console; Yahoo requires an app-specific password. Backend: port 8000; frontend: port 3000.
 
