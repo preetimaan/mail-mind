@@ -21,6 +21,13 @@ export type AnalysisRun = {
   error_message: string | null
 }
 
+export type ProcessedRange = {
+  start_date: string
+  end_date_exclusive: string
+  emails_count: number
+  processed_at: string
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -68,6 +75,10 @@ export const api = {
   },
   stopRun: async (runId: number) => {
     return await request<{ message: string }>(`/analysis/runs/${runId}/stop`, { method: 'POST' })
+  },
+  listProcessedRanges: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<ProcessedRange[]>(`/insights/processed-ranges?${qs.toString()}`)
   },
 }
 

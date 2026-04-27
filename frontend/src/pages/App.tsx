@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, type AnalysisRun, type EmailAccount } from '../api/client'
+import { api, type AnalysisRun, type EmailAccount, type ProcessedRange } from '../api/client'
 
 type Tab = 'analysis' | 'insights' | 'settings'
 
@@ -35,6 +35,7 @@ export default function App() {
   const [startDate, setStartDate] = useState(yyyyMmDd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)))
   const [endDate, setEndDate] = useState(yyyyMmDd(new Date()))
   const [runs, setRuns] = useState<AnalysisRun[]>([])
+  const [processedRanges, setProcessedRanges] = useState<ProcessedRange[]>([])
   const [runError, setRunError] = useState<string | null>(null)
   const [runBusy, setRunBusy] = useState(false)
 
@@ -60,6 +61,8 @@ export default function App() {
     void (async () => {
       const data = await api.listRuns(selectedAccountId, 5, 0)
       setRuns(data.runs)
+      const ranges = await api.listProcessedRanges(selectedAccountId)
+      setProcessedRanges(ranges)
     })()
   }, [loggedIn, selectedAccountId])
 
@@ -74,6 +77,8 @@ export default function App() {
       void (async () => {
         const data = await api.listRuns(selectedAccountId, 5, 0)
         setRuns(data.runs)
+        const ranges = await api.listProcessedRanges(selectedAccountId)
+        setProcessedRanges(ranges)
       })()
     }, 750)
     return () => window.clearInterval(id)
@@ -179,6 +184,7 @@ export default function App() {
                 setEndDate={setEndDate}
                 runs={runs}
                 setRuns={setRuns}
+                processedRanges={processedRanges}
                 busy={runBusy}
                 setBusy={setRunBusy}
                 error={runError}
@@ -204,6 +210,7 @@ function Analyze({
   setEndDate,
   runs,
   setRuns,
+  processedRanges,
   busy,
   setBusy,
   error,
@@ -216,6 +223,7 @@ function Analyze({
   setEndDate: (v: string) => void
   runs: AnalysisRun[]
   setRuns: (v: AnalysisRun[]) => void
+  processedRanges: ProcessedRange[]
   busy: boolean
   setBusy: (v: boolean) => void
   error: string | null
@@ -324,6 +332,29 @@ function Analyze({
         {latest && latest.status === 'failed' ? (
           <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>Next: add retry endpoint.</div>
         ) : null}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 0.5rem 0' }}>Processed ranges</h3>
+        {processedRanges.length === 0 ? (
+          <div style={{ color: '#6b7280' }}>No processed ranges yet.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {processedRanges.map((pr, idx) => (
+              <div key={`${pr.start_date}-${pr.end_date_exclusive}-${idx}`} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {pr.start_date} → {pr.end_date_exclusive} (end exclusive)
+                  </div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>{pr.emails_count} emails</div>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>
+                  processed_at: {pr.processed_at}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
