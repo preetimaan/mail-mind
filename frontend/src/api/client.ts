@@ -93,9 +93,6 @@ export const api = {
   deleteAccount: async (accountId: number) => {
     return await request<{ message: string }>(`/emails/accounts/${accountId}`, { method: 'DELETE' })
   },
-  reconnectAccount: async (accountId: number) => {
-    return await request<EmailAccount>(`/emails/accounts/${accountId}/reconnect`, { method: 'POST' })
-  },
   deactivateAccount: async (accountId: number) => {
     return await request<EmailAccount>(`/emails/accounts/${accountId}/deactivate`, { method: 'POST' })
   },

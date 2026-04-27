@@ -864,25 +864,7 @@ function Settings({
                     >
                       Deactivate
                     </button>
-                  ) : (
-                    <button
-                      disabled={busy}
-                      onClick={async () => {
-                        setBusy(true)
-                        setError(null)
-                        try {
-                          await api.reconnectAccount(a.id)
-                          await refresh()
-                        } catch (e: any) {
-                          setError(e?.message ?? 'Failed')
-                        } finally {
-                          setBusy(false)
-                        }
-                      }}
-                    >
-                      Reconnect
-                    </button>
-                  )}
+                  ) : null}
                   <button
                     disabled={busy}
                     onClick={async () => {
