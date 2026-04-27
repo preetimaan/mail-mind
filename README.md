@@ -2,6 +2,12 @@
 
 Local-first email insights dashboard.
 
+## Docs
+
+- User guide: `USER_GUIDE.md`
+- Developer setup: `DEVELOPER_SETUP.md`
+- Roadmap: `ROADMAP.md`
+
 ## Dev
 
 ### Backend
