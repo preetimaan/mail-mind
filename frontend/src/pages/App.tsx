@@ -60,6 +60,7 @@ export default function App() {
   const [gaps, setGaps] = useState<ProcessedRangeGap[]>([])
   const [runError, setRunError] = useState<string | null>(null)
   const [runBusy, setRunBusy] = useState(false)
+  const [forceReanalysis, setForceReanalysis] = useState(false)
 
   const [summary, setSummary] = useState<InsightsSummary | null>(null)
   const [senderInsights, setSenderInsights] = useState<SenderInsights | null>(null)
@@ -294,6 +295,8 @@ export default function App() {
                 endDate={endDate}
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
+                forceReanalysis={forceReanalysis}
+                setForceReanalysis={setForceReanalysis}
                 runs={runs}
                 setRuns={setRuns}
                 hasMoreRuns={hasMoreRuns}
@@ -424,6 +427,8 @@ function Analyze({
   endDate,
   setStartDate,
   setEndDate,
+  forceReanalysis,
+  setForceReanalysis,
   runs,
   setRuns,
   hasMoreRuns,
@@ -441,6 +446,8 @@ function Analyze({
   endDate: string
   setStartDate: (v: string) => void
   setEndDate: (v: string) => void
+  forceReanalysis: boolean
+  setForceReanalysis: (v: boolean) => void
   runs: AnalysisRun[]
   setRuns: (v: AnalysisRun[]) => void
   hasMoreRuns: boolean
@@ -472,6 +479,15 @@ function Analyze({
           <label style={{ fontSize: 13, color: '#374151' }}>End (inclusive)</label>
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151' }}>
+          <input
+            type="checkbox"
+            checked={forceReanalysis}
+            disabled={busy || !!running}
+            onChange={(e) => setForceReanalysis(e.target.checked)}
+          />
+          Force re-analysis
+        </label>
         <button
           disabled={busy || !accountId || !!running}
           onClick={async () => {
@@ -480,7 +496,12 @@ function Analyze({
             setError(null)
             try {
               const endExclusive = addDays(endDate, 1)
-              const res = await api.startAnalysis({ account_id: accountId, start_date: startDate, end_date_exclusive: endExclusive })
+              const res = await api.startAnalysis({
+                account_id: accountId,
+                start_date: startDate,
+                end_date_exclusive: endExclusive,
+                force_reanalysis: forceReanalysis,
+              })
               const data = await api.getRun(res.run_id)
               setRuns([data, ...runs])
             } catch (e: any) {

@@ -4,10 +4,10 @@ from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount
+from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange
 from app.db.session import get_db
 from app.services.analysis_runner import runner
 
@@ -19,6 +19,7 @@ class AnalysisStartRequest(BaseModel):
     account_id: int
     start_date: date
     end_date_exclusive: date = Field(..., description="End date, exclusive (half-open range)")
+    force_reanalysis: bool = False
 
 
 class AnalysisRunResponse(BaseModel):
@@ -41,6 +42,24 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=409, detail="Account is inactive. Reconnect it in Settings.")
     if req.end_date_exclusive <= req.start_date:
         raise HTTPException(status_code=400, detail="Invalid date range")
+
+    if req.force_reanalysis:
+        # Remove existing stored data in this window so reruns don't double-count.
+        start_dt = datetime.combine(req.start_date, datetime.min.time())
+        end_dt = datetime.combine(req.end_date_exclusive, datetime.min.time())
+        db.execute(
+            delete(EmailMessage)
+            .where(EmailMessage.account_id == req.account_id)
+            .where(EmailMessage.received_at >= start_dt)
+            .where(EmailMessage.received_at < end_dt)
+        )
+        db.execute(
+            delete(ProcessedRange)
+            .where(ProcessedRange.account_id == req.account_id)
+            .where(ProcessedRange.start_date == req.start_date)
+            .where(ProcessedRange.end_date_exclusive == req.end_date_exclusive)
+        )
+        db.commit()
 
     existing = (
         db.execute(

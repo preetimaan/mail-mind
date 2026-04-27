@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from sqlalchemy import delete
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models import AnalysisRun, AnalysisStatus, EmailMessage, ProcessedRange
 from app.db.session import SessionLocal
@@ -92,14 +93,18 @@ class InProcessAnalysisRunner:
                 time.sleep(0.03)
 
             # Mark processed coverage (half-open range).
-            db.add(
-                ProcessedRange(
-                    account_id=run.account_id,
-                    start_date=run.start_date,
-                    end_date_exclusive=run.end_date_exclusive,
-                    emails_count=run.total_emails,
+            try:
+                db.add(
+                    ProcessedRange(
+                        account_id=run.account_id,
+                        start_date=run.start_date,
+                        end_date_exclusive=run.end_date_exclusive,
+                        emails_count=run.total_emails,
+                    )
                 )
-            )
+                db.commit()
+            except IntegrityError:
+                db.rollback()
             run.status = AnalysisStatus.completed
             run.finished_at = datetime.utcnow()
             db.commit()
