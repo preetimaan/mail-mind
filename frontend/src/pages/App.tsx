@@ -45,6 +45,10 @@ export default function App() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
 
   const canUseAccount = useMemo(() => loggedIn && accounts.length > 0, [loggedIn, accounts.length])
+  const selectedAccount = useMemo(
+    () => (selectedAccountId ? accounts.find((a) => a.id === selectedAccountId) ?? null : null),
+    [accounts, selectedAccountId],
+  )
 
   const [startDate, setStartDate] = useState(yyyyMmDd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)))
   const [endDate, setEndDate] = useState(yyyyMmDd(new Date()))
@@ -232,12 +236,20 @@ export default function App() {
                   </option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.provider} • {a.email}
+                      {a.provider} • {a.email}{a.is_active ? '' : ' (inactive)'}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
+
+            {selectedAccount && !selectedAccount.is_active ? (
+              <div style={{ marginTop: 10, padding: 10, border: '1px solid #f59e0b', borderRadius: 10, background: '#fffbeb' }}>
+                <div style={{ fontSize: 13, color: '#92400e' }}>
+                  <strong>Account inactive.</strong> Reconnect it in Settings before running analysis.
+                </div>
+              </div>
+            ) : null}
 
             {summary && selectedAccountId ? (
               <div
@@ -265,7 +277,16 @@ export default function App() {
             ) : null}
 
             {tab === 'settings' ? (
-              <Settings username={username} onAccountsChange={(a) => { setAccounts(a); if (a.length === 0) setSelectedAccountId(null) }} />
+              <Settings
+                username={username}
+                accounts={accounts}
+                selectedAccountId={selectedAccountId}
+                onAccountsChange={(a) => {
+                  setAccounts(a)
+                  if (a.length === 0) setSelectedAccountId(null)
+                  if (selectedAccountId && !a.some((x) => x.id === selectedAccountId)) setSelectedAccountId(null)
+                }}
+              />
             ) : tab === 'analysis' ? (
               <Analyze
                 accountId={selectedAccountId}
@@ -631,9 +652,13 @@ function Analyze({
 
 function Settings({
   username,
+  accounts,
+  selectedAccountId,
   onAccountsChange,
 }: {
   username: string
+  accounts: EmailAccount[]
+  selectedAccountId: number | null
   onAccountsChange: (accounts: EmailAccount[]) => void
 }) {
   const [provider, setProvider] = useState<'gmail' | 'yahoo'>('gmail')
@@ -683,6 +708,92 @@ function Settings({
         >
           Add account
         </button>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <h4 style={{ margin: '0 0 0.5rem 0' }}>Existing accounts</h4>
+        {accounts.length === 0 ? (
+          <div style={{ color: '#6b7280' }}>No accounts yet.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {accounts.map((a) => (
+              <div
+                key={a.id}
+                style={{
+                  padding: 10,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  background: a.id === selectedAccountId ? '#f9fafb' : 'white',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {a.provider} • {a.email}
+                  </div>
+                  <div style={{ fontSize: 13, color: a.is_active ? '#065f46' : '#92400e' }}>
+                    {a.is_active ? 'active' : 'inactive'}
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {a.is_active ? (
+                    <button
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true)
+                        setError(null)
+                        try {
+                          await api.deactivateAccount(a.id)
+                          await refresh()
+                        } catch (e: any) {
+                          setError(e?.message ?? 'Failed')
+                        } finally {
+                          setBusy(false)
+                        }
+                      }}
+                    >
+                      Deactivate
+                    </button>
+                  ) : (
+                    <button
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true)
+                        setError(null)
+                        try {
+                          await api.reconnectAccount(a.id)
+                          await refresh()
+                        } catch (e: any) {
+                          setError(e?.message ?? 'Failed')
+                        } finally {
+                          setBusy(false)
+                        }
+                      }}
+                    >
+                      Reconnect
+                    </button>
+                  )}
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true)
+                      setError(null)
+                      try {
+                        await api.deleteAccount(a.id)
+                        await refresh()
+                      } catch (e: any) {
+                        setError(e?.message ?? 'Failed')
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

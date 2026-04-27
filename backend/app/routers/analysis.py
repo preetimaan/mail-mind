@@ -37,6 +37,8 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
     account = db.get(EmailAccount, req.account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    if not account.is_active:
+        raise HTTPException(status_code=409, detail="Account is inactive. Reconnect it in Settings.")
     if req.end_date_exclusive <= req.start_date:
         raise HTTPException(status_code=400, detail="Invalid date range")
 

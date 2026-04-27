@@ -89,6 +89,15 @@ export const api = {
       body: JSON.stringify(body),
     })
   },
+  deleteAccount: async (accountId: number) => {
+    return await request<{ message: string }>(`/emails/accounts/${accountId}`, { method: 'DELETE' })
+  },
+  reconnectAccount: async (accountId: number) => {
+    return await request<EmailAccount>(`/emails/accounts/${accountId}/reconnect`, { method: 'POST' })
+  },
+  deactivateAccount: async (accountId: number) => {
+    return await request<EmailAccount>(`/emails/accounts/${accountId}/deactivate`, { method: 'POST' })
+  },
   startAnalysis: async (body: { account_id: number; start_date: string; end_date_exclusive: string }) => {
     return await request<{ run_id: number }>(`/analysis/batch`, {
       method: 'POST',

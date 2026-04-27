@@ -70,3 +70,45 @@ def delete_account(account_id: int, db: Session = Depends(get_db)) -> dict:
     db.commit()
     return {"message": "Account deleted"}
 
+
+@router.post("/emails/accounts/{account_id}/reconnect", response_model=AccountResponse)
+def reconnect_account(account_id: int, db: Session = Depends(get_db)) -> AccountResponse:
+    """
+    Placeholder for provider-specific reconnect flows.
+    For now, it just marks the account active again.
+    """
+    account = db.get(EmailAccount, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    account.is_active = True
+    db.commit()
+    db.refresh(account)
+    return AccountResponse(
+        id=account.id,
+        username=account.username,
+        provider=account.provider,
+        email=account.email,
+        is_active=account.is_active,
+    )
+
+
+@router.post("/emails/accounts/{account_id}/deactivate", response_model=AccountResponse)
+def deactivate_account(account_id: int, db: Session = Depends(get_db)) -> AccountResponse:
+    """
+    Dev/testing endpoint for reconnect UX.
+    In the real provider integration, auth failures will mark accounts inactive.
+    """
+    account = db.get(EmailAccount, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    account.is_active = False
+    db.commit()
+    db.refresh(account)
+    return AccountResponse(
+        id=account.id,
+        username=account.username,
+        provider=account.provider,
+        email=account.email,
+        is_active=account.is_active,
+    )
+
