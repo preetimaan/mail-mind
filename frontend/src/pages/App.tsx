@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, type AnalysisRun, type EmailAccount, type ProcessedRange, type ProcessedRangeGap } from '../api/client'
+import {
+  api,
+  type AnalysisRun,
+  type CategoryInsights,
+  type EmailAccount,
+  type InsightsSummary,
+  type ProcessedRange,
+  type ProcessedRangeGap,
+  type SenderInsights,
+  type YearlyFrequencyInsights,
+} from '../api/client'
 
 type Tab = 'analysis' | 'insights' | 'settings'
 
@@ -44,6 +54,12 @@ export default function App() {
   const [runError, setRunError] = useState<string | null>(null)
   const [runBusy, setRunBusy] = useState(false)
 
+  const [summary, setSummary] = useState<InsightsSummary | null>(null)
+  const [senderInsights, setSenderInsights] = useState<SenderInsights | null>(null)
+  const [categoryInsights, setCategoryInsights] = useState<CategoryInsights | null>(null)
+  const [yearlyInsights, setYearlyInsights] = useState<YearlyFrequencyInsights | null>(null)
+  const [insightsError, setInsightsError] = useState<string | null>(null)
+
   useEffect(() => {
     const saved = localStorage.getItem('mailmind_username') ?? ''
     if (saved.trim().length > 0) {
@@ -72,6 +88,42 @@ export default function App() {
       setGaps(gapsData)
     })()
   }, [loggedIn, selectedAccountId])
+
+  useEffect(() => {
+    if (!loggedIn) return
+    void (async () => {
+      try {
+        const data = await api.getSummary(username, selectedAccountId)
+        setSummary(data)
+      } catch (e: any) {
+        setSummary(null)
+      }
+    })()
+  }, [loggedIn, username, selectedAccountId])
+
+  useEffect(() => {
+    if (!loggedIn || !selectedAccountId) return
+    if (tab !== 'insights') return
+
+    setInsightsError(null)
+    void (async () => {
+      try {
+        const [senders, cats, yearly] = await Promise.all([
+          api.getSenders(selectedAccountId),
+          api.getCategories(selectedAccountId),
+          api.getYearlyFrequency(selectedAccountId),
+        ])
+        setSenderInsights(senders)
+        setCategoryInsights(cats)
+        setYearlyInsights(yearly)
+      } catch (e: any) {
+        setInsightsError(e?.message ?? 'Failed to load insights')
+        setSenderInsights(null)
+        setCategoryInsights(null)
+        setYearlyInsights(null)
+      }
+    })()
+  }, [loggedIn, selectedAccountId, tab])
 
   useEffect(() => {
     if (!loggedIn || !selectedAccountId) return
@@ -182,6 +234,31 @@ export default function App() {
               </div>
             </div>
 
+            {summary && selectedAccountId ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 10,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  background: '#f9fafb',
+                  display: 'flex',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ fontSize: 13, color: '#374151' }}>
+                  <strong>{summary.current_account.account_emails}</strong> emails
+                </div>
+                <div style={{ fontSize: 13, color: '#374151' }}>
+                  <strong>{summary.current_account.account_senders}</strong> senders
+                </div>
+                <div style={{ fontSize: 13, color: '#374151' }}>
+                  <strong>{summary.current_account.processed_ranges}</strong> processed ranges
+                </div>
+              </div>
+            ) : null}
+
             {tab === 'settings' ? (
               <Settings username={username} onAccountsChange={(a) => { setAccounts(a); if (a.length === 0) setSelectedAccountId(null) }} />
             ) : tab === 'analysis' ? (
@@ -200,6 +277,14 @@ export default function App() {
                 error={runError}
                 setError={setRunError}
               />
+            ) : tab === 'insights' ? (
+              <Insights
+                accountId={selectedAccountId}
+                error={insightsError}
+                senders={senderInsights}
+                categories={categoryInsights}
+                yearly={yearlyInsights}
+              />
             ) : (
               <div style={{ marginTop: 12, color: '#6b7280' }}>
                 Stub UI. Next: wire analysis runs + insights.
@@ -208,6 +293,86 @@ export default function App() {
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+function Insights({
+  accountId,
+  error,
+  senders,
+  categories,
+  yearly,
+}: {
+  accountId: number | null
+  error: string | null
+  senders: SenderInsights | null
+  categories: CategoryInsights | null
+  yearly: YearlyFrequencyInsights | null
+}) {
+  if (!accountId) return <div style={{ marginTop: 12, color: '#6b7280' }}>Select an account to view insights.</div>
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {error ? <div style={{ color: '#b91c1c', marginBottom: 8 }}>{error}</div> : null}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Top senders</h3>
+          {!senders ? (
+            <div style={{ color: '#6b7280' }}>Loading…</div>
+          ) : senders.total_emails === 0 ? (
+            <div style={{ color: '#6b7280' }}>No data yet. Run an analysis.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {senders.top_senders.map((s) => (
+                <div key={s.email} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ fontSize: 13, color: '#374151' }}>{s.email}</div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>{s.count}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Categories</h3>
+          {!categories ? (
+            <div style={{ color: '#6b7280' }}>Loading…</div>
+          ) : categories.total === 0 ? (
+            <div style={{ color: '#6b7280' }}>No data yet. Run an analysis.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {categories.categories.map((c) => (
+                <div key={c.category} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ fontSize: 13, color: '#374151' }}>{c.category}</div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>
+                    {c.count} ({c.percentage.toFixed(1)}%)
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Yearly trend</h3>
+          {!yearly ? (
+            <div style={{ color: '#6b7280' }}>Loading…</div>
+          ) : yearly.year_over_year.length === 0 ? (
+            <div style={{ color: '#6b7280' }}>No data yet. Run an analysis.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {yearly.year_over_year.map((y) => (
+                <div key={y.year} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ fontSize: 13, color: '#374151' }}>{y.year}</div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>{y.total_emails}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

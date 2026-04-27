@@ -34,6 +34,33 @@ export type ProcessedRangeGap = {
   days: number
 }
 
+export type InsightsSummary = {
+  all_accounts: { total_accounts: number; total_emails: number; total_senders: number }
+  current_account: { account_emails: number; account_senders: number; processed_ranges: number }
+}
+
+export type SenderInsights = {
+  total_emails: number
+  top_senders: Array<{ email: string; name: string | null; count: number }>
+  top_domains: Array<{ domain: string; count: number }>
+}
+
+export type CategoryInsights = {
+  total: number
+  categories: Array<{ category: string; count: number; percentage: number }>
+}
+
+export type YearlyFrequencyInsights = {
+  years: number[]
+  year_over_year: Array<{
+    year: number
+    total_emails: number
+    daily_average: number
+    change_from_previous: number | null
+    change_percent: number | null
+  }>
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -89,6 +116,25 @@ export const api = {
   listProcessedRangeGaps: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<ProcessedRangeGap[]>(`/insights/processed-ranges/gaps?${qs.toString()}`)
+  },
+  getSummary: async (username: string, accountId: number | null) => {
+    const qs = new URLSearchParams({
+      username,
+      ...(accountId ? { account_id: String(accountId) } : {}),
+    })
+    return await request<InsightsSummary>(`/insights/summary?${qs.toString()}`)
+  },
+  getSenders: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<SenderInsights>(`/insights/senders?${qs.toString()}`)
+  },
+  getCategories: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<CategoryInsights>(`/insights/categories?${qs.toString()}`)
+  },
+  getYearlyFrequency: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<YearlyFrequencyInsights>(`/insights/frequency/yearly?${qs.toString()}`)
   },
 }
 
