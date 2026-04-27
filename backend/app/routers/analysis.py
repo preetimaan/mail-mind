@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange
+from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, OAuthCredential, OAuthProvider, ProcessedRange, Provider
 from app.db.session import get_db
 from app.services.analysis_runner import runner
 
@@ -39,7 +39,22 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     if not account.is_active:
-        raise HTTPException(status_code=409, detail="Account is inactive. Reconnect it in Settings.")
+        raise HTTPException(status_code=409, detail="Account is inactive. Connect it in Settings.")
+
+    expected_provider = OAuthProvider.gmail if account.provider == Provider.gmail else OAuthProvider.yahoo
+    has_creds = (
+        db.execute(
+            select(OAuthCredential.id).where(
+                OAuthCredential.account_id == account.id,
+                OAuthCredential.provider == expected_provider,
+            )
+        )
+        .scalars()
+        .first()
+        is not None
+    )
+    if not has_creds:
+        raise HTTPException(status_code=409, detail="Account is not connected. Connect it in Settings.")
     if req.end_date_exclusive <= req.start_date:
         raise HTTPException(status_code=400, detail="Invalid date range")
 

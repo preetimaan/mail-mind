@@ -264,7 +264,13 @@ export default function App() {
             {selectedAccount && !selectedAccount.is_active ? (
               <div style={{ marginTop: 10, padding: 10, border: '1px solid #f59e0b', borderRadius: 10, background: '#fffbeb' }}>
                 <div style={{ fontSize: 13, color: '#92400e' }}>
-                  <strong>Account inactive.</strong> Reconnect it in Settings before running analysis.
+                  <strong>Account inactive.</strong> Connect it in Settings before running analysis.
+                </div>
+              </div>
+            ) : selectedAccount && !selectedAccount.is_connected ? (
+              <div style={{ marginTop: 10, padding: 10, border: '1px solid #f59e0b', borderRadius: 10, background: '#fffbeb' }}>
+                <div style={{ fontSize: 13, color: '#92400e' }}>
+                  <strong>Account not connected.</strong> Connect it in Settings before running analysis.
                 </div>
               </div>
             ) : null}
@@ -310,6 +316,7 @@ export default function App() {
             ) : tab === 'analysis' ? (
               <Analyze
                 accountId={selectedAccountId}
+                accountConnected={!!selectedAccount?.is_connected && !!selectedAccount?.is_active}
                 startDate={startDate}
                 endDate={endDate}
                 setStartDate={setStartDate}
@@ -442,6 +449,7 @@ function Insights({
 
 function Analyze({
   accountId,
+  accountConnected,
   startDate,
   endDate,
   setStartDate,
@@ -461,6 +469,7 @@ function Analyze({
   setError,
 }: {
   accountId: number | null
+  accountConnected: boolean
   startDate: string
   endDate: string
   setStartDate: (v: string) => void
@@ -508,7 +517,7 @@ function Analyze({
           Force re-analysis
         </label>
         <button
-          disabled={busy || !accountId || !!running}
+          disabled={busy || !accountId || !accountConnected || !!running}
           onClick={async () => {
             if (!accountId) return
             setBusy(true)
