@@ -8,6 +8,19 @@ export type EmailAccount = {
   is_active: boolean
 }
 
+export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+
+export type AnalysisRun = {
+  id: number
+  account_id: number
+  start_date: string
+  end_date_exclusive: string
+  status: AnalysisStatus
+  emails_processed: number
+  total_emails: number
+  error_message: string | null
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -35,6 +48,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     })
+  },
+  startAnalysis: async (body: { account_id: number; start_date: string; end_date_exclusive: string }) => {
+    return await request<{ run_id: number }>(`/analysis/batch`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+  listRuns: async (accountId: number, limit: number = 5, offset: number = 0) => {
+    const qs = new URLSearchParams({
+      account_id: String(accountId),
+      limit: String(limit),
+      offset: String(offset),
+    })
+    return await request<{ runs: AnalysisRun[]; has_more: boolean }>(`/analysis/runs?${qs.toString()}`)
+  },
+  getRun: async (runId: number) => {
+    return await request<AnalysisRun>(`/analysis/runs/${runId}`)
+  },
+  stopRun: async (runId: number) => {
+    return await request<{ message: string }>(`/analysis/runs/${runId}/stop`, { method: 'POST' })
   },
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, type EmailAccount } from '../api/client'
+import { api, type AnalysisRun, type EmailAccount } from '../api/client'
 
 type Tab = 'analysis' | 'insights' | 'settings'
 
@@ -7,6 +7,19 @@ const TAB_LABELS: Record<Tab, string> = {
   analysis: 'Analyze',
   insights: 'Insights',
   settings: 'Settings',
+}
+
+function yyyyMmDd(d: Date) {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function addDays(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return yyyyMmDd(d)
 }
 
 export default function App() {
@@ -18,6 +31,12 @@ export default function App() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
 
   const canUseAccount = useMemo(() => loggedIn && accounts.length > 0, [loggedIn, accounts.length])
+
+  const [startDate, setStartDate] = useState(yyyyMmDd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)))
+  const [endDate, setEndDate] = useState(yyyyMmDd(new Date()))
+  const [runs, setRuns] = useState<AnalysisRun[]>([])
+  const [runError, setRunError] = useState<string | null>(null)
+  const [runBusy, setRunBusy] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('mailmind_username') ?? ''
@@ -35,6 +54,30 @@ export default function App() {
       if (data.length > 0 && selectedAccountId === null) setSelectedAccountId(data[0].id)
     })()
   }, [loggedIn, username])
+
+  useEffect(() => {
+    if (!loggedIn || !selectedAccountId) return
+    void (async () => {
+      const data = await api.listRuns(selectedAccountId, 5, 0)
+      setRuns(data.runs)
+    })()
+  }, [loggedIn, selectedAccountId])
+
+  useEffect(() => {
+    if (!loggedIn || !selectedAccountId) return
+    if (tab !== 'analysis') return
+
+    const hasRunning = runs.some((r) => r.status === 'pending' || r.status === 'processing')
+    if (!hasRunning) return
+
+    const id = window.setInterval(() => {
+      void (async () => {
+        const data = await api.listRuns(selectedAccountId, 5, 0)
+        setRuns(data.runs)
+      })()
+    }, 750)
+    return () => window.clearInterval(id)
+  }, [loggedIn, selectedAccountId, tab, runs])
 
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial', padding: '1.5rem', maxWidth: 1000, margin: '0 auto' }}>
@@ -127,6 +170,20 @@ export default function App() {
 
             {tab === 'settings' ? (
               <Settings username={username} onAccountsChange={(a) => { setAccounts(a); if (a.length === 0) setSelectedAccountId(null) }} />
+            ) : tab === 'analysis' ? (
+              <Analyze
+                accountId={selectedAccountId}
+                startDate={startDate}
+                endDate={endDate}
+                setStartDate={setStartDate}
+                setEndDate={setEndDate}
+                runs={runs}
+                setRuns={setRuns}
+                busy={runBusy}
+                setBusy={setRunBusy}
+                error={runError}
+                setError={setRunError}
+              />
             ) : (
               <div style={{ marginTop: 12, color: '#6b7280' }}>
                 Stub UI. Next: wire analysis runs + insights.
@@ -135,6 +192,139 @@ export default function App() {
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+function Analyze({
+  accountId,
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate,
+  runs,
+  setRuns,
+  busy,
+  setBusy,
+  error,
+  setError,
+}: {
+  accountId: number | null
+  startDate: string
+  endDate: string
+  setStartDate: (v: string) => void
+  setEndDate: (v: string) => void
+  runs: AnalysisRun[]
+  setRuns: (v: AnalysisRun[]) => void
+  busy: boolean
+  setBusy: (v: boolean) => void
+  error: string | null
+  setError: (v: string | null) => void
+}) {
+  const running = runs.find((r) => r.status === 'pending' || r.status === 'processing') ?? null
+  const latest = runs[0] ?? null
+
+  const progressPct =
+    running && running.total_emails > 0 ? Math.round((running.emails_processed / running.total_emails) * 100) : 0
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {error ? <div style={{ color: '#b91c1c', marginBottom: 8 }}>{error}</div> : null}
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, color: '#374151' }}>Start</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, color: '#374151' }}>End (inclusive)</label>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </div>
+        <button
+          disabled={busy || !accountId || !!running}
+          onClick={async () => {
+            if (!accountId) return
+            setBusy(true)
+            setError(null)
+            try {
+              const endExclusive = addDays(endDate, 1)
+              const res = await api.startAnalysis({ account_id: accountId, start_date: startDate, end_date_exclusive: endExclusive })
+              const data = await api.getRun(res.run_id)
+              setRuns([data, ...runs])
+            } catch (e: any) {
+              setError(e?.message ?? 'Failed to start analysis')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Start analysis
+        </button>
+        <button
+          disabled={busy || !running}
+          onClick={async () => {
+            if (!running) return
+            setBusy(true)
+            setError(null)
+            try {
+              await api.stopRun(running.id)
+            } catch (e: any) {
+              setError(e?.message ?? 'Failed to stop')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Stop
+        </button>
+      </div>
+
+      {running ? (
+        <div style={{ marginTop: 12, padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 600 }}>Running</div>
+            <div style={{ color: '#6b7280', fontSize: 13 }}>
+              {running.emails_processed}/{running.total_emails || '?'} • {progressPct}%
+            </div>
+          </div>
+          <div style={{ marginTop: 8, height: 10, background: '#e5e7eb', borderRadius: 999 }}>
+            <div
+              style={{
+                width: `${progressPct}%`,
+                height: 10,
+                borderRadius: 999,
+                background: '#111827',
+                transition: 'width 120ms linear',
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 0.5rem 0' }}>Recent runs</h3>
+        {runs.length === 0 ? (
+          <div style={{ color: '#6b7280' }}>No runs yet.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(runs ?? []).map((r) => (
+              <div key={r.id} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 600 }}>#{r.id}</div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>{r.status}</div>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: '#374151' }}>
+                  {r.start_date} → {r.end_date_exclusive} (end exclusive)
+                </div>
+                {r.error_message ? <div style={{ marginTop: 6, fontSize: 13, color: '#b91c1c' }}>{r.error_message}</div> : null}
+              </div>
+            ))}
+          </div>
+        )}
+        {latest && latest.status === 'failed' ? (
+          <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>Next: add retry endpoint.</div>
+        ) : null}
+      </div>
     </div>
   )
 }
