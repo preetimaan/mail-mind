@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+import email.utils
 from sqlalchemy.orm import Session
 
 from sqlalchemy import delete
@@ -182,13 +183,40 @@ class InProcessAnalysisRunner:
                             meta = get_message_metadata(access_token=access_token, message_id=mid)
                         except GmailFetchError as e:
                             if str(e) == "unauthorized":
-                                account.is_active = False
-                                db.commit()
-                                raise RuntimeError("Gmail token expired/unauthorized") from e
+                                # Try refresh once (access token may have expired between list + metadata calls).
+                                if tokens.refresh_token and settings.gmail_client_id and settings.gmail_client_secret:
+                                    try:
+                                        refreshed = refresh_access_token(
+                                            client_id=settings.gmail_client_id,
+                                            client_secret=settings.gmail_client_secret,
+                                            refresh_token=tokens.refresh_token,
+                                        )
+                                        access_token = refreshed.access_token
+                                        set_gmail_tokens(
+                                            db,
+                                            settings,
+                                            account.id,
+                                            access_token=access_token,
+                                            refresh_token=tokens.refresh_token,
+                                            expires_at=refreshed.expires_at,
+                                            scope=refreshed.scope or tokens.scope,
+                                            token_type=refreshed.token_type or tokens.token_type,
+                                        )
+                                        db.commit()
+                                        meta = get_message_metadata(access_token=access_token, message_id=mid)
+                                    except (GmailRefreshError, GmailFetchError) as e2:
+                                        account.is_active = False
+                                        db.commit()
+                                        raise RuntimeError("Gmail token expired/unauthorized") from e2
+                                else:
+                                    account.is_active = False
+                                    db.commit()
+                                    raise RuntimeError("Gmail token expired/unauthorized") from e
                             continue
 
                         from_hdr = meta.headers.get("from", "")
-                        sender_name, sender_email = _parse_from(from_hdr)
+                        sender_name, sender_email = email.utils.parseaddr(from_hdr)
+                        sender_name = sender_name or None
                         subject = meta.headers.get("subject", "") or ""
                         received_at = datetime.utcnow()
                         if meta.internal_date_ms is not None:
@@ -297,14 +325,7 @@ def _distribute_total(total: int, weights: list[int]) -> list[int]:
 
 
 def _parse_from(from_header: str) -> tuple[str | None, str]:
-    """
-    Tiny parser for "Name <email@x>".
-    Keeps this dependency-free; we can swap to email.utils later if needed.
-    """
-    s = (from_header or "").strip()
-    if "<" in s and ">" in s:
-        name = s.split("<", 1)[0].strip().strip('"') or None
-        addr = s.split("<", 1)[1].split(">", 1)[0].strip()
-        return name, addr
-    return None, s
+    # Backwards-compatible helper; prefer email.utils.parseaddr in new code paths.
+    name, addr = email.utils.parseaddr(from_header or "")
+    return (name or None), (addr or "")
 
