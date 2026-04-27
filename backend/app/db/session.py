@@ -5,8 +5,10 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.settings import get_settings
 
-DATABASE_URL = "sqlite:///./mailmind.db"
+
+DATABASE_URL = get_settings().database_url
 
 engine = create_engine(
     DATABASE_URL,

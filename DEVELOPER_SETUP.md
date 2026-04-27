@@ -62,5 +62,7 @@ Provider integrations will replace stub generation, but keep the same storage/in
 
 ## Environment variables
 
-We will add `_rebuild/.env.example` when provider integrations land (Gmail/Yahoo creds, encryption keys, etc.).
+Use `.env.example` as the template.
+
+- **Backend env file**: copy it to `backend/.env` (same folder you run `uvicorn` from).
 
