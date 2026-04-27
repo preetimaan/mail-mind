@@ -45,6 +45,7 @@ class EmailAccount(Base):
 
     analysis_runs: Mapped[list["AnalysisRun"]] = relationship(back_populates="account")
     processed_ranges: Mapped[list["ProcessedRange"]] = relationship(back_populates="account")
+    messages: Mapped[list["EmailMessage"]] = relationship(back_populates="account")
 
     __table_args__ = (UniqueConstraint("username", "provider", "email", name="uq_account_identity"),)
 
@@ -68,6 +69,29 @@ class AnalysisRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     account: Mapped["EmailAccount"] = relationship(back_populates="analysis_runs")
+
+
+class EmailMessage(Base):
+    __tablename__ = "email_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id"), index=True)
+
+    # Deterministic per account; later this becomes provider message id.
+    external_id: Mapped[str] = mapped_column(String, index=True)
+
+    received_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    sender_email: Mapped[str] = mapped_column(String, index=True)
+    sender_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    subject: Mapped[str] = mapped_column(String)
+
+    category: Mapped[str] = mapped_column(String, index=True)
+
+    account: Mapped["EmailAccount"] = relationship(back_populates="messages")
+
+    __table_args__ = (
+        UniqueConstraint("account_id", "external_id", name="uq_message_external_id"),
+    )
 
 
 class ProcessedRange(Base):

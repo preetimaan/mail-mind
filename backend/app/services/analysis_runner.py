@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import random
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.db.models import AnalysisRun, AnalysisStatus, ProcessedRange
+from app.db.models import AnalysisRun, AnalysisStatus, EmailMessage, ProcessedRange
 from app.db.session import SessionLocal
 
 
@@ -76,6 +78,10 @@ class InProcessAnalysisRunner:
                     db.commit()
                     return
 
+                # Persist deterministic stub message metadata so Insights can be real.
+                msg = _generate_message(run, index=i)
+                db.add(msg)
+
                 run.emails_processed = i + 1
                 db.commit()
                 time.sleep(0.03)
@@ -109,4 +115,55 @@ class InProcessAnalysisRunner:
 
 
 runner = InProcessAnalysisRunner()
+
+
+def _generate_message(run: AnalysisRun, index: int) -> EmailMessage:
+    """
+    Deterministic pseudo-email generator keyed by run params.
+    Creates a stable dataset for insights until provider connectors exist.
+    """
+    seed_input = f"{run.account_id}:{run.start_date.isoformat()}:{run.end_date_exclusive.isoformat()}:{index}".encode()
+    seed = int(hashlib.sha256(seed_input).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+
+    categories = [
+        ("notifications", ["receipt", "confirm", "alert", "reset"]),
+        ("newsletters", ["newsletter", "digest", "weekly", "unsubscribe"]),
+        ("social", ["mentioned you", "new follower", "commented", "invitation"]),
+        ("shopping", ["order", "shipping", "delivered", "invoice"]),
+        ("work", ["meeting", "agenda", "project", "action required"]),
+        ("personal", ["hi", "catch up", "photos", "dinner"]),
+        ("other", ["update", "info", "status", "notice"]),
+    ]
+    cat, keywords = categories[seed % len(categories)]
+
+    sender_domain = rng.choice(
+        [
+            "amazon.com",
+            "github.com",
+            "google.com",
+            "newsletter.example",
+            "company.com",
+            "bank.com",
+            "social.example",
+        ]
+    )
+    sender_local = rng.choice(["noreply", "updates", "team", "support", "billing", "friend", "alerts"])
+    sender_email = f"{sender_local}@{sender_domain}"
+
+    subject = f"{rng.choice(keywords).title()} #{(seed % 5000) + 1}"
+
+    span_days = max(1, (run.end_date_exclusive - run.start_date).days)
+    offset_days = rng.randrange(0, span_days)
+    received_at = datetime.combine(run.start_date, datetime.min.time()) + timedelta(days=offset_days, minutes=rng.randrange(0, 24 * 60))
+
+    return EmailMessage(
+        account_id=run.account_id,
+        external_id=f"stub:{run.id}:{index}",
+        received_at=received_at,
+        sender_email=sender_email,
+        sender_name=None,
+        subject=subject,
+        category=cat,
+    )
 
