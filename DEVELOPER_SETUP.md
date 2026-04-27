@@ -1,5 +1,7 @@
 # Mail Mind — Developer setup
 
+This document is for **whoever builds, configures, or hosts** Mail Mind (developer, ops, or “friend who installed it for you”). **End users** only need `USER_GUIDE.md`: connecting mailboxes, running analysis, and reading insights — no Cloud projects, `.env`, or client secrets there.
+
 This is the current Mail Mind implementation.
 
 ## Prereqs
@@ -51,18 +53,42 @@ rm -f backend/mailmind.db
 
 Start backend again to re-create tables.
 
+## Provider connections: who does what
+
+### Gmail (OAuth) — operator vs end user
+
+Assume the person deploying Mail Mind is **not** the only end user.
+
+- **Whoever runs / deploys the backend** (usually you, the developer) must register the app in **Google Cloud** once per environment:
+  - Create or reuse a project, enable **Gmail API**, configure the **OAuth consent screen**, and create **OAuth 2.0 Client ID** credentials of type **Web application**.
+  - Set **Authorized redirect URIs** to exactly match `MAILMIND_GMAIL_REDIRECT_URI` in `backend/.env` (default in `.env.example` is `http://localhost:8000/api/oauth/gmail/callback`).
+  - Put `MAILMIND_GMAIL_CLIENT_ID` and `MAILMIND_GMAIL_CLIENT_SECRET` in `backend/.env`. Restart the backend after changes.
+  - While the OAuth app is in **Testing**, add every Gmail address that will connect as a **Test user** on the consent screen.
+- **Each end user** uses only the product UI: **Settings → Connect Gmail** and Google’s browser sign-in/consent for **their** mailbox. They never see client id/secret or server configuration; document that flow in the **user guide**, not here.
+
+### Yahoo (app password) — operator vs end user
+
+- **End user**: In Yahoo **Account security**, generates an **app password** and pastes it in Mail Mind (not their normal login password). See the user guide for wording aimed at non-technical readers.
+- **Operator**: Sets `MAILMIND_TOKEN_ENCRYPTION_KEY` so the backend can store that password encrypted at rest.
+
 ## Current analysis mode (important)
 
-Until provider integrations are implemented (Gmail OAuth / Yahoo), analysis runs generate **deterministic stub email metadata** (`EmailMessage`) so:
-
-- the **Insights** tab is real (aggregations over stored rows)
-- behavior is stable/reproducible for development
-
-Provider integrations will replace stub generation, but keep the same storage/insights pipeline.
+For **connected** accounts, analysis fetches **real provider metadata** (Gmail API / Yahoo IMAP), stores **metadata only** in SQLite, and Insights aggregate that data. Stub generation is not the normal path once accounts are connected.
 
 ## Environment variables
 
 Use `.env.example` as the template.
 
 - **Backend env file**: copy it to `backend/.env` (same folder you run `uvicorn` from).
+
+**Required for real accounts**
+
+- `MAILMIND_TOKEN_ENCRYPTION_KEY` (Fernet) — encrypts provider secrets at rest (Gmail refresh token, Yahoo app password).
+- For Gmail OAuth: `MAILMIND_GMAIL_CLIENT_ID`, `MAILMIND_GMAIL_CLIENT_SECRET`, and a matching `MAILMIND_GMAIL_REDIRECT_URI`.
+
+Generate a Fernet key:
+
+```bash
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
