@@ -77,13 +77,16 @@ export default function App() {
     }
 
     const url = new URL(window.location.href)
+    const tabParam = url.searchParams.get('tab')
     const oauth = url.searchParams.get('oauth')
     const status = url.searchParams.get('status')
     const message = url.searchParams.get('message')
     if (oauth === 'gmail' && status) {
       if (status === 'ok') setOauthBanner('Gmail connected.')
       else setOauthBanner(`Gmail connect failed${message ? `: ${message}` : ''}`)
+      if (tabParam === 'settings') setTab('settings')
       url.searchParams.delete('oauth')
+      url.searchParams.delete('tab')
       url.searchParams.delete('status')
       url.searchParams.delete('message')
       url.searchParams.delete('account_id')

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -72,7 +72,11 @@ def gmail_oauth_callback(
     settings = get_settings()
 
     if error:
-        return RedirectResponse(url=f"{settings.frontend_url}/?oauth=gmail&status=error&message={error}", status_code=302)
+        safe = quote(error, safe="")
+        return RedirectResponse(
+            url=f"{settings.frontend_url}/?tab=settings&oauth=gmail&status=error&message={safe}",
+            status_code=302,
+        )
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code/state")
 
@@ -159,7 +163,7 @@ def gmail_oauth_callback(
     db.commit()
 
     return RedirectResponse(
-        url=f"{settings.frontend_url}/?oauth=gmail&status=ok&account_id={row.account_id}",
+        url=f"{settings.frontend_url}/?tab=settings&oauth=gmail&status=ok&account_id={row.account_id}",
         status_code=302,
     )
 
