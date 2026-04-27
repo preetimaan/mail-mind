@@ -69,6 +69,7 @@ class AnalysisRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     account: Mapped["EmailAccount"] = relationship(back_populates="analysis_runs")
+    messages: Mapped[list["EmailMessage"]] = relationship(back_populates="analysis_run")
 
 
 class EmailMessage(Base):
@@ -76,6 +77,7 @@ class EmailMessage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id"), index=True)
+    analysis_run_id: Mapped[int | None] = mapped_column(ForeignKey("analysis_runs.id"), index=True, nullable=True)
 
     # Deterministic per account; later this becomes provider message id.
     external_id: Mapped[str] = mapped_column(String, index=True)
@@ -88,6 +90,7 @@ class EmailMessage(Base):
     category: Mapped[str] = mapped_column(String, index=True)
 
     account: Mapped["EmailAccount"] = relationship(back_populates="messages")
+    analysis_run: Mapped["AnalysisRun"] = relationship(back_populates="messages")
 
     __table_args__ = (
         UniqueConstraint("account_id", "external_id", name="uq_message_external_id"),

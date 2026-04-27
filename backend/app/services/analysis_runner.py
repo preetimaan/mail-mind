@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from sqlalchemy import delete
+
 from app.db.models import AnalysisRun, AnalysisStatus, EmailMessage, ProcessedRange
 from app.db.session import SessionLocal
 
@@ -73,6 +75,8 @@ class InProcessAnalysisRunner:
 
             for i in range(run.emails_processed, run.total_emails):
                 if cancel.is_set():
+                    # Revert partial writes for this run.
+                    db.execute(delete(EmailMessage).where(EmailMessage.analysis_run_id == run.id))
                     run.status = AnalysisStatus.cancelled
                     run.finished_at = datetime.utcnow()
                     db.commit()
@@ -80,6 +84,7 @@ class InProcessAnalysisRunner:
 
                 # Persist deterministic stub message metadata so Insights can be real.
                 msg = _generate_message(run, index=i)
+                msg.analysis_run_id = run.id
                 db.add(msg)
 
                 run.emails_processed = i + 1
@@ -102,6 +107,8 @@ class InProcessAnalysisRunner:
             try:
                 run = db.get(AnalysisRun, run_id)
                 if run and run.status in (AnalysisStatus.pending, AnalysisStatus.processing):
+                    # Revert partial writes for this run.
+                    db.execute(delete(EmailMessage).where(EmailMessage.analysis_run_id == run.id))
                     run.status = AnalysisStatus.failed
                     run.error_message = str(e)
                     run.finished_at = datetime.utcnow()
