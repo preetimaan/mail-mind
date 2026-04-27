@@ -118,21 +118,28 @@ class InProcessAnalysisRunner:
                         if cancel.is_set():
                             _revert_partial_run(db, run)
                             return
-                        db.add(
-                            EmailMessage(
-                                account_id=account.id,
-                                analysis_run_id=run.id,
-                                external_id=m.external_id,
-                                received_at=m.received_at.replace(tzinfo=None),
-                                sender_email=m.sender_email,
-                                sender_name=m.sender_name,
-                                subject=m.subject,
-                                category="other",
-                            )
+                        msg = EmailMessage(
+                            account_id=account.id,
+                            analysis_run_id=run.id,
+                            external_id=m.external_id,
+                            received_at=m.received_at.replace(tzinfo=None),
+                            sender_email=m.sender_email,
+                            sender_name=m.sender_name,
+                            subject=m.subject,
+                            category="other",
                         )
-                        fetched_count += 1
-                        run.emails_processed += 1
-                        db.commit()
+                        db.add(msg)
+                        try:
+                            db.commit()
+                        except Exception as e:
+                            db.rollback()
+                            # Unique constraint may surface duplicates if provider returns overlapping IDs.
+                            # Treat it as a no-op for this message.
+                            if "uq_message_external_id" not in str(e) and "UNIQUE constraint failed" not in str(e):
+                                raise
+                        else:
+                            fetched_count += 1
+                            run.emails_processed += 1
                         time.sleep(0.01)
 
                 elif account.provider == Provider.gmail:
@@ -234,9 +241,15 @@ class InProcessAnalysisRunner:
                                 category="other",
                             )
                         )
-                        fetched_count += 1
-                        run.emails_processed += 1
-                        db.commit()
+                        try:
+                            db.commit()
+                        except Exception as e:
+                            db.rollback()
+                            if "uq_message_external_id" not in str(e) and "UNIQUE constraint failed" not in str(e):
+                                raise
+                        else:
+                            fetched_count += 1
+                            run.emails_processed += 1
                         time.sleep(0.01)
 
                 # Update total_emails as we discover messages.
