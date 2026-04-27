@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import random
 import threading
 import time
 from dataclasses import dataclass
@@ -12,8 +10,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import AnalysisRun, AnalysisStatus, EmailMessage, ProcessedRange
+from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange, Provider
 from app.db.session import SessionLocal
+from app.services.credential_store import get_gmail_tokens, get_yahoo_app_password, set_gmail_tokens
+from app.services.gmail_api_fetch import GmailFetchError, get_message_metadata, list_message_ids
+from app.services.gmail_token_refresh import GmailRefreshError, refresh_access_token
+from app.services.yahoo_imap_fetch import YahooFetchError, fetch_metadata
+from app.settings import get_settings
 
 CHUNK_DAYS = 7
 
@@ -69,41 +72,149 @@ class InProcessAnalysisRunner:
             run.status = AnalysisStatus.processing
             run.started_at = run.started_at or datetime.utcnow()
 
-            # Stub total. Replace with real email count once providers exist.
-            # Keep it stable/deterministic per run for now.
+            settings = get_settings()
+            account = db.get(EmailAccount, run.account_id)
+            if not account:
+                raise RuntimeError("Account not found for run")
+
+            # Real provider fetching:
+            # - Gmail: Gmail API metadata
+            # - Yahoo: IMAP header metadata
+            # Total emails is estimated as "messages discovered" for now.
             if not run.total_emails or run.total_emails <= 0:
-                day_span = (run.end_date_exclusive - run.start_date).days
-                run.total_emails = max(10, min(500, day_span * 15))
+                run.total_emails = 0
             db.commit()
 
             chunks = _chunk_ranges(run.start_date, run.end_date_exclusive, days=CHUNK_DAYS)
-            chunk_totals = _distribute_total(total=run.total_emails, weights=[(e - s).days for (s, e) in chunks])
-            start_index = run.emails_processed
-            global_index = 0
+            for (chunk_start, chunk_end) in chunks:
+                if cancel.is_set():
+                    _revert_partial_run(db, run)
+                    return
 
-            for (chunk_start, chunk_end), chunk_total in zip(chunks, chunk_totals):
-                chunk_first_index = global_index
-                chunk_last_index_exclusive = global_index + chunk_total
-                global_index = chunk_last_index_exclusive
+                start_dt = datetime.combine(chunk_start, datetime.min.time())
+                end_dt = datetime.combine(chunk_end, datetime.min.time())
 
-                # Skip chunks already fully processed (e.g., resume-ish behavior if we ever add it).
-                if start_index >= chunk_last_index_exclusive:
-                    continue
+                fetched_count = 0
 
-                for i in range(max(start_index, chunk_first_index), chunk_last_index_exclusive):
-                    if cancel.is_set():
-                        _revert_partial_run(db, run)
-                        return
+                if account.provider == Provider.yahoo:
+                    pw = get_yahoo_app_password(db, settings, account.id)
+                    if not pw:
+                        raise RuntimeError("Yahoo credentials missing")
+                    try:
+                        metas = fetch_metadata(
+                            email_address=account.email,
+                            app_password=pw,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            limit=500,
+                        )
+                    except YahooFetchError as e:
+                        account.is_active = False
+                        db.commit()
+                        raise RuntimeError(f"Yahoo fetch failed: {e}") from e
 
-                    msg = _generate_message(run, index=i, chunk_start=chunk_start, chunk_end_exclusive=chunk_end)
-                    msg.analysis_run_id = run.id
-                    db.add(msg)
+                    for m in metas:
+                        if cancel.is_set():
+                            _revert_partial_run(db, run)
+                            return
+                        db.add(
+                            EmailMessage(
+                                account_id=account.id,
+                                analysis_run_id=run.id,
+                                external_id=m.external_id,
+                                received_at=m.received_at.replace(tzinfo=None),
+                                sender_email=m.sender_email,
+                                sender_name=m.sender_name,
+                                subject=m.subject,
+                                category="other",
+                            )
+                        )
+                        fetched_count += 1
+                        run.emails_processed += 1
+                        db.commit()
+                        time.sleep(0.01)
 
-                    run.emails_processed = i + 1
-                    db.commit()
-                    time.sleep(0.03)
+                elif account.provider == Provider.gmail:
+                    tokens = get_gmail_tokens(db, settings, account.id)
+                    if not tokens:
+                        raise RuntimeError("Gmail credentials missing")
 
-                # Mark processed coverage (half-open range) per chunk.
+                    access_token = tokens.access_token
+                    try:
+                        ids = list_message_ids(access_token=access_token, start_dt=start_dt, end_dt=end_dt, max_results=500)
+                    except GmailFetchError as e:
+                        if str(e) == "unauthorized" and tokens.refresh_token and settings.gmail_client_id and settings.gmail_client_secret:
+                            try:
+                                refreshed = refresh_access_token(
+                                    client_id=settings.gmail_client_id,
+                                    client_secret=settings.gmail_client_secret,
+                                    refresh_token=tokens.refresh_token,
+                                )
+                                access_token = refreshed.access_token
+                                set_gmail_tokens(
+                                    db,
+                                    settings,
+                                    account.id,
+                                    access_token=access_token,
+                                    refresh_token=tokens.refresh_token,
+                                    expires_at=refreshed.expires_at,
+                                    scope=refreshed.scope or tokens.scope,
+                                    token_type=refreshed.token_type or tokens.token_type,
+                                )
+                                db.commit()
+                                ids = list_message_ids(
+                                    access_token=access_token, start_dt=start_dt, end_dt=end_dt, max_results=500
+                                )
+                            except (GmailRefreshError, GmailFetchError) as e2:
+                                account.is_active = False
+                                db.commit()
+                                raise RuntimeError(f"Gmail auth failed: {e2}") from e2
+                        else:
+                            account.is_active = False
+                            db.commit()
+                            raise RuntimeError(f"Gmail fetch failed: {e}") from e
+
+                    for mid in ids:
+                        if cancel.is_set():
+                            _revert_partial_run(db, run)
+                            return
+                        try:
+                            meta = get_message_metadata(access_token=access_token, message_id=mid)
+                        except GmailFetchError as e:
+                            if str(e) == "unauthorized":
+                                account.is_active = False
+                                db.commit()
+                                raise RuntimeError("Gmail token expired/unauthorized") from e
+                            continue
+
+                        from_hdr = meta.headers.get("from", "")
+                        sender_name, sender_email = _parse_from(from_hdr)
+                        subject = meta.headers.get("subject", "") or ""
+                        received_at = datetime.utcnow()
+                        if meta.internal_date_ms is not None:
+                            received_at = datetime.utcfromtimestamp(meta.internal_date_ms / 1000.0)
+
+                        db.add(
+                            EmailMessage(
+                                account_id=account.id,
+                                analysis_run_id=run.id,
+                                external_id=f"gmail:{meta.id}",
+                                received_at=received_at,
+                                sender_email=sender_email,
+                                sender_name=sender_name,
+                                subject=subject,
+                                category="other",
+                            )
+                        )
+                        fetched_count += 1
+                        run.emails_processed += 1
+                        db.commit()
+                        time.sleep(0.01)
+
+                # Update total_emails as we discover messages.
+                run.total_emails += fetched_count
+                db.commit()
+
                 try:
                     db.add(
                         ProcessedRange(
@@ -111,7 +222,7 @@ class InProcessAnalysisRunner:
                             analysis_run_id=run.id,
                             start_date=chunk_start,
                             end_date_exclusive=chunk_end,
-                            emails_count=chunk_total,
+                            emails_count=fetched_count,
                         )
                     )
                     db.commit()
@@ -185,63 +296,15 @@ def _distribute_total(total: int, weights: list[int]) -> list[int]:
     return floors
 
 
-def _generate_message(
-    run: AnalysisRun,
-    index: int,
-    chunk_start: datetime.date,
-    chunk_end_exclusive: datetime.date,
-) -> EmailMessage:
+def _parse_from(from_header: str) -> tuple[str | None, str]:
     """
-    Deterministic pseudo-email generator keyed by run params.
-    Creates a stable dataset for insights until provider connectors exist.
+    Tiny parser for "Name <email@x>".
+    Keeps this dependency-free; we can swap to email.utils later if needed.
     """
-    seed_input = (
-        f"{run.account_id}:{run.start_date.isoformat()}:{run.end_date_exclusive.isoformat()}:"
-        f"{chunk_start.isoformat()}:{chunk_end_exclusive.isoformat()}:{index}".encode()
-    )
-    seed = int(hashlib.sha256(seed_input).hexdigest()[:8], 16)
-    rng = random.Random(seed)
-
-    categories = [
-        ("notifications", ["receipt", "confirm", "alert", "reset"]),
-        ("newsletters", ["newsletter", "digest", "weekly", "unsubscribe"]),
-        ("social", ["mentioned you", "new follower", "commented", "invitation"]),
-        ("shopping", ["order", "shipping", "delivered", "invoice"]),
-        ("work", ["meeting", "agenda", "project", "action required"]),
-        ("personal", ["hi", "catch up", "photos", "dinner"]),
-        ("other", ["update", "info", "status", "notice"]),
-    ]
-    cat, keywords = categories[seed % len(categories)]
-
-    sender_domain = rng.choice(
-        [
-            "amazon.com",
-            "github.com",
-            "google.com",
-            "newsletter.example",
-            "company.com",
-            "bank.com",
-            "social.example",
-        ]
-    )
-    sender_local = rng.choice(["noreply", "updates", "team", "support", "billing", "friend", "alerts"])
-    sender_email = f"{sender_local}@{sender_domain}"
-
-    subject = f"{rng.choice(keywords).title()} #{(seed % 5000) + 1}"
-
-    span_days = max(1, (chunk_end_exclusive - chunk_start).days)
-    offset_days = rng.randrange(0, span_days)
-    received_at = datetime.combine(chunk_start, datetime.min.time()) + timedelta(
-        days=offset_days, minutes=rng.randrange(0, 24 * 60)
-    )
-
-    return EmailMessage(
-        account_id=run.account_id,
-        external_id=f"stub:{run.id}:{index}",
-        received_at=received_at,
-        sender_email=sender_email,
-        sender_name=None,
-        subject=subject,
-        category=cat,
-    )
+    s = (from_header or "").strip()
+    if "<" in s and ">" in s:
+        name = s.split("<", 1)[0].strip().strip('"') or None
+        addr = s.split("<", 1)[1].split(">", 1)[0].strip()
+        return name, addr
+    return None, s
 
