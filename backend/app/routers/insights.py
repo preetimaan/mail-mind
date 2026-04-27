@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -53,4 +55,72 @@ def processed_ranges(account_id: int, db: Session = Depends(get_db)) -> list[dic
             "processed_at": r.processed_at.isoformat(),
         }
         for r in rows
+    ]
+
+
+def _merge_ranges(ranges: list[tuple[date, date]]) -> list[tuple[date, date]]:
+    if not ranges:
+        return []
+    ranges = sorted(ranges, key=lambda r: (r[0], r[1]))
+    merged: list[tuple[date, date]] = [ranges[0]]
+    for start, end in ranges[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end:
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+@router.get("/insights/processed-ranges/gaps")
+def processed_range_gaps(
+    account_id: int,
+    start_date: date | None = None,
+    end_date_exclusive: date | None = None,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """
+    Returns missing (unprocessed) ranges within a window.
+
+    Defaults to last 365 days through tomorrow (exclusive) if not provided.
+    """
+    today = date.today()
+    window_start = start_date or (today - timedelta(days=365))
+    window_end = end_date_exclusive or (today + timedelta(days=1))
+
+    if window_end <= window_start:
+        return []
+
+    rows = db.execute(
+        select(ProcessedRange.start_date, ProcessedRange.end_date_exclusive)
+        .where(ProcessedRange.account_id == account_id)
+        .where(ProcessedRange.end_date_exclusive > window_start)
+        .where(ProcessedRange.start_date < window_end)
+    ).all()
+
+    covered = _merge_ranges(
+        [
+            (max(r.start_date, window_start), min(r.end_date_exclusive, window_end))
+            for r in rows
+            if r.end_date_exclusive > window_start and r.start_date < window_end
+        ]
+    )
+
+    gaps: list[tuple[date, date]] = []
+    cursor = window_start
+    for start, end in covered:
+        if cursor < start:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    if cursor < window_end:
+        gaps.append((cursor, window_end))
+
+    return [
+        {
+            "start_date": gs.isoformat(),
+            "end_date_exclusive": ge.isoformat(),
+            "days": (ge - gs).days,
+        }
+        for gs, ge in gaps
+        if (ge - gs).days > 0
     ]

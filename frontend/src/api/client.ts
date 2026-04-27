@@ -28,6 +28,12 @@ export type ProcessedRange = {
   processed_at: string
 }
 
+export type ProcessedRangeGap = {
+  start_date: string
+  end_date_exclusive: string
+  days: number
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -79,6 +85,10 @@ export const api = {
   listProcessedRanges: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<ProcessedRange[]>(`/insights/processed-ranges?${qs.toString()}`)
+  },
+  listProcessedRangeGaps: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<ProcessedRangeGap[]>(`/insights/processed-ranges/gaps?${qs.toString()}`)
   },
 }
 

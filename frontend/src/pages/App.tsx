@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, type AnalysisRun, type EmailAccount, type ProcessedRange } from '../api/client'
+import { api, type AnalysisRun, type EmailAccount, type ProcessedRange, type ProcessedRangeGap } from '../api/client'
 
 type Tab = 'analysis' | 'insights' | 'settings'
 
@@ -22,6 +22,10 @@ function addDays(dateStr: string, days: number) {
   return yyyyMmDd(d)
 }
 
+function subDays(dateStr: string, days: number) {
+  return addDays(dateStr, -days)
+}
+
 export default function App() {
   const [username, setUsername] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
@@ -36,6 +40,7 @@ export default function App() {
   const [endDate, setEndDate] = useState(yyyyMmDd(new Date()))
   const [runs, setRuns] = useState<AnalysisRun[]>([])
   const [processedRanges, setProcessedRanges] = useState<ProcessedRange[]>([])
+  const [gaps, setGaps] = useState<ProcessedRangeGap[]>([])
   const [runError, setRunError] = useState<string | null>(null)
   const [runBusy, setRunBusy] = useState(false)
 
@@ -63,6 +68,8 @@ export default function App() {
       setRuns(data.runs)
       const ranges = await api.listProcessedRanges(selectedAccountId)
       setProcessedRanges(ranges)
+      const gapsData = await api.listProcessedRangeGaps(selectedAccountId)
+      setGaps(gapsData)
     })()
   }, [loggedIn, selectedAccountId])
 
@@ -79,6 +86,8 @@ export default function App() {
         setRuns(data.runs)
         const ranges = await api.listProcessedRanges(selectedAccountId)
         setProcessedRanges(ranges)
+        const gapsData = await api.listProcessedRangeGaps(selectedAccountId)
+        setGaps(gapsData)
       })()
     }, 750)
     return () => window.clearInterval(id)
@@ -185,6 +194,7 @@ export default function App() {
                 runs={runs}
                 setRuns={setRuns}
                 processedRanges={processedRanges}
+                gaps={gaps}
                 busy={runBusy}
                 setBusy={setRunBusy}
                 error={runError}
@@ -211,6 +221,7 @@ function Analyze({
   runs,
   setRuns,
   processedRanges,
+  gaps,
   busy,
   setBusy,
   error,
@@ -224,6 +235,7 @@ function Analyze({
   runs: AnalysisRun[]
   setRuns: (v: AnalysisRun[]) => void
   processedRanges: ProcessedRange[]
+  gaps: ProcessedRangeGap[]
   busy: boolean
   setBusy: (v: boolean) => void
   error: string | null
@@ -352,6 +364,43 @@ function Analyze({
                   processed_at: {pr.processed_at}
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 0.5rem 0' }}>Unprocessed gaps (last 365 days)</h3>
+        {gaps.length === 0 ? (
+          <div style={{ color: '#6b7280' }}>No gaps detected in the last 365 days.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {gaps.map((g, idx) => (
+              <button
+                key={`${g.start_date}-${g.end_date_exclusive}-${idx}`}
+                onClick={() => {
+                  setStartDate(g.start_date)
+                  setEndDate(subDays(g.end_date_exclusive, 1))
+                }}
+                style={{
+                  textAlign: 'left',
+                  padding: 10,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  background: 'white',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {g.start_date} → {g.end_date_exclusive} (end exclusive)
+                  </div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>{g.days} days</div>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>
+                  Click to set Start/End for analysis
+                </div>
+              </button>
             ))}
           </div>
         )}
