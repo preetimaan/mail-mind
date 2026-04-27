@@ -252,7 +252,9 @@ export default function App() {
                   </option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.provider} • {a.email}{a.is_active ? '' : ' (inactive)'}
+                      {a.provider} • {a.email}
+                      {a.is_connected ? '' : ' (not connected)'}
+                      {a.is_active ? '' : ' (inactive)'}
                     </option>
                   ))}
                 </select>
@@ -791,8 +793,8 @@ function Settings({
                   <div style={{ fontWeight: 600 }}>
                     {a.provider} • {a.email}
                   </div>
-                  <div style={{ fontSize: 13, color: a.is_active ? '#065f46' : '#92400e' }}>
-                    {a.is_active ? 'active' : 'inactive'}
+                  <div style={{ fontSize: 13, color: a.is_connected ? '#065f46' : '#92400e' }}>
+                    {a.is_connected ? 'connected' : 'not connected'}
                   </div>
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

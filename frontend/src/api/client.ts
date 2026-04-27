@@ -6,6 +6,7 @@ export type EmailAccount = {
   provider: Provider
   email: string
   is_active: boolean
+  is_connected: boolean
 }
 
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'

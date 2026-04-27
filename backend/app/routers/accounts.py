@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import EmailAccount, Provider
+from app.db.models import EmailAccount, OAuthCredential, OAuthProvider, Provider
 from app.db.session import get_db
 
 
@@ -24,12 +24,27 @@ class AccountResponse(BaseModel):
     provider: Provider
     email: EmailStr
     is_active: bool
+    is_connected: bool
 
 
 @router.get("/emails/accounts", response_model=list[AccountResponse])
 def list_accounts(username: str, db: Session = Depends(get_db)) -> list[AccountResponse]:
     rows = db.execute(select(EmailAccount).where(EmailAccount.username == username).order_by(EmailAccount.id.asc()))
     accounts = list(rows.scalars().all())
+    account_ids = [a.id for a in accounts]
+    connected_ids: set[int] = set()
+    if account_ids:
+        connected = (
+            db.execute(
+                select(OAuthCredential.account_id).where(
+                    OAuthCredential.account_id.in_(account_ids),
+                    OAuthCredential.provider.in_([OAuthProvider.gmail, OAuthProvider.yahoo]),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        connected_ids = set(connected)
     return [
         AccountResponse(
             id=a.id,
@@ -37,6 +52,7 @@ def list_accounts(username: str, db: Session = Depends(get_db)) -> list[AccountR
             provider=a.provider,
             email=a.email,
             is_active=a.is_active,
+            is_connected=a.id in connected_ids,
         )
         for a in accounts
     ]
@@ -62,6 +78,7 @@ def create_account(req: AccountCreateRequest, db: Session = Depends(get_db)) -> 
         provider=account.provider,
         email=account.email,
         is_active=account.is_active,
+        is_connected=False,
     )
 
 
@@ -93,6 +110,7 @@ def reconnect_account(account_id: int, db: Session = Depends(get_db)) -> Account
         provider=account.provider,
         email=account.email,
         is_active=account.is_active,
+        is_connected=True,
     )
 
 
@@ -114,5 +132,6 @@ def deactivate_account(account_id: int, db: Session = Depends(get_db)) -> Accoun
         provider=account.provider,
         email=account.email,
         is_active=account.is_active,
+        is_connected=False,
     )
 
