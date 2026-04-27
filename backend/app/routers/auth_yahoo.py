@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import imaplib
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -31,11 +32,24 @@ def connect_yahoo_app_password(req: YahooAppPasswordConnectRequest, db: Session 
     if account.provider != Provider.yahoo:
         raise HTTPException(status_code=409, detail="Account is not a Yahoo provider")
 
-    # NOTE: We intentionally don't validate against Yahoo yet (no IMAP/SMTP integration in rebuild MVP).
-    # This endpoint only stores the secret securely so later provider work can use it.
+    # Validate via IMAP login (minimal, no message fetching here).
     pw = req.app_password.strip()
     if len(pw) < 8:
         raise HTTPException(status_code=400, detail="App password looks too short")
+
+    try:
+        imap = imaplib.IMAP4_SSL("imap.mail.yahoo.com", 993)
+        try:
+            imap.login(account.email, pw)
+        finally:
+            try:
+                imap.logout()
+            except Exception:
+                pass
+    except imaplib.IMAP4.error as e:
+        raise HTTPException(status_code=401, detail=f"Yahoo auth failed: {e}") from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Yahoo validation failed: {e}") from e
 
     try:
         token_enc = encrypt_token(settings, pw)
