@@ -36,6 +36,17 @@ def gmail_oauth_start(req: GmailOAuthStartRequest, db: Session = Depends(get_db)
     if account.provider != Provider.gmail:
         raise HTTPException(status_code=409, detail="Account is not a Gmail provider")
 
+    # Hygiene: clear expired/pending states for this account/provider.
+    now = datetime.utcnow()
+    db.execute(
+        delete(OAuthState).where(
+            OAuthState.provider == OAuthProvider.gmail,
+            OAuthState.account_id == account.id,
+        )
+    )
+    db.execute(delete(OAuthState).where(OAuthState.expires_at < now))
+    db.commit()
+
     state = secrets.token_urlsafe(32)
     db.add(
         OAuthState(

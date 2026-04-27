@@ -129,6 +129,12 @@ def disconnect_account(account_id: int, db: Session = Depends(get_db)) -> dict:
 
     provider = OAuthProvider.gmail if account.provider == Provider.gmail else OAuthProvider.yahoo
     db.execute(
+        delete(OAuthState).where(
+            OAuthState.account_id == account.id,
+            OAuthState.provider == provider,
+        )
+    )
+    db.execute(
         delete(OAuthCredential).where(
             OAuthCredential.account_id == account.id,
             OAuthCredential.provider == provider,
