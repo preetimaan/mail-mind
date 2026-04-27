@@ -596,7 +596,32 @@ function Analyze({
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 600 }}>#{r.id}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: 13, color: '#6b7280' }}>{r.status}</div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        border: '1px solid #e5e7eb',
+                        background:
+                          r.status === 'completed'
+                            ? '#ecfdf5'
+                            : r.status === 'failed'
+                              ? '#fef2f2'
+                              : r.status === 'cancelled'
+                                ? '#fffbeb'
+                                : '#eff6ff',
+                        color:
+                          r.status === 'completed'
+                            ? '#065f46'
+                            : r.status === 'failed'
+                              ? '#b91c1c'
+                              : r.status === 'cancelled'
+                                ? '#92400e'
+                                : '#1d4ed8',
+                      }}
+                    >
+                      {r.status}
+                    </div>
                     {(r.status === 'failed' || r.status === 'cancelled') ? (
                       <button
                         disabled={busy || !!running}
