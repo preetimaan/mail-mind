@@ -109,6 +109,9 @@ export const api = {
   stopRun: async (runId: number) => {
     return await request<{ message: string }>(`/analysis/runs/${runId}/stop`, { method: 'POST' })
   },
+  retryRun: async (runId: number) => {
+    return await request<{ run_id: number }>(`/analysis/runs/${runId}/retry`, { method: 'POST' })
+  },
   listProcessedRanges: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<ProcessedRange[]>(`/insights/processed-ranges?${qs.toString()}`)

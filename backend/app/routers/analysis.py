@@ -129,3 +129,30 @@ def stop_run(run_id: int, db: Session = Depends(get_db)) -> dict:
     runner.stop(run_id)
     return {"message": "Stop requested"}
 
+
+@router.post("/analysis/runs/{run_id}/retry")
+def retry_run(run_id: int, db: Session = Depends(get_db)) -> dict:
+    r = db.get(AnalysisRun, run_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    if r.status not in (AnalysisStatus.failed, AnalysisStatus.cancelled):
+        raise HTTPException(status_code=409, detail="Only failed or cancelled runs can be retried")
+
+    # Simple retry: create a new run with the same range and start it.
+    new_run = AnalysisRun(
+        account_id=r.account_id,
+        start_date=r.start_date,
+        end_date_exclusive=r.end_date_exclusive,
+        status=AnalysisStatus.pending,
+        started_at=datetime.utcnow(),
+        emails_processed=0,
+        total_emails=0,
+    )
+    db.add(new_run)
+    db.commit()
+    db.refresh(new_run)
+
+    runner.start(new_run.id)
+    return {"run_id": new_run.id}
+

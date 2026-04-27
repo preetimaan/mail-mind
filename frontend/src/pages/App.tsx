@@ -522,7 +522,29 @@ function Analyze({
               <div key={r.id} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 600 }}>#{r.id}</div>
-                  <div style={{ fontSize: 13, color: '#6b7280' }}>{r.status}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 13, color: '#6b7280' }}>{r.status}</div>
+                    {(r.status === 'failed' || r.status === 'cancelled') ? (
+                      <button
+                        disabled={busy || !!running}
+                        onClick={async () => {
+                          setBusy(true)
+                          setError(null)
+                          try {
+                            const res = await api.retryRun(r.id)
+                            const data = await api.getRun(res.run_id)
+                            setRuns([data, ...runs])
+                          } catch (e: any) {
+                            setError(e?.message ?? 'Failed to retry')
+                          } finally {
+                            setBusy(false)
+                          }
+                        }}
+                      >
+                        Retry
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, color: '#374151' }}>
                   {r.start_date} → {r.end_date_exclusive} (end exclusive)
