@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models import EmailAccount, OAuthCredential, OAuthProvider, Provider
@@ -112,4 +112,22 @@ def deactivate_account(account_id: int, db: Session = Depends(get_db)) -> Accoun
         is_active=account.is_active,
         is_connected=False,
     )
+
+
+@router.post("/emails/accounts/{account_id}/disconnect")
+def disconnect_account(account_id: int, db: Session = Depends(get_db)) -> dict:
+    account = db.get(EmailAccount, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    provider = OAuthProvider.gmail if account.provider == Provider.gmail else OAuthProvider.yahoo
+    db.execute(
+        delete(OAuthCredential).where(
+            OAuthCredential.account_id == account.id,
+            OAuthCredential.provider == provider,
+        )
+    )
+    account.is_active = False
+    db.commit()
+    return {"message": "Account disconnected"}
 
