@@ -756,6 +756,25 @@ function Settings({
                   </div>
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {a.provider === 'gmail' ? (
+                    <button
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true)
+                        setError(null)
+                        try {
+                          const { auth_url } = await api.startGmailOAuth(a.id)
+                          window.location.href = auth_url
+                        } catch (e: any) {
+                          setError(e?.message ?? 'Failed to start Gmail OAuth')
+                        } finally {
+                          setBusy(false)
+                        }
+                      }}
+                    >
+                      Connect Gmail
+                    </button>
+                  ) : null}
                   {a.is_active ? (
                     <button
                       disabled={busy}

@@ -3,6 +3,8 @@ from __future__ import annotations
 import enum
 from datetime import datetime, date
 
+from sqlalchemy import Text
+
 from sqlalchemy import (
     Boolean,
     Date,
@@ -113,5 +115,42 @@ class ProcessedRange(Base):
 
     __table_args__ = (
         UniqueConstraint("account_id", "start_date", "end_date_exclusive", name="uq_processed_range"),
+    )
+
+
+class OAuthProvider(str, enum.Enum):
+    gmail = "gmail"
+    yahoo = "yahoo"
+
+
+class OAuthState(Base):
+    __tablename__ = "oauth_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[OAuthProvider] = mapped_column(Enum(OAuthProvider), index=True)
+    state: Mapped[str] = mapped_column(String, unique=True, index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
+class OAuthCredential(Base):
+    __tablename__ = "oauth_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[OAuthProvider] = mapped_column(Enum(OAuthProvider), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id"), index=True)
+
+    access_token_enc: Mapped[str] = mapped_column(Text)
+    refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_type: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("provider", "account_id", name="uq_oauth_credential_provider_account"),
     )
 

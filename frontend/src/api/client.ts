@@ -148,5 +148,11 @@ export const api = {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<YearlyFrequencyInsights>(`/insights/frequency/yearly?${qs.toString()}`)
   },
+  startGmailOAuth: async (accountId: number) => {
+    return await request<{ auth_url: string }>(`/oauth/gmail/start`, {
+      method: 'POST',
+      body: JSON.stringify({ account_id: accountId }),
+    })
+  },
 }
 

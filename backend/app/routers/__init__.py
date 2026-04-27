@@ -1,2 +1,2 @@
-from . import accounts, analysis, insights  # noqa: F401
+from . import accounts, analysis, insights, oauth_gmail  # noqa: F401
 
