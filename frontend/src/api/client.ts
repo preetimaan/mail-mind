@@ -99,6 +99,11 @@ export const api = {
   disconnectAccount: async (accountId: number) => {
     return await request<{ message: string }>(`/emails/accounts/${accountId}/disconnect`, { method: 'POST' })
   },
+  disconnectGmailAccount: async (accountId: number) => {
+    return await request<{ message: string; revoke_error?: string }>(`/emails/accounts/${accountId}/disconnect-gmail`, {
+      method: 'POST',
+    })
+  },
   resetAccountData: async (accountId: number) => {
     return await request<{ message: string }>(`/emails/accounts/${accountId}/reset-data`, { method: 'POST' })
   },

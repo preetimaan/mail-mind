@@ -910,7 +910,8 @@ function Settings({
                         setBusy(true)
                         setError(null)
                         try {
-                          await api.disconnectAccount(a.id)
+                          if (a.provider === 'gmail') await api.disconnectGmailAccount(a.id)
+                          else await api.disconnectAccount(a.id)
                           await refresh()
                         } catch (e: any) {
                           setError(e?.message ?? 'Failed to disconnect')
