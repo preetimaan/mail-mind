@@ -41,46 +41,46 @@ This branch implements Mail Mind with a clean, local-first architecture.
 ## Parity backlog (from original branch)
 
 ### Provider / auth / reconnect flows
-- [ ] **Gmail OAuth**
-  - [ ] OAuth callback route + frontend handler
-  - [ ] token storage (encrypted at rest)
-  - [ ] “account added successfully” UX
-- [ ] **Yahoo**
-  - [ ] app-password capture + secure storage
-  - [ ] connection validation + helpful errors
-- [ ] **Reconnect + expired account handling**
-  - [ ] mark account inactive on auth failure
-  - [ ] reconnect CTA in UI
-  - [ ] retry guard when account is expired/inactive
+- [x] **Gmail OAuth (local-only skeleton)**
+  - [x] OAuth callback route + frontend handler
+  - [x] token storage (encrypted at rest)
+  - [x] redirect back to Settings with status banner
+  - [ ] refresh-token reuse + provider revoke (later)
+- [x] **Yahoo (local-only skeleton)**
+  - [x] app-password capture + secure storage
+  - [x] connection validation (IMAP login)
+- [x] **Reconnect + expired account handling**
+  - [x] mark account inactive on auth failure (during fetch)
+  - [x] reconnect CTA in UI (Connect buttons per provider)
+  - [x] retry guard when account is expired/inactive (analysis requires connected)
 
 ### Operational / data maintenance
-- [ ] Recalculate insights (no re-fetch)
-- [ ] Cleanup duplicates (after force re-analysis)
+- [x] Recalculate insights (no re-fetch) (insights are computed from stored `EmailMessage`)
+- [x] Cleanup duplicates safety tool (maintenance dedupe endpoint)
 - [ ] (Optional) purge tools once we track sent/inbound
 
 ### Analysis semantics / robustness
-- [ ] Force re-analysis toggle
-- [ ] Large range chunking + chunk progress
-- [ ] Define/implement cancel semantics (keep partial vs revert partial)
+- [x] Force re-analysis toggle
+- [x] Large range chunking + chunk progress
+- [x] Define/implement cancel semantics (revert partial writes)
+- [ ] Provider-backed stop semantics (later; depends on provider fetch behavior)
 
 ### UI parity (same data, simpler visuals)
-- [ ] Recent analysis runs pagination (“Load more”)
-- [ ] Retry failed runs
-- [ ] Consistent status badges and clearer run state UX
+- [x] Recent analysis runs pagination (“Load more”)
+- [x] Retry failed runs
+- [x] Consistent status badges and clearer run state UX
 - [ ] (Later) charts upgrade for Insights
 
 ### Documentation
-- [ ] `DEVELOPER_SETUP.md`
-- [ ] `USER_GUIDE.md`
+- [x] `DEVELOPER_SETUP.md`
+- [x] `USER_GUIDE.md`
 
 ---
 
 ## Next up (recommended order)
 
-1. Docs (`DEVELOPER_SETUP.md`, `USER_GUIDE.md`)
-2. Reconnect + retry guard plumbing
-3. Retry + runs pagination
-4. Force re-analysis + duplicates cleanup
-5. Chunking + improved stop/cancel semantics
-6. Provider integrations (Gmail then Yahoo) to replace stub data
+1. Provider integrations to replace stub data (Gmail + Yahoo fetch hardening)
+2. Provider revoke/disconnect polish + rotation UX
+3. Optional: sent mail / outbound tracking
+4. UI visual upgrades (charts, richer layouts)
 
