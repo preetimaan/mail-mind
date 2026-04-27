@@ -49,6 +49,9 @@ export default function App() {
   const [startDate, setStartDate] = useState(yyyyMmDd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)))
   const [endDate, setEndDate] = useState(yyyyMmDd(new Date()))
   const [runs, setRuns] = useState<AnalysisRun[]>([])
+  const [runsOffset, setRunsOffset] = useState(0)
+  const [hasMoreRuns, setHasMoreRuns] = useState(false)
+  const [loadingMoreRuns, setLoadingMoreRuns] = useState(false)
   const [processedRanges, setProcessedRanges] = useState<ProcessedRange[]>([])
   const [gaps, setGaps] = useState<ProcessedRangeGap[]>([])
   const [runError, setRunError] = useState<string | null>(null)
@@ -82,6 +85,8 @@ export default function App() {
     void (async () => {
       const data = await api.listRuns(selectedAccountId, 5, 0)
       setRuns(data.runs)
+      setRunsOffset(data.runs.length)
+      setHasMoreRuns(data.has_more)
       const ranges = await api.listProcessedRanges(selectedAccountId)
       setProcessedRanges(ranges)
       const gapsData = await api.listProcessedRangeGaps(selectedAccountId)
@@ -270,6 +275,21 @@ export default function App() {
                 setEndDate={setEndDate}
                 runs={runs}
                 setRuns={setRuns}
+                hasMoreRuns={hasMoreRuns}
+                loadingMoreRuns={loadingMoreRuns}
+                loadMoreRuns={async () => {
+                  if (!selectedAccountId) return
+                  if (loadingMoreRuns || !hasMoreRuns) return
+                  setLoadingMoreRuns(true)
+                  try {
+                    const data = await api.listRuns(selectedAccountId, 5, runsOffset)
+                    setRuns((prev) => [...prev, ...data.runs])
+                    setRunsOffset((prev) => prev + data.runs.length)
+                    setHasMoreRuns(data.has_more)
+                  } finally {
+                    setLoadingMoreRuns(false)
+                  }
+                }}
                 processedRanges={processedRanges}
                 gaps={gaps}
                 busy={runBusy}
@@ -385,6 +405,9 @@ function Analyze({
   setEndDate,
   runs,
   setRuns,
+  hasMoreRuns,
+  loadingMoreRuns,
+  loadMoreRuns,
   processedRanges,
   gaps,
   busy,
@@ -399,6 +422,9 @@ function Analyze({
   setEndDate: (v: string) => void
   runs: AnalysisRun[]
   setRuns: (v: AnalysisRun[]) => void
+  hasMoreRuns: boolean
+  loadingMoreRuns: boolean
+  loadMoreRuns: () => Promise<void>
   processedRanges: ProcessedRange[]
   gaps: ProcessedRangeGap[]
   busy: boolean
@@ -506,6 +532,13 @@ function Analyze({
             ))}
           </div>
         )}
+        {hasMoreRuns ? (
+          <div style={{ marginTop: 10 }}>
+            <button disabled={loadingMoreRuns} onClick={() => void loadMoreRuns()}>
+              {loadingMoreRuns ? 'Loading…' : 'Load more'}
+            </button>
+          </div>
+        ) : null}
         {latest && latest.status === 'failed' ? (
           <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>Next: add retry endpoint.</div>
         ) : null}
