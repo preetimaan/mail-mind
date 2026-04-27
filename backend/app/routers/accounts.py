@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import EmailAccount, OAuthCredential, OAuthProvider, Provider
+from app.db.models import AnalysisRun, EmailAccount, EmailMessage, OAuthCredential, OAuthProvider, OAuthState, ProcessedRange, Provider
 from app.db.session import get_db
 
 
@@ -87,6 +87,13 @@ def delete_account(account_id: int, db: Session = Depends(get_db)) -> dict:
     account = db.get(EmailAccount, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+
+    # Cleanup: credentials + analysis artifacts.
+    db.execute(delete(OAuthState).where(OAuthState.account_id == account.id))
+    db.execute(delete(OAuthCredential).where(OAuthCredential.account_id == account.id))
+    db.execute(delete(EmailMessage).where(EmailMessage.account_id == account.id))
+    db.execute(delete(ProcessedRange).where(ProcessedRange.account_id == account.id))
+    db.execute(delete(AnalysisRun).where(AnalysisRun.account_id == account.id))
     db.delete(account)
     db.commit()
     return {"message": "Account deleted"}
@@ -130,4 +137,18 @@ def disconnect_account(account_id: int, db: Session = Depends(get_db)) -> dict:
     account.is_active = False
     db.commit()
     return {"message": "Account disconnected"}
+
+
+@router.post("/emails/accounts/{account_id}/reset-data")
+def reset_account_data(account_id: int, db: Session = Depends(get_db)) -> dict:
+    account = db.get(EmailAccount, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Purge local analysis artifacts but keep credentials/account.
+    db.execute(delete(EmailMessage).where(EmailMessage.account_id == account.id))
+    db.execute(delete(ProcessedRange).where(ProcessedRange.account_id == account.id))
+    db.execute(delete(AnalysisRun).where(AnalysisRun.account_id == account.id))
+    db.commit()
+    return {"message": "Local analysis data cleared"}
 

@@ -99,6 +99,9 @@ export const api = {
   disconnectAccount: async (accountId: number) => {
     return await request<{ message: string }>(`/emails/accounts/${accountId}/disconnect`, { method: 'POST' })
   },
+  resetAccountData: async (accountId: number) => {
+    return await request<{ message: string }>(`/emails/accounts/${accountId}/reset-data`, { method: 'POST' })
+  },
   startAnalysis: async (body: { account_id: number; start_date: string; end_date_exclusive: string; force_reanalysis?: boolean }) => {
     return await request<{ run_id: number }>(`/analysis/batch`, {
       method: 'POST',

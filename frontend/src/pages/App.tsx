@@ -899,6 +899,23 @@ function Settings({
                       setBusy(true)
                       setError(null)
                       try {
+                        await api.resetAccountData(a.id)
+                        await refresh()
+                      } catch (e: any) {
+                        setError(e?.message ?? 'Failed to reset local data')
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                  >
+                    Reset local data
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true)
+                      setError(null)
+                      try {
                         await api.deleteAccount(a.id)
                         await refresh()
                       } catch (e: any) {
