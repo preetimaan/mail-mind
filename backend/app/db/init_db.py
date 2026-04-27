@@ -35,3 +35,50 @@ def _ensure_schema() -> None:
                 text("CREATE INDEX IF NOT EXISTS ix_processed_ranges_analysis_run_id ON processed_ranges (analysis_run_id)")
             )
 
+        # OAuth tables were introduced after the initial scaffold; create_all won't add them for existing DBs.
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS oauth_states (
+                    id INTEGER PRIMARY KEY,
+                    provider VARCHAR NOT NULL,
+                    state VARCHAR NOT NULL,
+                    account_id INTEGER NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    expires_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_oauth_states_state ON oauth_states (state)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_states_provider ON oauth_states (provider)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_states_account_id ON oauth_states (account_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_states_expires_at ON oauth_states (expires_at)"))
+
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS oauth_credentials (
+                    id INTEGER PRIMARY KEY,
+                    provider VARCHAR NOT NULL,
+                    account_id INTEGER NOT NULL,
+                    access_token_enc TEXT NOT NULL,
+                    refresh_token_enc TEXT,
+                    expires_at DATETIME,
+                    scope TEXT,
+                    token_type VARCHAR,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_oauth_credential_provider_account "
+                "ON oauth_credentials (provider, account_id)"
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_credentials_provider ON oauth_credentials (provider)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_credentials_account_id ON oauth_credentials (account_id)"))
+

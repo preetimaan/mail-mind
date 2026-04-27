@@ -684,6 +684,7 @@ function Settings({
 }) {
   const [provider, setProvider] = useState<'gmail' | 'yahoo'>('gmail')
   const [email, setEmail] = useState('')
+  const [yahooAppPassword, setYahooAppPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -774,6 +775,35 @@ function Settings({
                     >
                       {a.is_active ? 'Reconnect Gmail' : 'Connect Gmail'}
                     </button>
+                  ) : null}
+                  {a.provider === 'yahoo' ? (
+                    <>
+                      <input
+                        type="password"
+                        value={yahooAppPassword}
+                        onChange={(e) => setYahooAppPassword(e.target.value)}
+                        placeholder="Yahoo app password"
+                        style={{ minWidth: 240, padding: '0.5rem 0.75rem' }}
+                      />
+                      <button
+                        disabled={busy || yahooAppPassword.trim().length < 8}
+                        onClick={async () => {
+                          setBusy(true)
+                          setError(null)
+                          try {
+                            await api.connectYahooAppPassword(a.id, yahooAppPassword)
+                            setYahooAppPassword('')
+                            await refresh()
+                          } catch (e: any) {
+                            setError(e?.message ?? 'Failed to save Yahoo app password')
+                          } finally {
+                            setBusy(false)
+                          }
+                        }}
+                      >
+                        {a.is_active ? 'Update app password' : 'Connect Yahoo'}
+                      </button>
+                    </>
                   ) : null}
                   {a.is_active ? (
                     <button

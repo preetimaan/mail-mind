@@ -154,5 +154,11 @@ export const api = {
       body: JSON.stringify({ account_id: accountId }),
     })
   },
+  connectYahooAppPassword: async (accountId: number, appPassword: string) => {
+    return await request<{ message: string }>(`/auth/yahoo/app-password`, {
+      method: 'POST',
+      body: JSON.stringify({ account_id: accountId, app_password: appPassword }),
+    })
+  },
 }
 

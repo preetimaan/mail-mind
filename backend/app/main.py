@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import accounts, analysis, insights, oauth_gmail
+from app.routers import accounts, analysis, auth_yahoo, insights, oauth_gmail
 from app.db.init_db import init_db
 from app.settings import get_settings
 
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
 
     app.include_router(accounts.router, prefix="/api")
     app.include_router(analysis.router, prefix="/api")
+    app.include_router(auth_yahoo.router, prefix="/api")
     app.include_router(insights.router, prefix="/api")
     app.include_router(oauth_gmail.router, prefix="/api")
 
