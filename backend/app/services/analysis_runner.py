@@ -78,11 +78,10 @@ class InProcessAnalysisRunner:
             if not account:
                 raise RuntimeError("Account not found for run")
 
-            # Real provider fetching:
-            # - Gmail: Gmail API metadata
-            # - Yahoo: IMAP header metadata
-            # Total emails is estimated as "messages discovered" for now.
-            if not run.total_emails or run.total_emails <= 0:
+            # total_emails: running upper bound for UI progress = processed so far + known work
+            # remaining in the current chunk (must update when the queue is known, not only at chunk end,
+            # otherwise emails_processed overtakes total_emails between chunks).
+            if not run.total_emails or run.total_emails < 0:
                 run.total_emails = 0
             db.commit()
 
@@ -113,6 +112,9 @@ class InProcessAnalysisRunner:
                         account.is_active = False
                         db.commit()
                         raise RuntimeError(f"Yahoo fetch failed: {e}") from e
+
+                    run.total_emails = max(run.total_emails, run.emails_processed + len(metas))
+                    db.commit()
 
                     for m in metas:
                         if cancel.is_set():
@@ -181,6 +183,9 @@ class InProcessAnalysisRunner:
                             account.is_active = False
                             db.commit()
                             raise RuntimeError(f"Gmail fetch failed: {e}") from e
+
+                    run.total_emails = max(run.total_emails, run.emails_processed + len(ids))
+                    db.commit()
 
                     for mid in ids:
                         if cancel.is_set():
@@ -252,8 +257,8 @@ class InProcessAnalysisRunner:
                             run.emails_processed += 1
                         time.sleep(0.01)
 
-                # Update total_emails as we discover messages.
-                run.total_emails += fetched_count
+                # Snap total to committed count so skipped/failed IDs do not leave an inflated denominator.
+                run.total_emails = run.emails_processed
                 db.commit()
 
                 try:

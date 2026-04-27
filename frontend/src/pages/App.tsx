@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   api,
   type AnalysisRun,
@@ -32,8 +32,18 @@ function addDays(dateStr: string, days: number) {
   return yyyyMmDd(d)
 }
 
-function subDays(dateStr: string, days: number) {
-  return addDays(dateStr, -days)
+function providerLabel(p: EmailAccount['provider']): string {
+  return p === 'gmail' ? 'Gmail' : 'Yahoo'
+}
+
+/** Consumer domains only; Google Workspace / custom domains need a manual provider pick. */
+function suggestedProviderFromEmail(email: string): 'gmail' | 'yahoo' | null {
+  const m = email.trim().toLowerCase().match(/@([^@\s]+)$/)
+  if (!m) return null
+  const host = m[1]
+  if (['yahoo.com', 'ymail.com', 'rocketmail.com'].includes(host)) return 'yahoo'
+  if (['gmail.com', 'googlemail.com'].includes(host)) return 'gmail'
+  return null
 }
 
 export default function App() {
@@ -52,7 +62,8 @@ export default function App() {
   )
 
   const [startDate, setStartDate] = useState(yyyyMmDd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)))
-  const [endDate, setEndDate] = useState(yyyyMmDd(new Date()))
+  // End field is end_date_exclusive (first day NOT in range). Default = day after today → same as old “inclusive today”.
+  const [endDate, setEndDate] = useState(addDays(yyyyMmDd(new Date()), 1))
   const [runs, setRuns] = useState<AnalysisRun[]>([])
   const [runsOffset, setRunsOffset] = useState(0)
   const [hasMoreRuns, setHasMoreRuns] = useState(false)
@@ -255,7 +266,7 @@ export default function App() {
                   </option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.provider} • {a.email}
+                      {providerLabel(a.provider)} • {a.email}
                       {a.is_connected ? '' : ' (not connected)'}
                       {a.is_active ? '' : ' (inactive)'}
                     </option>
@@ -494,8 +505,9 @@ function Analyze({
   const running = runs.find((r) => r.status === 'pending' || r.status === 'processing') ?? null
   const latest = runs[0] ?? null
 
-  const progressPct =
-    running && running.total_emails > 0 ? Math.round((running.emails_processed / running.total_emails) * 100) : 0
+  const rawPct =
+    running && running.total_emails > 0 ? (running.emails_processed / running.total_emails) * 100 : 0
+  const progressPct = Math.min(100, Math.max(0, Math.round(rawPct)))
 
   return (
     <div style={{ marginTop: 12 }}>
@@ -503,11 +515,11 @@ function Analyze({
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 13, color: '#374151' }}>Start</label>
+          <label style={{ fontSize: 13, color: '#374151' }}>Start (on and after)</label>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 13, color: '#374151' }}>End (inclusive)</label>
+          <label style={{ fontSize: 13, color: '#374151' }}>End (before, exclusive)</label>
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151' }}>
@@ -526,11 +538,10 @@ function Analyze({
             setBusy(true)
             setError(null)
             try {
-              const endExclusive = addDays(endDate, 1)
               const res = await api.startAnalysis({
                 account_id: accountId,
                 start_date: startDate,
-                end_date_exclusive: endExclusive,
+                end_date_exclusive: endDate,
                 force_reanalysis: forceReanalysis,
               })
               const data = await api.getRun(res.run_id)
@@ -698,7 +709,7 @@ function Analyze({
                 key={`${g.start_date}-${g.end_date_exclusive}-${idx}`}
                 onClick={() => {
                   setStartDate(g.start_date)
-                  setEndDate(subDays(g.end_date_exclusive, 1))
+                  setEndDate(g.end_date_exclusive)
                 }}
                 style={{
                   textAlign: 'left',
@@ -747,6 +758,13 @@ function Settings({
   const [yahooAppPassword, setYahooAppPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const providerChosenManually = useRef(false)
+
+  useEffect(() => {
+    if (providerChosenManually.current) return
+    const s = suggestedProviderFromEmail(email)
+    if (s) setProvider(s)
+  }, [email])
 
   const refresh = async () => {
     const data = await api.listAccounts(username)
@@ -779,10 +797,20 @@ function Settings({
         </div>
       ) : null}
       {error ? <div style={{ color: '#b91c1c', marginBottom: 8 }}>{error}</div> : null}
+      <p style={{ margin: '0 0 0.5rem 0', fontSize: 13, color: '#4b5563' }}>
+        Provider is how Mail Mind connects (Gmail OAuth vs Yahoo app password), not a guess from the address alone. For
+        @yahoo.com / @ymail.com we preselect Yahoo until you change it.
+      </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <select value={provider} onChange={(e) => setProvider(e.target.value as any)}>
-          <option value="gmail">gmail</option>
-          <option value="yahoo">yahoo</option>
+        <select
+          value={provider}
+          onChange={(e) => {
+            providerChosenManually.current = true
+            setProvider(e.target.value as 'gmail' | 'yahoo')
+          }}
+        >
+          <option value="gmail">Gmail</option>
+          <option value="yahoo">Yahoo</option>
         </select>
         <input
           value={email}
@@ -798,6 +826,7 @@ function Settings({
             try {
               await api.createAccount({ username, provider, email })
               setEmail('')
+              providerChosenManually.current = false
               await refresh()
             } catch (e: any) {
               setError(e?.message ?? 'Failed')
@@ -811,7 +840,7 @@ function Settings({
       </div>
 
       <div style={{ marginTop: 14 }}>
-        <h4 style={{ margin: '0 0 0.5rem 0' }}>Existing accounts</h4>
+        <h4 style={{ margin: '0 0 0.5rem 0' }}>Your accounts</h4>
         {accounts.length === 0 ? (
           <div style={{ color: '#6b7280' }}>No accounts yet.</div>
         ) : (
@@ -828,7 +857,7 @@ function Settings({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 600 }}>
-                    {a.provider} • {a.email}
+                    {providerLabel(a.provider)} • {a.email}
                   </div>
                   <div style={{ fontSize: 13, color: a.is_connected ? '#065f46' : '#92400e' }}>
                     {a.is_connected ? 'connected' : 'not connected'}
@@ -856,20 +885,35 @@ function Settings({
                   ) : null}
                   {a.provider === 'yahoo' ? (
                     <>
+                      <p
+                        style={{
+                          margin: '0 0 6px 0',
+                          maxWidth: 560,
+                          fontSize: 12,
+                          color: '#374151',
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        <strong>Not your usual Yahoo login password.</strong> In Yahoo (Account security), create a
+                        one-time <strong>app password</strong> for “Mail” or another label—Yahoo shows a long code.
+                        Paste that code here; Mail Mind stores it encrypted and uses it for IMAP only.
+                      </p>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <input
                         type="password"
                         value={yahooAppPassword}
                         onChange={(e) => setYahooAppPassword(e.target.value)}
-                        placeholder="Yahoo app password"
+                        placeholder="Paste app password from Yahoo (spaces OK)"
                         style={{ minWidth: 240, padding: '0.5rem 0.75rem' }}
                       />
                       <button
-                        disabled={busy || yahooAppPassword.trim().length < 8}
+                        disabled={busy || yahooAppPassword.replace(/\s+/g, '').length < 8}
                         onClick={async () => {
                           setBusy(true)
                           setError(null)
                           try {
-                            await api.connectYahooAppPassword(a.id, yahooAppPassword)
+                            const pw = yahooAppPassword.replace(/\s+/g, '')
+                            await api.connectYahooAppPassword(a.id, pw)
                             setYahooAppPassword('')
                             await refresh()
                           } catch (e: any) {
@@ -881,6 +925,7 @@ function Settings({
                       >
                         {a.is_active ? 'Update app password' : 'Connect Yahoo'}
                       </button>
+                      </div>
                     </>
                   ) : null}
                   {a.is_active ? (

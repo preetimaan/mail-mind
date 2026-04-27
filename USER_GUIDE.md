@@ -22,9 +22,9 @@ Mail Mind helps you analyze your email patterns (senders, categories, trends). I
 
 Use this tab to run analyses and manage coverage.
 
-- **Start/End dates**: choose the date range you want analyzed.
-  - The UI uses an inclusive end date.
-  - Internally, the system uses a half-open range: \([start, endExclusive)\).
+- **Start/End dates**: choose the analysis window as a half-open range \([start, endExclusive)\).
+  - **Start (on and after)**: first calendar day included.
+  - **End (before, exclusive)**: first calendar day **not** included (same value the API calls `end_date_exclusive`).
 - **Start analysis**: begins a new analysis run.
 - **Stop**: requests stopping the currently running analysis.
 
@@ -48,9 +48,9 @@ If Insights are empty, run an analysis first.
 
 Account management:
 
-- Add an email account (provider + email)
+- Add an email account: choose **provider** (how Mail Mind connects) and your **email address**.
+- **Gmail**: click **Connect Gmail** and finish Google’s OAuth consent. You need Gmail API OAuth client id/secret configured on the server (see developer setup).
+- **Yahoo**: you do **not** type your normal Yahoo login password here. In Yahoo **Account security**, generate an **app password** (a long one-time code Yahoo shows you). Paste that code into Mail Mind and click **Connect Yahoo**. Mail Mind validates it with IMAP and stores it encrypted.
 
-## Current limitation (temporary)
-
-Provider integrations (Gmail OAuth / Yahoo app-password) are not implemented yet. Until then, analysis runs generate deterministic “stub” email metadata so you can use the product flows and insights UI during development.
+Analysis uses real provider metadata once the account is connected; Mail Mind keeps **metadata only** locally (see developer docs for detail).
 
