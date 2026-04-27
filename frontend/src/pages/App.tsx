@@ -878,6 +878,7 @@ function Settings({
                     <button
                       disabled={busy}
                       onClick={async () => {
+                        if (!window.confirm('Disconnect this account? This removes stored credentials and deactivates the account.')) return
                         setBusy(true)
                         setError(null)
                         try {
@@ -896,6 +897,7 @@ function Settings({
                   <button
                     disabled={busy}
                     onClick={async () => {
+                      if (!window.confirm('Reset local analysis data for this account? This deletes runs/messages/ranges but keeps credentials.')) return
                       setBusy(true)
                       setError(null)
                       try {
@@ -913,6 +915,7 @@ function Settings({
                   <button
                     disabled={busy}
                     onClick={async () => {
+                      if (!window.confirm('Delete this account? This deletes the account, credentials, and all local data.')) return
                       setBusy(true)
                       setError(null)
                       try {
