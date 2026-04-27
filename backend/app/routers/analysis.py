@@ -56,8 +56,8 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
         db.execute(
             delete(ProcessedRange)
             .where(ProcessedRange.account_id == req.account_id)
-            .where(ProcessedRange.start_date == req.start_date)
-            .where(ProcessedRange.end_date_exclusive == req.end_date_exclusive)
+            .where(ProcessedRange.start_date >= req.start_date)
+            .where(ProcessedRange.end_date_exclusive <= req.end_date_exclusive)
         )
         db.commit()
 

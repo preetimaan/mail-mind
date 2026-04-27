@@ -5,7 +5,7 @@ import random
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.models import AnalysisRun, AnalysisStatus, EmailMessage, ProcessedRange
 from app.db.session import SessionLocal
+
+CHUNK_DAYS = 7
 
 
 @dataclass(frozen=True)
@@ -74,37 +76,48 @@ class InProcessAnalysisRunner:
                 run.total_emails = max(10, min(500, day_span * 15))
             db.commit()
 
-            for i in range(run.emails_processed, run.total_emails):
-                if cancel.is_set():
-                    # Revert partial writes for this run.
-                    db.execute(delete(EmailMessage).where(EmailMessage.analysis_run_id == run.id))
-                    run.status = AnalysisStatus.cancelled
-                    run.finished_at = datetime.utcnow()
+            chunks = _chunk_ranges(run.start_date, run.end_date_exclusive, days=CHUNK_DAYS)
+            chunk_totals = _distribute_total(total=run.total_emails, weights=[(e - s).days for (s, e) in chunks])
+            start_index = run.emails_processed
+            global_index = 0
+
+            for (chunk_start, chunk_end), chunk_total in zip(chunks, chunk_totals):
+                chunk_first_index = global_index
+                chunk_last_index_exclusive = global_index + chunk_total
+                global_index = chunk_last_index_exclusive
+
+                # Skip chunks already fully processed (e.g., resume-ish behavior if we ever add it).
+                if start_index >= chunk_last_index_exclusive:
+                    continue
+
+                for i in range(max(start_index, chunk_first_index), chunk_last_index_exclusive):
+                    if cancel.is_set():
+                        _revert_partial_run(db, run)
+                        return
+
+                    msg = _generate_message(run, index=i, chunk_start=chunk_start, chunk_end_exclusive=chunk_end)
+                    msg.analysis_run_id = run.id
+                    db.add(msg)
+
+                    run.emails_processed = i + 1
                     db.commit()
-                    return
+                    time.sleep(0.03)
 
-                # Persist deterministic stub message metadata so Insights can be real.
-                msg = _generate_message(run, index=i)
-                msg.analysis_run_id = run.id
-                db.add(msg)
-
-                run.emails_processed = i + 1
-                db.commit()
-                time.sleep(0.03)
-
-            # Mark processed coverage (half-open range).
-            try:
-                db.add(
-                    ProcessedRange(
-                        account_id=run.account_id,
-                        start_date=run.start_date,
-                        end_date_exclusive=run.end_date_exclusive,
-                        emails_count=run.total_emails,
+                # Mark processed coverage (half-open range) per chunk.
+                try:
+                    db.add(
+                        ProcessedRange(
+                            account_id=run.account_id,
+                            analysis_run_id=run.id,
+                            start_date=chunk_start,
+                            end_date_exclusive=chunk_end,
+                            emails_count=chunk_total,
+                        )
                     )
-                )
-                db.commit()
-            except IntegrityError:
-                db.rollback()
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
+
             run.status = AnalysisStatus.completed
             run.finished_at = datetime.utcnow()
             db.commit()
@@ -112,12 +125,7 @@ class InProcessAnalysisRunner:
             try:
                 run = db.get(AnalysisRun, run_id)
                 if run and run.status in (AnalysisStatus.pending, AnalysisStatus.processing):
-                    # Revert partial writes for this run.
-                    db.execute(delete(EmailMessage).where(EmailMessage.analysis_run_id == run.id))
-                    run.status = AnalysisStatus.failed
-                    run.error_message = str(e)
-                    run.finished_at = datetime.utcnow()
-                    db.commit()
+                    _revert_partial_run(db, run, failed_error=str(e))
             except Exception:
                 db.rollback()
         finally:
@@ -129,12 +137,68 @@ class InProcessAnalysisRunner:
 runner = InProcessAnalysisRunner()
 
 
-def _generate_message(run: AnalysisRun, index: int) -> EmailMessage:
+def _revert_partial_run(db: Session, run: AnalysisRun, failed_error: str | None = None) -> None:
+    # Revert partial writes for this run.
+    db.execute(delete(EmailMessage).where(EmailMessage.analysis_run_id == run.id))
+    db.execute(delete(ProcessedRange).where(ProcessedRange.analysis_run_id == run.id))
+    if failed_error is None:
+        run.status = AnalysisStatus.cancelled
+    else:
+        run.status = AnalysisStatus.failed
+        run.error_message = failed_error
+    run.finished_at = datetime.utcnow()
+    db.commit()
+
+
+def _chunk_ranges(start_date: date, end_date_exclusive: date, days: int) -> list[tuple[date, date]]:
+    if end_date_exclusive <= start_date:
+        return []
+    if days <= 0:
+        return [(start_date, end_date_exclusive)]
+    out: list[tuple[date, date]] = []
+    cur = start_date
+    step = timedelta(days=days)
+    while cur < end_date_exclusive:
+        nxt = min(end_date_exclusive, cur + step)
+        out.append((cur, nxt))
+        cur = nxt
+    return out
+
+
+def _distribute_total(total: int, weights: list[int]) -> list[int]:
+    if total <= 0:
+        return [0 for _ in weights]
+    wsum = sum(max(0, w) for w in weights)
+    if wsum <= 0:
+        # Even distribution if weights are all zero.
+        base = total // max(1, len(weights))
+        rem = total - base * len(weights)
+        return [base + (1 if i < rem else 0) for i in range(len(weights))]
+
+    raw = [total * max(0, w) / wsum for w in weights]
+    floors = [int(x) for x in raw]
+    rem = total - sum(floors)
+    # Largest remainder method
+    remainders = sorted([(raw[i] - floors[i], i) for i in range(len(weights))], reverse=True)
+    for k in range(rem):
+        floors[remainders[k][1]] += 1
+    return floors
+
+
+def _generate_message(
+    run: AnalysisRun,
+    index: int,
+    chunk_start: datetime.date,
+    chunk_end_exclusive: datetime.date,
+) -> EmailMessage:
     """
     Deterministic pseudo-email generator keyed by run params.
     Creates a stable dataset for insights until provider connectors exist.
     """
-    seed_input = f"{run.account_id}:{run.start_date.isoformat()}:{run.end_date_exclusive.isoformat()}:{index}".encode()
+    seed_input = (
+        f"{run.account_id}:{run.start_date.isoformat()}:{run.end_date_exclusive.isoformat()}:"
+        f"{chunk_start.isoformat()}:{chunk_end_exclusive.isoformat()}:{index}".encode()
+    )
     seed = int(hashlib.sha256(seed_input).hexdigest()[:8], 16)
     rng = random.Random(seed)
 
@@ -165,9 +229,11 @@ def _generate_message(run: AnalysisRun, index: int) -> EmailMessage:
 
     subject = f"{rng.choice(keywords).title()} #{(seed % 5000) + 1}"
 
-    span_days = max(1, (run.end_date_exclusive - run.start_date).days)
+    span_days = max(1, (chunk_end_exclusive - chunk_start).days)
     offset_days = rng.randrange(0, span_days)
-    received_at = datetime.combine(run.start_date, datetime.min.time()) + timedelta(days=offset_days, minutes=rng.randrange(0, 24 * 60))
+    received_at = datetime.combine(chunk_start, datetime.min.time()) + timedelta(
+        days=offset_days, minutes=rng.randrange(0, 24 * 60)
+    )
 
     return EmailMessage(
         account_id=run.account_id,

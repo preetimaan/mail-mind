@@ -102,6 +102,7 @@ class ProcessedRange(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id"), index=True)
+    analysis_run_id: Mapped[int | None] = mapped_column(ForeignKey("analysis_runs.id"), index=True, nullable=True)
 
     start_date: Mapped[date] = mapped_column(Date)
     end_date_exclusive: Mapped[date] = mapped_column(Date)

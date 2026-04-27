@@ -27,3 +27,11 @@ def _ensure_schema() -> None:
             conn.execute(text("ALTER TABLE email_messages ADD COLUMN analysis_run_id INTEGER"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_email_messages_analysis_run_id ON email_messages (analysis_run_id)"))
 
+        pr_cols = conn.execute(text("PRAGMA table_info('processed_ranges')")).fetchall()
+        pr_col_names = {c[1] for c in pr_cols}
+        if pr_cols and "analysis_run_id" not in pr_col_names:
+            conn.execute(text("ALTER TABLE processed_ranges ADD COLUMN analysis_run_id INTEGER"))
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_processed_ranges_analysis_run_id ON processed_ranges (analysis_run_id)")
+            )
+
