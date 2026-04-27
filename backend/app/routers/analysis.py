@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount
 from app.db.session import get_db
+from app.services.analysis_runner import runner
 
 
 router = APIRouter(tags=["analysis"])
@@ -39,11 +40,24 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
     if req.end_date_exclusive <= req.start_date:
         raise HTTPException(status_code=400, detail="Invalid date range")
 
+    existing = (
+        db.execute(
+            select(AnalysisRun.id).where(
+                AnalysisRun.account_id == req.account_id,
+                AnalysisRun.status.in_([AnalysisStatus.pending, AnalysisStatus.processing]),
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Analysis already running for this account")
+
     run = AnalysisRun(
         account_id=req.account_id,
         start_date=req.start_date,
         end_date_exclusive=req.end_date_exclusive,
-        status=AnalysisStatus.processing,
+        status=AnalysisStatus.pending,
         started_at=datetime.utcnow(),
         emails_processed=0,
         total_emails=0,
@@ -52,10 +66,7 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
     db.commit()
     db.refresh(run)
 
-    # Stub: immediately complete. In Phase 2 we'll run a background task and update progress.
-    run.status = AnalysisStatus.completed
-    run.finished_at = datetime.utcnow()
-    db.commit()
+    runner.start(run.id)
 
     return {"run_id": run.id}
 
@@ -105,4 +116,16 @@ def get_run(run_id: int, db: Session = Depends(get_db)) -> AnalysisRunResponse:
         total_emails=r.total_emails,
         error_message=r.error_message,
     )
+
+
+@router.post("/analysis/runs/{run_id}/stop")
+def stop_run(run_id: int, db: Session = Depends(get_db)) -> dict:
+    r = db.get(AnalysisRun, run_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if r.status not in (AnalysisStatus.pending, AnalysisStatus.processing):
+        return {"message": "No running analysis to stop"}
+
+    runner.stop(run_id)
+    return {"message": "Stop requested"}
 
