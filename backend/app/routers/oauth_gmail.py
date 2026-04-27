@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -68,14 +68,11 @@ def gmail_oauth_callback(
     state: str | None = None,
     error: str | None = None,
     db: Session = Depends(get_db),
-) -> HTMLResponse:
+) -> RedirectResponse:
     settings = get_settings()
 
     if error:
-        return HTMLResponse(
-            f"<h2>Gmail connect failed</h2><p>{error}</p><p><a href='{settings.frontend_url}'>Back to app</a></p>",
-            status_code=400,
-        )
+        return RedirectResponse(url=f"{settings.frontend_url}/?oauth=gmail&status=error&message={error}", status_code=302)
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code/state")
 
@@ -161,8 +158,8 @@ def gmail_oauth_callback(
     db.execute(delete(OAuthState).where(OAuthState.id == row.id))
     db.commit()
 
-    return HTMLResponse(
-        f"<h2>Gmail connected</h2><p>Tokens stored locally.</p><p><a href='{settings.frontend_url}'>Back to app</a></p>",
-        status_code=200,
+    return RedirectResponse(
+        url=f"{settings.frontend_url}/?oauth=gmail&status=ok&account_id={row.account_id}",
+        status_code=302,
     )
 

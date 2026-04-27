@@ -40,6 +40,7 @@ export default function App() {
   const [username, setUsername] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
   const [tab, setTab] = useState<Tab>('analysis')
+  const [oauthBanner, setOauthBanner] = useState<string | null>(null)
 
   const [accounts, setAccounts] = useState<EmailAccount[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
@@ -73,6 +74,20 @@ export default function App() {
     if (saved.trim().length > 0) {
       setUsername(saved)
       setLoggedIn(true)
+    }
+
+    const url = new URL(window.location.href)
+    const oauth = url.searchParams.get('oauth')
+    const status = url.searchParams.get('status')
+    const message = url.searchParams.get('message')
+    if (oauth === 'gmail' && status) {
+      if (status === 'ok') setOauthBanner('Gmail connected.')
+      else setOauthBanner(`Gmail connect failed${message ? `: ${message}` : ''}`)
+      url.searchParams.delete('oauth')
+      url.searchParams.delete('status')
+      url.searchParams.delete('message')
+      url.searchParams.delete('account_id')
+      window.history.replaceState({}, '', url.toString())
     }
   }, [])
 
@@ -282,6 +297,8 @@ export default function App() {
                 username={username}
                 accounts={accounts}
                 selectedAccountId={selectedAccountId}
+                banner={oauthBanner}
+                clearBanner={() => setOauthBanner(null)}
                 onAccountsChange={(a) => {
                   setAccounts(a)
                   if (a.length === 0) setSelectedAccountId(null)
@@ -675,11 +692,15 @@ function Settings({
   username,
   accounts,
   selectedAccountId,
+  banner,
+  clearBanner,
   onAccountsChange,
 }: {
   username: string
   accounts: EmailAccount[]
   selectedAccountId: number | null
+  banner: string | null
+  clearBanner: () => void
   onAccountsChange: (accounts: EmailAccount[]) => void
 }) {
   const [provider, setProvider] = useState<'gmail' | 'yahoo'>('gmail')
@@ -700,6 +721,24 @@ function Settings({
   return (
     <div style={{ marginTop: 12 }}>
       <h3 style={{ margin: '0 0 0.5rem 0' }}>Account Management</h3>
+      {banner ? (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: 10,
+            border: '1px solid #e5e7eb',
+            borderRadius: 10,
+            background: '#f9fafb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: 13, color: '#374151' }}>{banner}</div>
+          <button onClick={clearBanner}>Dismiss</button>
+        </div>
+      ) : null}
       {error ? <div style={{ color: '#b91c1c', marginBottom: 8 }}>{error}</div> : null}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <select value={provider} onChange={(e) => setProvider(e.target.value as any)}>
