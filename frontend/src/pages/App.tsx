@@ -772,7 +772,7 @@ function Settings({
                         }
                       }}
                     >
-                      Connect Gmail
+                      {a.is_active ? 'Reconnect Gmail' : 'Connect Gmail'}
                     </button>
                   ) : null}
                   {a.is_active ? (

@@ -44,7 +44,11 @@ def list_accounts(username: str, db: Session = Depends(get_db)) -> list[AccountR
 
 @router.post("/emails/accounts", response_model=AccountResponse)
 def create_account(req: AccountCreateRequest, db: Session = Depends(get_db)) -> AccountResponse:
-    account = EmailAccount(username=req.username, provider=req.provider, email=str(req.email), is_active=True)
+    # Provider-aware activation:
+    # - Gmail requires OAuth connect flow
+    # - Yahoo will require app-password auth flow
+    # So accounts start inactive until authenticated.
+    account = EmailAccount(username=req.username, provider=req.provider, email=str(req.email), is_active=False)
     db.add(account)
     try:
         db.commit()
