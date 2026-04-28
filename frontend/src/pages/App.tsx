@@ -382,7 +382,17 @@ export default function App() {
   )
 }
 
-function TopSenderRow({ accountId, email, count }: { accountId: number; email: string; count: number }) {
+function TopSenderRow({
+  accountId,
+  email,
+  name,
+  count,
+}: {
+  accountId: number
+  email: string
+  name: string | null
+  count: number
+}) {
   const [expanded, setExpanded] = useState(false)
   const [samples, setSamples] = useState<SenderMessageSample[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -410,7 +420,10 @@ function TopSenderRow({ accountId, email, count }: { accountId: number; email: s
   return (
     <div style={{ paddingBottom: 8, marginBottom: 8, borderBottom: '1px solid #f3f4f6' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ fontSize: 13, color: '#374151', flex: 1, wordBreak: 'break-all' }}>{email}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {name ? <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{name}</div> : null}
+          <div style={{ fontSize: 12, color: '#6b7280', wordBreak: 'break-all' }}>{email}</div>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{ fontSize: 13, color: '#6b7280' }}>{count}</div>
           <button type="button" onClick={onToggle} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}>
@@ -491,7 +504,25 @@ function Insights({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {senders.top_senders.map((s) => (
-                <TopSenderRow key={s.email} accountId={accountId} email={s.email} count={s.count} />
+                <TopSenderRow key={s.email} accountId={accountId} email={s.email} name={s.name} count={s.count} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Top domains</h3>
+          {!senders ? (
+            <div style={{ color: '#6b7280' }}>Loading…</div>
+          ) : senders.top_domains.length === 0 ? (
+            <div style={{ color: '#6b7280' }}>No data yet. Run an analysis.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {senders.top_domains.map((d) => (
+                <div key={d.domain} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ fontSize: 13, color: '#374151', wordBreak: 'break-all' }}>{d.domain}</div>
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>{d.count}</div>
+                </div>
               ))}
             </div>
           )}

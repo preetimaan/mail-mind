@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange
@@ -226,6 +226,51 @@ def top_senders(account_id: int, limit: int = 10, db: Session = Depends(get_db))
         .limit(limit)
     ).all()
 
+    top_emails = [r.sender_email for r in rows]
+    name_by_email: dict[str, str | None] = {e: None for e in top_emails}
+    if top_emails:
+        # Best-effort display name: most frequently observed sender_name for that sender_email.
+        # (We intentionally avoid trying to "decode" Gmail display names beyond what providers give us.)
+        name_counts = (
+            select(
+                EmailMessage.sender_email.label("sender_email"),
+                EmailMessage.sender_name.label("sender_name"),
+                func.count().label("name_count"),
+            )
+            .where(EmailMessage.account_id == account_id)
+            .where(EmailMessage.sender_email.in_(top_emails))
+            .where(EmailMessage.sender_name.is_not(None))
+            .where(EmailMessage.sender_name != "")
+            .group_by(EmailMessage.sender_email, EmailMessage.sender_name)
+            .subquery()
+        )
+
+        max_counts = (
+            select(
+                name_counts.c.sender_email.label("sender_email"),
+                func.max(name_counts.c.name_count).label("max_count"),
+            )
+            .group_by(name_counts.c.sender_email)
+            .subquery()
+        )
+
+        best_names = db.execute(
+            select(
+                name_counts.c.sender_email,
+                func.min(name_counts.c.sender_name).label("sender_name"),
+            )
+            .join(
+                max_counts,
+                and_(
+                    name_counts.c.sender_email == max_counts.c.sender_email,
+                    name_counts.c.name_count == max_counts.c.max_count,
+                ),
+            )
+            .group_by(name_counts.c.sender_email)
+        ).all()
+        for r in best_names:
+            name_by_email[str(r.sender_email)] = str(r.sender_name) if r.sender_name is not None else None
+
     total_emails = db.execute(
         select(func.count()).select_from(EmailMessage).where(EmailMessage.account_id == account_id)
     ).scalar_one()
@@ -243,7 +288,9 @@ def top_senders(account_id: int, limit: int = 10, db: Session = Depends(get_db))
 
     return {
         "total_emails": total_emails,
-        "top_senders": [{"email": r.sender_email, "name": None, "count": int(r.count)} for r in rows],
+        "top_senders": [
+            {"email": r.sender_email, "name": name_by_email.get(r.sender_email), "count": int(r.count)} for r in rows
+        ],
         "top_domains": [{"domain": r.domain, "count": int(r.count)} for r in domains_rows],
     }
 

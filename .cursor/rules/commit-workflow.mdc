@@ -1,0 +1,11 @@
+---
+description: Commit workflow (message inference + when to commit)
+alwaysApply: true
+---
+
+# Commit workflow
+
+- **Commit only when the user explicitly asks.**
+- **Infer the commit message** from the *intent* of **all** changes being committed (don’t ask for a message unless the user explicitly wants to provide one).
+- **Proactively suggest a commit** when we reach a **logical, independent, and error-free** checkpoint in a feature, but do not commit without the explicit ask.
+
