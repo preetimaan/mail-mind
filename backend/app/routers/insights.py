@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import EmailAccount, EmailMessage, ProcessedRange
+from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange
 from app.db.session import get_db
 
 
@@ -38,9 +38,26 @@ def summary(username: str, account_id: int | None = None, db: Session = Depends(
     account_emails = 0
     account_senders = 0
     if account_id is not None:
-        processed_ranges = db.execute(
-            select(func.count()).select_from(ProcessedRange).where(ProcessedRange.account_id == account_id)
+        completed_runs = db.execute(
+            select(func.count())
+            .select_from(AnalysisRun)
+            .where(AnalysisRun.account_id == account_id, AnalysisRun.status == AnalysisStatus.completed)
         ).scalar_one()
+        legacy_rows = db.execute(
+            select(
+                ProcessedRange.start_date,
+                ProcessedRange.end_date_exclusive,
+                ProcessedRange.emails_count,
+                ProcessedRange.processed_at,
+            )
+            .where(ProcessedRange.account_id == account_id)
+            .where(ProcessedRange.analysis_run_id.is_(None))
+        ).all()
+        legacy_tuples_summary = [
+            (row.start_date, row.end_date_exclusive, int(row.emails_count), row.processed_at) for row in legacy_rows
+        ]
+        legacy_display = len(_merge_legacy_processed_rows(legacy_tuples_summary))
+        processed_ranges = int(completed_runs) + legacy_display
         account_emails = db.execute(
             select(func.count()).select_from(EmailMessage).where(EmailMessage.account_id == account_id)
         ).scalar_one()
@@ -60,9 +77,61 @@ def summary(username: str, account_id: int | None = None, db: Session = Depends(
     }
 
 
+def _merge_legacy_processed_rows(rows: list[tuple[date, date, int, datetime]]) -> list[dict]:
+    """Merge old per-chunk ProcessedRange rows (analysis_run_id NULL) into contiguous windows."""
+    if not rows:
+        return []
+    sorted_rows = sorted(rows, key=lambda t: (t[0], t[1]))
+    merged_starts: list[date] = []
+    merged_ends: list[date] = []
+    merged_counts: list[int] = []
+    merged_times: list[datetime] = []
+    for start, end, cnt, ts in sorted_rows:
+        if merged_starts and start <= merged_ends[-1]:
+            merged_ends[-1] = max(merged_ends[-1], end)
+            merged_counts[-1] += cnt
+            merged_times[-1] = max(merged_times[-1], ts)
+        else:
+            merged_starts.append(start)
+            merged_ends.append(end)
+            merged_counts.append(cnt)
+            merged_times.append(ts)
+    return [
+        {
+            "start_date": merged_starts[i].isoformat(),
+            "end_date_exclusive": merged_ends[i].isoformat(),
+            "emails_count": merged_counts[i],
+            "processed_at": merged_times[i].isoformat(),
+            "analysis_run_id": None,
+        }
+        for i in range(len(merged_starts))
+    ]
+
+
 @router.get("/insights/processed-ranges")
 def processed_ranges(account_id: int, db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.execute(
+    """
+    User-facing coverage: one row per completed analysis (the date range the user requested),
+    not one row per internal CHUNK_DAYS slice. Legacy rows without analysis_run_id are merged.
+    """
+    runs = db.execute(
+        select(AnalysisRun)
+        .where(AnalysisRun.account_id == account_id, AnalysisRun.status == AnalysisStatus.completed)
+        .order_by(AnalysisRun.finished_at.desc(), AnalysisRun.id.desc())
+    ).scalars().all()
+
+    completed_payload = [
+        {
+            "start_date": r.start_date.isoformat(),
+            "end_date_exclusive": r.end_date_exclusive.isoformat(),
+            "emails_count": int(r.emails_processed),
+            "processed_at": (r.finished_at or r.created_at).isoformat(),
+            "analysis_run_id": r.id,
+        }
+        for r in runs
+    ]
+
+    legacy_rows = db.execute(
         select(
             ProcessedRange.start_date,
             ProcessedRange.end_date_exclusive,
@@ -70,17 +139,13 @@ def processed_ranges(account_id: int, db: Session = Depends(get_db)) -> list[dic
             ProcessedRange.processed_at,
         )
         .where(ProcessedRange.account_id == account_id)
+        .where(ProcessedRange.analysis_run_id.is_(None))
         .order_by(ProcessedRange.start_date.asc(), ProcessedRange.end_date_exclusive.asc())
     ).all()
-    return [
-        {
-            "start_date": r.start_date.isoformat(),
-            "end_date_exclusive": r.end_date_exclusive.isoformat(),
-            "emails_count": int(r.emails_count),
-            "processed_at": r.processed_at.isoformat(),
-        }
-        for r in rows
-    ]
+    legacy_tuples = [(row.start_date, row.end_date_exclusive, int(row.emails_count), row.processed_at) for row in legacy_rows]
+    legacy_payload = _merge_legacy_processed_rows(legacy_tuples)
+
+    return completed_payload + legacy_payload
 
 
 def _merge_ranges(ranges: list[tuple[date, date]]) -> list[tuple[date, date]]:

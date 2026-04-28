@@ -754,13 +754,20 @@ function Analyze({
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 0.5rem 0' }}>Processed ranges</h3>
+        <h3 style={{ margin: '0 0 0.25rem 0' }}>Processed ranges</h3>
+        <p style={{ margin: '0 0 0.5rem 0', fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>
+          Each row is one analysis you ran (the dates you picked), not each internal fetch chunk. Older data without
+          run linkage may appear as merged bands.
+        </p>
         {processedRanges.length === 0 ? (
           <div style={{ color: '#6b7280' }}>No processed ranges yet.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {processedRanges.map((pr, idx) => (
-              <div key={`${pr.start_date}-${pr.end_date_exclusive}-${idx}`} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+              <div
+                key={pr.analysis_run_id != null ? `run-${pr.analysis_run_id}` : `legacy-${pr.start_date}-${pr.end_date_exclusive}-${idx}`}
+                style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 10 }}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 600 }}>
                     {pr.start_date} → {pr.end_date_exclusive} (end exclusive)
@@ -769,6 +776,9 @@ function Analyze({
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>
                   processed_at: {pr.processed_at}
+                  {pr.analysis_run_id != null ? (
+                    <span style={{ marginLeft: 8 }}>(run #{pr.analysis_run_id})</span>
+                  ) : null}
                 </div>
               </div>
             ))}

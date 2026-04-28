@@ -27,6 +27,8 @@ export type ProcessedRange = {
   end_date_exclusive: string
   emails_count: number
   processed_at: string
+  /** Present when this row is a completed analysis run; omitted for merged legacy chunks. */
+  analysis_run_id?: number | null
 }
 
 export type ProcessedRangeGap = {
