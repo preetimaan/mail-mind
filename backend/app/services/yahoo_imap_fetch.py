@@ -2,8 +2,27 @@ from __future__ import annotations
 
 import email
 import imaplib
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
+
+_HEADER_KEYS = frozenset(
+    {
+        "from",
+        "to",
+        "subject",
+        "date",
+        "reply-to",
+        "return-path",
+        "sender",
+        "delivered-to",
+        "cc",
+        "list-id",
+        "mailing-list",
+        "message-id",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -13,6 +32,7 @@ class FetchedMessage:
     sender_email: str
     sender_name: str | None
     subject: str
+    header_snapshot: str | None
 
 
 class YahooFetchError(Exception):
@@ -73,6 +93,13 @@ def fetch_metadata(
             sender_name = sender_name or None
             sender_email = sender_email or ""
 
+            hdrs: dict[str, str] = {}
+            for k, v in msg.items():
+                lk = k.lower()
+                if lk in _HEADER_KEYS and v:
+                    hdrs[lk] = v
+            header_snapshot = json.dumps(hdrs, ensure_ascii=False) if hdrs else None
+
             received_at = datetime.utcnow().replace(tzinfo=timezone.utc)
             if date_hdr:
                 try:
@@ -94,6 +121,7 @@ def fetch_metadata(
                     sender_email=sender_email,
                     sender_name=sender_name,
                     subject=subj,
+                    header_snapshot=header_snapshot,
                 )
             )
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 import email.utils
+import json
 from sqlalchemy.orm import Session
 
 from sqlalchemy import delete
@@ -14,7 +15,12 @@ from sqlalchemy.exc import IntegrityError
 from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange, Provider
 from app.db.session import SessionLocal
 from app.services.credential_store import get_gmail_tokens, get_yahoo_app_password, set_gmail_tokens
-from app.services.gmail_api_fetch import GmailFetchError, get_message_metadata, list_message_ids
+from app.services.gmail_api_fetch import (
+    GMAIL_ANALYSIS_SKIP_LABELS,
+    GmailFetchError,
+    get_message_metadata,
+    list_message_ids,
+)
 from app.services.gmail_token_refresh import GmailRefreshError, refresh_access_token
 from app.services.yahoo_imap_fetch import YahooFetchError, fetch_metadata
 from app.settings import get_settings
@@ -128,6 +134,7 @@ class InProcessAnalysisRunner:
                             sender_email=m.sender_email,
                             sender_name=m.sender_name,
                             subject=m.subject,
+                            header_snapshot=m.header_snapshot,
                             category="other",
                         )
                         db.add(msg)
@@ -226,6 +233,9 @@ class InProcessAnalysisRunner:
                                     raise RuntimeError("Gmail token expired/unauthorized") from e
                             continue
 
+                        if meta.label_ids & GMAIL_ANALYSIS_SKIP_LABELS:
+                            continue
+
                         from_hdr = meta.headers.get("from", "")
                         sender_name, sender_email = email.utils.parseaddr(from_hdr)
                         sender_name = sender_name or None
@@ -233,6 +243,8 @@ class InProcessAnalysisRunner:
                         received_at = datetime.utcnow()
                         if meta.internal_date_ms is not None:
                             received_at = datetime.utcfromtimestamp(meta.internal_date_ms / 1000.0)
+
+                        header_snapshot = json.dumps(meta.headers, ensure_ascii=False) if meta.headers else None
 
                         db.add(
                             EmailMessage(
@@ -243,6 +255,7 @@ class InProcessAnalysisRunner:
                                 sender_email=sender_email,
                                 sender_name=sender_name,
                                 subject=subject,
+                                header_snapshot=header_snapshot,
                                 category="other",
                             )
                         )

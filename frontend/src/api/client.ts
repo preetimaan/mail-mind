@@ -46,6 +46,18 @@ export type SenderInsights = {
   top_domains: Array<{ domain: string; count: number }>
 }
 
+export type SenderMessageSample = {
+  received_at: string
+  subject: string
+  sender_name: string | null
+  headers: Record<string, string> | null
+}
+
+export type SenderSamplesResponse = {
+  sender_email: string
+  samples: SenderMessageSample[]
+}
+
 export type CategoryInsights = {
   total: number
   categories: Array<{ category: string; count: number; percentage: number }>
@@ -148,6 +160,14 @@ export const api = {
   getSenders: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<SenderInsights>(`/insights/senders?${qs.toString()}`)
+  },
+  getSenderSamples: async (accountId: number, senderEmail: string, limit: number = 5) => {
+    const qs = new URLSearchParams({
+      account_id: String(accountId),
+      sender_email: senderEmail,
+      limit: String(limit),
+    })
+    return await request<SenderSamplesResponse>(`/insights/senders/samples?${qs.toString()}`)
   },
   getCategories: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })

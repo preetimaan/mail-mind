@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
@@ -180,6 +181,53 @@ def top_senders(account_id: int, limit: int = 10, db: Session = Depends(get_db))
         "top_senders": [{"email": r.sender_email, "name": None, "count": int(r.count)} for r in rows],
         "top_domains": [{"domain": r.domain, "count": int(r.count)} for r in domains_rows],
     }
+
+
+@router.get("/insights/senders/samples")
+def sender_message_samples(
+    account_id: int,
+    sender_email: str,
+    limit: int = 5,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Recent messages from a single parsed From address, with stored header snapshot
+    (if captured during analysis). Useful to see why a mailbox appears as its own top sender.
+    """
+    lim = max(1, min(limit, 20))
+    rows = db.execute(
+        select(
+            EmailMessage.received_at,
+            EmailMessage.subject,
+            EmailMessage.sender_name,
+            EmailMessage.header_snapshot,
+        )
+        .where(EmailMessage.account_id == account_id)
+        .where(EmailMessage.sender_email == sender_email)
+        .order_by(EmailMessage.received_at.desc())
+        .limit(lim)
+    ).all()
+
+    samples = []
+    for r in rows:
+        headers: dict[str, str] | None = None
+        if r.header_snapshot:
+            try:
+                raw = json.loads(r.header_snapshot)
+                if isinstance(raw, dict):
+                    headers = {str(k): str(v) for k, v in raw.items()}
+            except (json.JSONDecodeError, TypeError):
+                headers = None
+        samples.append(
+            {
+                "received_at": r.received_at.isoformat(),
+                "subject": r.subject,
+                "sender_name": r.sender_name,
+                "headers": headers,
+            }
+        )
+
+    return {"sender_email": sender_email, "samples": samples}
 
 
 @router.get("/insights/categories")

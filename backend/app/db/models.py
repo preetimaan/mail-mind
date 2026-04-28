@@ -89,6 +89,9 @@ class EmailMessage(Base):
     sender_name: Mapped[str | None] = mapped_column(String, nullable=True)
     subject: Mapped[str] = mapped_column(String)
 
+    # JSON object of selected RFC822 headers (lowercase keys), for debugging / sender attribution.
+    header_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     category: Mapped[str] = mapped_column(String, index=True)
 
     account: Mapped["EmailAccount"] = relationship(back_populates="messages")

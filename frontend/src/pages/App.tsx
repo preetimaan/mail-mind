@@ -8,6 +8,7 @@ import {
   type ProcessedRange,
   type ProcessedRangeGap,
   type SenderInsights,
+  type SenderMessageSample,
   type YearlyFrequencyInsights,
 } from '../api/client'
 
@@ -381,6 +382,81 @@ export default function App() {
   )
 }
 
+function TopSenderRow({ accountId, email, count }: { accountId: number; email: string; count: number }) {
+  const [expanded, setExpanded] = useState(false)
+  const [samples, setSamples] = useState<SenderMessageSample[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function onToggle() {
+    if (expanded) {
+      setExpanded(false)
+      return
+    }
+    setExpanded(true)
+    if (samples !== null) return
+    setLoading(true)
+    setErr(null)
+    try {
+      const res = await api.getSenderSamples(accountId, email)
+      setSamples(res.samples)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ paddingBottom: 8, marginBottom: 8, borderBottom: '1px solid #f3f4f6' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ fontSize: 13, color: '#374151', flex: 1, wordBreak: 'break-all' }}>{email}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>{count}</div>
+          <button type="button" onClick={onToggle} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}>
+            {expanded ? 'Hide' : 'Headers'}
+          </button>
+        </div>
+      </div>
+      {expanded ? (
+        <div style={{ marginTop: 8, fontSize: 12, color: '#4b5563' }}>
+          {loading ? <div style={{ color: '#6b7280' }}>Loading…</div> : null}
+          {err ? <div style={{ color: '#b91c1c' }}>{err}</div> : null}
+          {!loading && !err && samples?.length === 0 ? <div style={{ color: '#6b7280' }}>No rows.</div> : null}
+          {samples?.map((row, i) => (
+            <div key={i} style={{ marginTop: 10, padding: 8, background: '#f9fafb', borderRadius: 6 }}>
+              <div style={{ color: '#6b7280', marginBottom: 4 }}>{row.received_at}</div>
+              <div style={{ fontWeight: 500, marginBottom: 6 }}>{row.subject || '(no subject)'}</div>
+              {row.headers && Object.keys(row.headers).length > 0 ? (
+                <pre
+                  style={{
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    fontFamily: 'ui-monospace, monospace',
+                  }}
+                >
+                  {Object.keys(row.headers)
+                    .sort()
+                    .map((k) => `${k}: ${row.headers![k]}`)
+                    .join('\n')}
+                </pre>
+              ) : (
+                <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>
+                  No header snapshot (older analysis). Run analysis again on a date range that includes these messages to
+                  capture From / To / Reply-To / Return-Path, etc.
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function Insights({
   accountId,
   error,
@@ -403,17 +479,19 @@ function Insights({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
           <h3 style={{ margin: '0 0 8px 0' }}>Top senders</h3>
+          <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>
+            Counts use the parsed <strong>From</strong> address. Your own address often ranks high (mail to yourself,
+            receipts, Google account mail, sent copies in the date window). Use <strong>Headers</strong> on a row to see
+            recent sample messages and selected RFC headers.
+          </p>
           {!senders ? (
             <div style={{ color: '#6b7280' }}>Loading…</div>
           ) : senders.total_emails === 0 ? (
             <div style={{ color: '#6b7280' }}>No data yet. Run an analysis.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {senders.top_senders.map((s) => (
-                <div key={s.email} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ fontSize: 13, color: '#374151' }}>{s.email}</div>
-                  <div style={{ fontSize: 13, color: '#6b7280' }}>{s.count}</div>
-                </div>
+                <TopSenderRow key={s.email} accountId={accountId} email={s.email} count={s.count} />
               ))}
             </div>
           )}
