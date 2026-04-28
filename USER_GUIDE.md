@@ -39,6 +39,7 @@ You’ll also see:
 Shows summaries computed from stored email metadata:
 
 - **Top senders**: most frequent senders and domains
+- **Top domains**: most frequent sender domains
 - **Categories**: category breakdown
 - **Yearly trend**: year-over-year totals (simple view for now)
 

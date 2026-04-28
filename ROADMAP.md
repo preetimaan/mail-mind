@@ -7,6 +7,7 @@ This branch implements Mail Mind with a clean, local-first architecture.
 - **No Emails browser tab** (explicitly out of scope).
 - **Heuristic-only suggestions** (no AI dependency required).
 - **UI**: keep the same **data** and flows as the original, but allow **simpler visuals** for now (upgrade later).
+- **Filters + copyable controls**: the product should expose *what’s happening* (labels/senders/domains) and provide copyable controls (filters), rather than silently hiding things.
 
 ---
 
@@ -32,9 +33,13 @@ This branch implements Mail Mind with a clean, local-first architecture.
 ### Insights (based on stored messages)
 - [x] Summary endpoint (accounts + counts)
 - [x] Top senders endpoint
+- [x] Top domains (computed + rendered)
 - [x] Categories endpoint
 - [x] Yearly frequency endpoint
 - [x] Insights tab UI (simple list rendering)
+- [x] Sender header snapshots + drill-down samples
+- [x] Sender name resolution (best-effort)
+- [x] Gmail scope controls: default all mail (minus sent/drafts) + optional inbox-only per run
 
 ---
 
@@ -45,7 +50,8 @@ This branch implements Mail Mind with a clean, local-first architecture.
   - [x] OAuth callback route + frontend handler
   - [x] token storage (encrypted at rest)
   - [x] redirect back to Settings with status banner
-  - [ ] refresh-token reuse + provider revoke (later)
+  - [x] refresh-token reuse (refresh on 401 during metadata calls)
+  - [x] provider revoke endpoint (best-effort)
 - [x] **Yahoo (local-only skeleton)**
   - [x] app-password capture + secure storage
   - [x] connection validation (IMAP login)
@@ -57,6 +63,7 @@ This branch implements Mail Mind with a clean, local-first architecture.
 ### Operational / data maintenance
 - [x] Recalculate insights (no re-fetch) (insights are computed from stored `EmailMessage`)
 - [x] Cleanup duplicates safety tool (maintenance dedupe endpoint)
+- [x] OAuth cleanup maintenance endpoint
 - [ ] (Optional) purge tools once we track sent/inbound
 
 ### Analysis semantics / robustness
@@ -79,8 +86,26 @@ This branch implements Mail Mind with a clean, local-first architecture.
 
 ## Next up (recommended order)
 
-1. Provider integrations to replace stub data (Gmail + Yahoo fetch hardening)
-2. Provider revoke/disconnect polish + rotation UX
-3. Optional: sent mail / outbound tracking
-4. UI visual upgrades (charts, richer layouts)
+### Labels + Filters (original “main” parity feature set)
+
+Goal: make it easy to understand **why you’re seeing mail** and to take **copyable controls** (filters), without hiding senders.
+
+- [ ] **New tab**: **Labels & Filters**
+  - [ ] Show **Gmail labels**:
+    - [ ] **System labels / default categories** (e.g. Inbox, Promotions, Social, Updates, Forums, etc.)
+    - [ ] **User-created labels** (manual labels)
+  - [ ] Show **filters associated with labels**
+    - [ ] list filters and which labels they apply
+    - [ ] make filter queries **copyable**
+  - [ ] Show **top automated senders** grouped under labels/domains (so users can decide to filter/unsubscribe)
+
+### Sender controls (copyable + inspectable)
+- [ ] Copyable Gmail search/filter queries per sender/domain/list-id
+
+### Quality / performance
+- [ ] Reduce metadata calls (batch by using `format=metadata` effectively, consider fetching labelIds in list)
+- [ ] Consider Alembic migrations once schema evolves further
+
+### UI upgrades (later)
+- [ ] Charts upgrade for Insights
 
