@@ -217,10 +217,25 @@ def processed_range_gaps(
 
 
 @router.get("/insights/senders")
-def top_senders(account_id: int, limit: int = 10, db: Session = Depends(get_db)) -> dict:
+def top_senders(account_id: int, limit: int = 10, include_automated: bool = False, db: Session = Depends(get_db)) -> dict:
+    # Best-effort filter: by default, suppress obvious automated/system senders.
+    # (Still available via include_automated=true.)
+    automated_patterns = [
+        "%noreply%",
+        "%no-reply%",
+        "%donotreply%",
+        "%do-not-reply%",
+        "%mailer-daemon%",
+        "%postmaster%",
+    ]
+    base = [EmailMessage.account_id == account_id]
+    if not include_automated:
+        lower_sender = func.lower(EmailMessage.sender_email)
+        for p in automated_patterns:
+            base.append(lower_sender.not_like(p))
     rows = db.execute(
         select(EmailMessage.sender_email, func.count().label("count"))
-        .where(EmailMessage.account_id == account_id)
+        .where(*base)
         .group_by(EmailMessage.sender_email)
         .order_by(func.count().desc(), EmailMessage.sender_email.asc())
         .limit(limit)
@@ -237,7 +252,7 @@ def top_senders(account_id: int, limit: int = 10, db: Session = Depends(get_db))
                 EmailMessage.sender_name.label("sender_name"),
                 func.count().label("name_count"),
             )
-            .where(EmailMessage.account_id == account_id)
+            .where(*base)
             .where(EmailMessage.sender_email.in_(top_emails))
             .where(EmailMessage.sender_name.is_not(None))
             .where(EmailMessage.sender_name != "")
@@ -280,7 +295,7 @@ def top_senders(account_id: int, limit: int = 10, db: Session = Depends(get_db))
             func.substr(EmailMessage.sender_email, func.instr(EmailMessage.sender_email, "@") + 1).label("domain"),
             func.count().label("count"),
         )
-        .where(EmailMessage.account_id == account_id)
+        .where(*base)
         .group_by("domain")
         .order_by(func.count().desc(), "domain")
         .limit(10)

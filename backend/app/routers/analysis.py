@@ -20,6 +20,7 @@ class AnalysisStartRequest(BaseModel):
     start_date: date
     end_date_exclusive: date = Field(..., description="End date, exclusive (half-open range)")
     force_reanalysis: bool = False
+    inbox_only: bool = False
 
 
 class AnalysisRunResponse(BaseModel):
@@ -97,6 +98,7 @@ def start_analysis(req: AnalysisStartRequest, db: Session = Depends(get_db)) -> 
         started_at=datetime.utcnow(),
         emails_processed=0,
         total_emails=0,
+        inbox_only=req.inbox_only,
     )
     db.add(run)
     db.commit()

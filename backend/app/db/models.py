@@ -65,6 +65,7 @@ class AnalysisRun(Base):
     emails_processed: Mapped[int] = mapped_column(Integer, default=0)
     total_emails: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+    inbox_only: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

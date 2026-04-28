@@ -38,6 +38,11 @@ def _ensure_schema() -> None:
                 text("CREATE INDEX IF NOT EXISTS ix_processed_ranges_analysis_run_id ON processed_ranges (analysis_run_id)")
             )
 
+        run_cols = conn.execute(text("PRAGMA table_info('analysis_runs')")).fetchall()
+        run_col_names = {c[1] for c in run_cols}
+        if run_cols and "inbox_only" not in run_col_names:
+            conn.execute(text("ALTER TABLE analysis_runs ADD COLUMN inbox_only BOOLEAN DEFAULT 0"))
+
         # OAuth tables were introduced after the initial scaffold; create_all won't add them for existing DBs.
         conn.execute(
             text(

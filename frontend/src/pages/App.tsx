@@ -74,6 +74,7 @@ export default function App() {
   const [runError, setRunError] = useState<string | null>(null)
   const [runBusy, setRunBusy] = useState(false)
   const [forceReanalysis, setForceReanalysis] = useState(false)
+  const [inboxOnly, setInboxOnly] = useState(false)
 
   const [summary, setSummary] = useState<InsightsSummary | null>(null)
   const [senderInsights, setSenderInsights] = useState<SenderInsights | null>(null)
@@ -338,6 +339,8 @@ export default function App() {
                 setEndDate={setEndDate}
                 forceReanalysis={forceReanalysis}
                 setForceReanalysis={setForceReanalysis}
+                inboxOnly={inboxOnly}
+                setInboxOnly={setInboxOnly}
                 runs={runs}
                 setRuns={setRuns}
                 hasMoreRuns={hasMoreRuns}
@@ -579,6 +582,8 @@ function Analyze({
   setEndDate,
   forceReanalysis,
   setForceReanalysis,
+  inboxOnly,
+  setInboxOnly,
   runs,
   setRuns,
   hasMoreRuns,
@@ -599,6 +604,8 @@ function Analyze({
   setEndDate: (v: string) => void
   forceReanalysis: boolean
   setForceReanalysis: (v: boolean) => void
+  inboxOnly: boolean
+  setInboxOnly: (v: boolean) => void
   runs: AnalysisRun[]
   setRuns: (v: AnalysisRun[]) => void
   hasMoreRuns: boolean
@@ -640,6 +647,15 @@ function Analyze({
           />
           Force re-analysis
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#374151' }}>
+          <input
+            type="checkbox"
+            checked={inboxOnly}
+            disabled={busy || !!running}
+            onChange={(e) => setInboxOnly(e.target.checked)}
+          />
+          Inbox only (Gmail)
+        </label>
         <button
           disabled={busy || !accountId || !accountConnected || !!running}
           onClick={async () => {
@@ -652,6 +668,7 @@ function Analyze({
                 start_date: startDate,
                 end_date_exclusive: endDate,
                 force_reanalysis: forceReanalysis,
+                inbox_only: inboxOnly,
               })
               const data = await api.getRun(res.run_id)
               setRuns([data, ...runs])

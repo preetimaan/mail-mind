@@ -33,9 +33,11 @@ def list_message_ids(
     start_dt: datetime,
     end_dt: datetime,
     max_results: int = 500,
+    inbox_only: bool = False,
 ) -> list[str]:
     # Date window only would include Sent/Drafts (From is usually the account), inflating self as a "top sender".
-    q = f"after:{_gmail_date_q(start_dt)} before:{_gmail_date_q(end_dt)} -in:sent -in:drafts"
+    scope = "in:inbox " if inbox_only else ""
+    q = f"{scope}after:{_gmail_date_q(start_dt)} before:{_gmail_date_q(end_dt)} -in:sent -in:drafts"
     ids: list[str] = []
     page_token: str | None = None
     headers = {"Authorization": f"Bearer {access_token}"}

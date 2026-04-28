@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -14,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.models import AnalysisRun, AnalysisStatus, EmailAccount, EmailMessage, ProcessedRange, Provider
 from app.db.session import SessionLocal
+from app.services.email_normalize import normalize_sender_email
 from app.services.credential_store import get_gmail_tokens, get_yahoo_app_password, set_gmail_tokens
 from app.services.gmail_api_fetch import (
     GMAIL_ANALYSIS_SKIP_LABELS,
@@ -26,6 +26,23 @@ from app.services.yahoo_imap_fetch import YahooFetchError, fetch_metadata
 from app.settings import get_settings
 
 CHUNK_DAYS = 7
+COMMIT_BATCH = 50
+
+
+def _safe_add_message(db: Session, msg: EmailMessage) -> bool:
+    """
+    Insert with a SAVEPOINT so a single duplicate doesn't rollback the whole batch.
+    Returns True if inserted, False if skipped due to uniqueness.
+    """
+    with db.begin_nested():
+        db.add(msg)
+        try:
+            db.flush()
+            return True
+        except Exception as e:  # noqa: BLE001
+            if "uq_message_external_id" in str(e) or "UNIQUE constraint failed" in str(e):
+                return False
+            raise
 
 
 @dataclass(frozen=True)
@@ -122,34 +139,34 @@ class InProcessAnalysisRunner:
                     run.total_emails = max(run.total_emails, run.emails_processed + len(metas))
                     db.commit()
 
+                    pending = 0
                     for m in metas:
                         if cancel.is_set():
                             _revert_partial_run(db, run)
                             return
+                        sender_email = normalize_sender_email(provider="yahoo", sender_email=m.sender_email)
+                        if not sender_email:
+                            continue
                         msg = EmailMessage(
                             account_id=account.id,
                             analysis_run_id=run.id,
                             external_id=m.external_id,
                             received_at=m.received_at.replace(tzinfo=None),
-                            sender_email=m.sender_email,
+                            sender_email=sender_email,
                             sender_name=m.sender_name,
                             subject=m.subject,
                             header_snapshot=m.header_snapshot,
                             category="other",
                         )
-                        db.add(msg)
-                        try:
-                            db.commit()
-                        except Exception as e:
-                            db.rollback()
-                            # Unique constraint may surface duplicates if provider returns overlapping IDs.
-                            # Treat it as a no-op for this message.
-                            if "uq_message_external_id" not in str(e) and "UNIQUE constraint failed" not in str(e):
-                                raise
-                        else:
+                        if _safe_add_message(db, msg):
                             fetched_count += 1
                             run.emails_processed += 1
-                        time.sleep(0.01)
+                            pending += 1
+                            if pending >= COMMIT_BATCH:
+                                db.commit()
+                                pending = 0
+                    if pending:
+                        db.commit()
 
                 elif account.provider == Provider.gmail:
                     tokens = get_gmail_tokens(db, settings, account.id)
@@ -158,7 +175,13 @@ class InProcessAnalysisRunner:
 
                     access_token = tokens.access_token
                     try:
-                        ids = list_message_ids(access_token=access_token, start_dt=start_dt, end_dt=end_dt, max_results=500)
+                        ids = list_message_ids(
+                            access_token=access_token,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            max_results=500,
+                            inbox_only=bool(run.inbox_only),
+                        )
                     except GmailFetchError as e:
                         if str(e) == "unauthorized" and tokens.refresh_token and settings.gmail_client_id and settings.gmail_client_secret:
                             try:
@@ -180,7 +203,11 @@ class InProcessAnalysisRunner:
                                 )
                                 db.commit()
                                 ids = list_message_ids(
-                                    access_token=access_token, start_dt=start_dt, end_dt=end_dt, max_results=500
+                                    access_token=access_token,
+                                    start_dt=start_dt,
+                                    end_dt=end_dt,
+                                    max_results=500,
+                                    inbox_only=bool(run.inbox_only),
                                 )
                             except (GmailRefreshError, GmailFetchError) as e2:
                                 account.is_active = False
@@ -194,6 +221,7 @@ class InProcessAnalysisRunner:
                     run.total_emails = max(run.total_emails, run.emails_processed + len(ids))
                     db.commit()
 
+                    pending = 0
                     for mid in ids:
                         if cancel.is_set():
                             _revert_partial_run(db, run)
@@ -239,6 +267,9 @@ class InProcessAnalysisRunner:
                         from_hdr = meta.headers.get("from", "")
                         sender_name, sender_email = email.utils.parseaddr(from_hdr)
                         sender_name = sender_name or None
+                        sender_email = normalize_sender_email(provider="gmail", sender_email=sender_email)
+                        if not sender_email:
+                            continue
                         subject = meta.headers.get("subject", "") or ""
                         received_at = datetime.utcnow()
                         if meta.internal_date_ms is not None:
@@ -246,29 +277,26 @@ class InProcessAnalysisRunner:
 
                         header_snapshot = json.dumps(meta.headers, ensure_ascii=False) if meta.headers else None
 
-                        db.add(
-                            EmailMessage(
-                                account_id=account.id,
-                                analysis_run_id=run.id,
-                                external_id=f"gmail:{meta.id}",
-                                received_at=received_at,
-                                sender_email=sender_email,
-                                sender_name=sender_name,
-                                subject=subject,
-                                header_snapshot=header_snapshot,
-                                category="other",
-                            )
+                        msg = EmailMessage(
+                            account_id=account.id,
+                            analysis_run_id=run.id,
+                            external_id=f"gmail:{meta.id}",
+                            received_at=received_at,
+                            sender_email=sender_email,
+                            sender_name=sender_name,
+                            subject=subject,
+                            header_snapshot=header_snapshot,
+                            category="other",
                         )
-                        try:
-                            db.commit()
-                        except Exception as e:
-                            db.rollback()
-                            if "uq_message_external_id" not in str(e) and "UNIQUE constraint failed" not in str(e):
-                                raise
-                        else:
+                        if _safe_add_message(db, msg):
                             fetched_count += 1
                             run.emails_processed += 1
-                        time.sleep(0.01)
+                            pending += 1
+                            if pending >= COMMIT_BATCH:
+                                db.commit()
+                                pending = 0
+                    if pending:
+                        db.commit()
 
                 # Snap total to committed count so skipped/failed IDs do not leave an inflated denominator.
                 run.total_emails = run.emails_processed
