@@ -217,9 +217,8 @@ def processed_range_gaps(
 
 
 @router.get("/insights/senders")
-def top_senders(account_id: int, limit: int = 10, include_automated: bool = False, db: Session = Depends(get_db)) -> dict:
-    # Best-effort filter: by default, suppress obvious automated/system senders.
-    # (Still available via include_automated=true.)
+def top_senders(account_id: int, limit: int = 10, exclude_automated: bool = False, db: Session = Depends(get_db)) -> dict:
+    # Best-effort filter: include automated/system senders by default so users can spot and act on them.
     automated_patterns = [
         "%noreply%",
         "%no-reply%",
@@ -229,7 +228,7 @@ def top_senders(account_id: int, limit: int = 10, include_automated: bool = Fals
         "%postmaster%",
     ]
     base = [EmailMessage.account_id == account_id]
-    if not include_automated:
+    if exclude_automated:
         lower_sender = func.lower(EmailMessage.sender_email)
         for p in automated_patterns:
             base.append(lower_sender.not_like(p))
