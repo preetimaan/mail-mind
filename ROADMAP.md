@@ -39,6 +39,7 @@ This branch implements Mail Mind with a clean, local-first architecture.
 - [x] Insights tab UI (simple list rendering)
 - [x] Sender header snapshots + drill-down samples
 - [x] Sender name resolution (best-effort)
+- [x] Sender controls (copyable sender/list-id/filter query snippets)
 - [x] Gmail scope controls: default all mail (minus sent/drafts) + optional inbox-only per run
 
 ---
@@ -76,6 +77,7 @@ This branch implements Mail Mind with a clean, local-first architecture.
 - [x] Recent analysis runs pagination (“Load more”)
 - [x] Retry failed runs
 - [x] Consistent status badges and clearer run state UX
+- [x] Labels & Filters tab (Gmail labels+filters, Yahoo folders-only)
 - [ ] (Later) charts upgrade for Insights
 
 ### Documentation
@@ -86,21 +88,12 @@ This branch implements Mail Mind with a clean, local-first architecture.
 
 ## Next up (recommended order)
 
-### Labels + Filters (original “main” parity feature set)
+### Request robustness / UX
 
-Goal: make it easy to understand **why you’re seeing mail** and to take **copyable controls** (filters), without hiding senders.
-
-- [ ] **New tab**: **Labels & Filters**
-  - [ ] Show **Gmail labels**:
-    - [ ] **System labels / default categories** (e.g. Inbox, Promotions, Social, Updates, Forums, etc.)
-    - [ ] **User-created labels** (manual labels)
-  - [ ] Show **filters associated with labels**
-    - [ ] list filters and which labels they apply
-    - [ ] make filter queries **copyable**
-  - [ ] Show **top automated senders** grouped under labels/domains (so users can decide to filter/unsubscribe)
-
-### Sender controls (copyable + inspectable)
-- [ ] Copyable Gmail search/filter queries per sender/domain/list-id
+- [ ] In-flight request de-duplication for identical concurrent requests
+  - [ ] Request-layer coalescing in frontend API client (`method + path + body` key)
+  - [ ] Keep action buttons disabled while request is in progress (start/stop/retry/connect/disconnect/reset/delete)
+  - [ ] Ensure dedupe is only in-flight (allow repeat after completion)
 
 ### Quality / performance
 - [ ] Reduce metadata calls (batch by using `format=metadata` effectively, consider fetching labelIds in list)

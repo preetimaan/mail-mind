@@ -61,6 +61,7 @@ Assume the person deploying Mail Mind is **not** the only end user.
 
 - **Whoever runs / deploys the backend** (usually you, the developer) must register the app in **Google Cloud** once per environment:
   - Create or reuse a project, enable **Gmail API**, configure the **OAuth consent screen**, and create **OAuth 2.0 Client ID** credentials of type **Web application**.
+  - Ensure OAuth scopes allow both metadata reads and labels/filters retrieval (`gmail.readonly` and `gmail.settings.basic`).
   - Set **Authorized redirect URIs** to exactly match `MAILMIND_GMAIL_REDIRECT_URI` in `backend/.env` (default in `.env.example` is `http://localhost:8000/api/oauth/gmail/callback`).
   - Put `MAILMIND_GMAIL_CLIENT_ID` and `MAILMIND_GMAIL_CLIENT_SECRET` in `backend/.env`. Restart the backend after changes.
   - While the OAuth app is in **Testing**, add every Gmail address that will connect as a **Test user** on the consent screen.
@@ -74,6 +75,11 @@ Assume the person deploying Mail Mind is **not** the only end user.
 ## Current analysis mode (important)
 
 For **connected** accounts, analysis fetches **real provider metadata** (Gmail API / Yahoo IMAP), stores **metadata only** in SQLite, and Insights aggregate that data. Stub generation is not the normal path once accounts are connected.
+
+## Labels & Filters tab behavior (provider differences)
+
+- **Gmail**: backend reads labels + filter rules from Gmail API.
+- **Yahoo**: backend reads folder names from IMAP (`LIST`). Filter rules are not available in this view.
 
 ## Environment variables
 

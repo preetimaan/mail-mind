@@ -9,6 +9,7 @@ Mail Mind helps you analyze your email patterns (senders, categories, trends). T
 3. Add an account in **Settings**
 4. Go to **Analyze**, pick a date range, and start an analysis
 5. View results in **Insights**
+6. Use **Labels & Filters** to review labels/folders and copy filter queries
 
 ## Username (local workspace)
 
@@ -38,12 +39,23 @@ You’ll also see:
 
 Shows summaries computed from stored email metadata:
 
-- **Top senders**: most frequent senders and domains
+- **Top senders**: most frequent senders with copyable sender/list-id queries
 - **Top domains**: most frequent sender domains
 - **Categories**: category breakdown
 - **Yearly trend**: year-over-year totals (simple view for now)
 
 If Insights are empty, run an analysis first.
+
+### Labels & Filters
+
+Use this tab to review provider label/folder structure and filter logic:
+
+- **Gmail accounts**
+  - **Labels**: both system and user-created labels
+  - **Filters**: current Gmail filter rules with copyable query text
+- **Yahoo accounts**
+  - **Folders**: available Yahoo IMAP folders
+  - Filter rules are not shown for Yahoo in this tab
 
 ### Settings
 
