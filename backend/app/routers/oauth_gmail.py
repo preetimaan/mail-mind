@@ -63,7 +63,7 @@ def gmail_oauth_start(req: GmailOAuthStartRequest, db: Session = Depends(get_db)
             "client_id": settings.gmail_client_id,
             "redirect_uri": settings.gmail_redirect_uri,
             "response_type": "code",
-            "scope": "https://www.googleapis.com/auth/gmail.readonly",
+            "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.settings.basic",
             "access_type": "offline",
             "prompt": "consent",
             "include_granted_scopes": "true",
