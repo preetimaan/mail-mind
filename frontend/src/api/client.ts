@@ -76,6 +76,40 @@ export type YearlyFrequencyInsights = {
   }>
 }
 
+export type GmailLabel = {
+  id: string
+  name: string
+  type: 'system' | 'user' | string
+  messages_total?: number | null
+  messages_unread?: number | null
+}
+
+export type GmailFilterRule = {
+  id: string
+  criteria: {
+    from?: string | null
+    to?: string | null
+    subject?: string | null
+    query?: string | null
+    negated_query?: string | null
+    has_attachment?: boolean | null
+    exclude_chats?: boolean | null
+    size?: number | null
+    size_comparison?: string | null
+  }
+  action: {
+    add_label_ids: string[]
+    remove_label_ids: string[]
+    forward?: string | null
+  }
+}
+
+export type GmailLabelsFiltersResponse = {
+  labels: GmailLabel[]
+  filters: GmailFilterRule[]
+  filters_error: string | null
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -190,6 +224,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ account_id: accountId, app_password: appPassword }),
     })
+  },
+  getGmailLabelsFilters: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<GmailLabelsFiltersResponse>(`/gmail/labels-filters?${qs.toString()}`)
   },
 }
 

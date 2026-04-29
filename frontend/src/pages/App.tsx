@@ -4,6 +4,8 @@ import {
   type AnalysisRun,
   type CategoryInsights,
   type EmailAccount,
+  type GmailFilterRule,
+  type GmailLabel,
   type InsightsSummary,
   type ProcessedRange,
   type ProcessedRangeGap,
@@ -12,11 +14,12 @@ import {
   type YearlyFrequencyInsights,
 } from '../api/client'
 
-type Tab = 'analysis' | 'insights' | 'settings'
+type Tab = 'analysis' | 'insights' | 'filters' | 'settings'
 
 const TAB_LABELS: Record<Tab, string> = {
   analysis: 'Analyze',
   insights: 'Insights',
+  filters: 'Labels & Filters',
   settings: 'Settings',
 }
 
@@ -81,6 +84,9 @@ export default function App() {
   const [categoryInsights, setCategoryInsights] = useState<CategoryInsights | null>(null)
   const [yearlyInsights, setYearlyInsights] = useState<YearlyFrequencyInsights | null>(null)
   const [insightsError, setInsightsError] = useState<string | null>(null)
+  const [gmailLabels, setGmailLabels] = useState<GmailLabel[] | null>(null)
+  const [gmailFilters, setGmailFilters] = useState<GmailFilterRule[] | null>(null)
+  const [gmailFiltersError, setGmailFiltersError] = useState<string | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('mailmind_username') ?? ''
@@ -167,6 +173,29 @@ export default function App() {
   }, [loggedIn, selectedAccountId, tab])
 
   useEffect(() => {
+    if (!loggedIn || !selectedAccountId || tab !== 'filters') return
+    if (selectedAccount?.provider !== 'gmail') {
+      setGmailLabels([])
+      setGmailFilters([])
+      setGmailFiltersError('Labels & Filters is available for Gmail accounts.')
+      return
+    }
+    setGmailFiltersError(null)
+    void (async () => {
+      try {
+        const data = await api.getGmailLabelsFilters(selectedAccountId)
+        setGmailLabels(data.labels)
+        setGmailFilters(data.filters)
+        setGmailFiltersError(data.filters_error)
+      } catch (e: any) {
+        setGmailLabels(null)
+        setGmailFilters(null)
+        setGmailFiltersError(e?.message ?? 'Failed to load Gmail labels/filters')
+      }
+    })()
+  }, [loggedIn, selectedAccountId, tab, selectedAccount?.provider])
+
+  useEffect(() => {
     if (!loggedIn || !selectedAccountId) return
     if (tab !== 'analysis') return
 
@@ -235,7 +264,7 @@ export default function App() {
       ) : (
         <>
           <nav style={{ display: 'flex', gap: 8, marginTop: '1.25rem' }}>
-            {(['analysis', 'insights', 'settings'] as const).map((t) => (
+            {(['analysis', 'insights', 'filters', 'settings'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -373,6 +402,13 @@ export default function App() {
                 categories={categoryInsights}
                 yearly={yearlyInsights}
               />
+            ) : tab === 'filters' ? (
+              <LabelsAndFilters
+                account={selectedAccount}
+                labels={gmailLabels}
+                filters={gmailFilters}
+                filtersError={gmailFiltersError}
+              />
             ) : (
               <div style={{ marginTop: 12, color: '#6b7280' }}>
                 Stub UI. Next: wire analysis runs + insights.
@@ -400,6 +436,26 @@ function TopSenderRow({
   const [samples, setSamples] = useState<SenderMessageSample[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const listIds = useMemo(() => {
+    const out = new Set<string>()
+    for (const s of samples ?? []) {
+      const v = s.headers?.['list-id']
+      if (v && v.trim()) out.add(v.trim())
+    }
+    return Array.from(out)
+  }, [samples])
+
+  async function copyText(label: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(label)
+      window.setTimeout(() => setCopied((cur) => (cur === label ? null : cur)), 1200)
+    } catch {
+      setErr('Clipboard unavailable in this browser/session.')
+    }
+  }
 
   async function onToggle() {
     if (expanded) {
@@ -422,18 +478,38 @@ function TopSenderRow({
 
   return (
     <div style={{ paddingBottom: 8, marginBottom: 8, borderBottom: '1px solid #f3f4f6' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
           {name ? <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{name}</div> : null}
           <div style={{ fontSize: 12, color: '#6b7280', wordBreak: 'break-all' }}>{email}</div>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => void copyText('search', `from:${email}`)}
+              style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}
+            >
+              Copy search
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void copyText(
+                  'filter',
+                  `matches:from:${email}\naction:apply-label:ToReview\naction:never-spam:false\naction:archive:false`,
+                )
+              }
+              style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}
+            >
+              Copy filter
+            </button>
+            <button type="button" onClick={onToggle} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}>
+              {expanded ? 'Hide' : 'Headers'}
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <div style={{ fontSize: 13, color: '#6b7280' }}>{count}</div>
-          <button type="button" onClick={onToggle} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}>
-            {expanded ? 'Hide' : 'Headers'}
-          </button>
-        </div>
+        <div style={{ fontSize: 13, color: '#6b7280', flexShrink: 0 }}>{count}</div>
       </div>
+      {copied ? <div style={{ marginTop: 6, fontSize: 12, color: '#059669' }}>Copied {copied} query.</div> : null}
       {expanded ? (
         <div style={{ marginTop: 8, fontSize: 12, color: '#4b5563' }}>
           {loading ? <div style={{ color: '#6b7280' }}>Loading…</div> : null}
@@ -467,8 +543,122 @@ function TopSenderRow({
               )}
             </div>
           ))}
+          {listIds.length > 0 ? (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Detected list ids</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {listIds.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => void copyText('list-id', `list:${id}`)}
+                    style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}
+                  >
+                    Copy list:{id}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function LabelsAndFilters({
+  account,
+  labels,
+  filters,
+  filtersError,
+}: {
+  account: EmailAccount | null
+  labels: GmailLabel[] | null
+  filters: GmailFilterRule[] | null
+  filtersError: string | null
+}) {
+  const [copied, setCopied] = useState<string | null>(null)
+
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(text)
+      window.setTimeout(() => setCopied((cur) => (cur === text ? null : cur)), 1200)
+    } catch {
+      // ignore clipboard failures in read-only contexts
+    }
+  }
+
+  if (!account) return <div style={{ marginTop: 12, color: '#6b7280' }}>Select an account.</div>
+  if (account.provider !== 'gmail') {
+    return <div style={{ marginTop: 12, color: '#6b7280' }}>Labels & Filters is currently available for Gmail accounts.</div>
+  }
+
+  const labelById = new Map((labels ?? []).map((l) => [l.id, l.name]))
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {filtersError ? <div style={{ color: '#b91c1c', marginBottom: 8 }}>{filtersError}</div> : null}
+      {copied ? <div style={{ color: '#059669', marginBottom: 8, fontSize: 12 }}>Copied filter query.</div> : null}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Labels</h3>
+          {!labels ? (
+            <div style={{ color: '#6b7280' }}>Loading…</div>
+          ) : labels.length === 0 ? (
+            <div style={{ color: '#6b7280' }}>No labels found.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {labels.map((l) => (
+                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ fontSize: 13, color: '#374151' }}>
+                    {l.name} <span style={{ color: '#9ca3af' }}>({l.type})</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>
+                    {l.messages_total == null ? '—' : l.messages_total}
+                    {l.messages_unread == null ? '' : ` (${l.messages_unread} unread)`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>Filters</h3>
+          {!filters ? (
+            <div style={{ color: '#6b7280' }}>Loading…</div>
+          ) : filters.length === 0 ? (
+            <div style={{ color: '#6b7280' }}>No Gmail filters found.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 520, overflowY: 'auto', paddingRight: 4 }}>
+              {filters.map((f) => {
+                const parts: string[] = []
+                if (f.criteria.from) parts.push(`from:${f.criteria.from}`)
+                if (f.criteria.to) parts.push(`to:${f.criteria.to}`)
+                if (f.criteria.subject) parts.push(`subject:(${f.criteria.subject})`)
+                if (f.criteria.query) parts.push(f.criteria.query)
+                if (f.criteria.negated_query) parts.push(`-(${f.criteria.negated_query})`)
+                const query = parts.join(' ').trim() || '(no criteria)'
+                const addLabels = (f.action.add_label_ids || []).map((id) => labelById.get(id) || id)
+                const removeLabels = (f.action.remove_label_ids || []).map((id) => labelById.get(id) || id)
+                return (
+                  <div key={f.id} style={{ border: '1px solid #f3f4f6', borderRadius: 8, padding: 8 }}>
+                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 6, wordBreak: 'break-word' }}>{query}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>
+                      +[{addLabels.join(', ') || 'none'}] / -[{removeLabels.join(', ') || 'none'}]
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                      <button type="button" style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }} onClick={() => void copyText(query)}>
+                        Copy query
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
