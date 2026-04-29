@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.db.models import EmailAccount, Provider
 from app.db.session import get_db
-from app.services.credential_store import get_gmail_tokens, set_gmail_tokens
+from app.services.credential_store import get_gmail_tokens, get_yahoo_app_password, set_gmail_tokens
 from app.services.gmail_token_refresh import GmailRefreshError, refresh_access_token
+from app.services.yahoo_imap_fetch import YahooFetchError, list_folders
 from app.settings import get_settings
 
 
@@ -32,8 +33,8 @@ def _gmail_get_label_detail(access_token: str, label_id: str) -> httpx.Response:
         )
 
 
-@router.get("/gmail/labels-filters")
-def gmail_labels_filters(account_id: int, db: Session = Depends(get_db)) -> dict:
+@router.get("/labels-filters")
+def labels_filters(account_id: int, db: Session = Depends(get_db)) -> dict:
     """
     Returns Gmail labels (system + user) and filter rules for an account.
     If filter scope is missing, labels are still returned and filters_error is set.
@@ -42,8 +43,30 @@ def gmail_labels_filters(account_id: int, db: Session = Depends(get_db)) -> dict
     account = db.get(EmailAccount, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    if account.provider == Provider.yahoo:
+        app_password = get_yahoo_app_password(db, settings, account.id)
+        if not app_password:
+            raise HTTPException(status_code=409, detail="Yahoo credentials missing. Reconnect in Settings.")
+        try:
+            folders = list_folders(email_address=account.email, app_password=app_password)
+        except YahooFetchError as e:
+            raise HTTPException(status_code=400, detail=f"Failed to load Yahoo folders: {e}") from e
+        return {
+            "labels": [
+                {
+                    "id": f,
+                    "name": f,
+                    "type": "folder",
+                    "messages_total": None,
+                    "messages_unread": None,
+                }
+                for f in folders
+            ],
+            "filters": [],
+            "filters_error": None,
+        }
     if account.provider != Provider.gmail:
-        raise HTTPException(status_code=409, detail="Account is not a Gmail provider")
+        raise HTTPException(status_code=409, detail="Unsupported provider")
 
     tokens = get_gmail_tokens(db, settings, account.id)
     if not tokens:

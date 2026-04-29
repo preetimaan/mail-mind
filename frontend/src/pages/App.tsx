@@ -174,16 +174,10 @@ export default function App() {
 
   useEffect(() => {
     if (!loggedIn || !selectedAccountId || tab !== 'filters') return
-    if (selectedAccount?.provider !== 'gmail') {
-      setGmailLabels([])
-      setGmailFilters([])
-      setGmailFiltersError('Labels & Filters is available for Gmail accounts.')
-      return
-    }
     setGmailFiltersError(null)
     void (async () => {
       try {
-        const data = await api.getGmailLabelsFilters(selectedAccountId)
+        const data = await api.getLabelsFilters(selectedAccountId)
         setGmailLabels(data.labels)
         setGmailFilters(data.filters)
         setGmailFiltersError(data.filters_error)
@@ -590,11 +584,9 @@ function LabelsAndFilters({
   }
 
   if (!account) return <div style={{ marginTop: 12, color: '#6b7280' }}>Select an account.</div>
-  if (account.provider !== 'gmail') {
-    return <div style={{ marginTop: 12, color: '#6b7280' }}>Labels & Filters is currently available for Gmail accounts.</div>
-  }
 
   const labelById = new Map((labels ?? []).map((l) => [l.id, l.name]))
+  const showFilters = account.provider === 'gmail'
 
   return (
     <div style={{ marginTop: 12 }}>
@@ -602,7 +594,7 @@ function LabelsAndFilters({
       {copied ? <div style={{ color: '#059669', marginBottom: 8, fontSize: 12 }}>Copied filter query.</div> : null}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
         <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
-          <h3 style={{ margin: '0 0 8px 0' }}>Labels</h3>
+          <h3 style={{ margin: '0 0 8px 0' }}>{account.provider === 'gmail' ? 'Labels' : 'Folders'}</h3>
           {!labels ? (
             <div style={{ color: '#6b7280' }}>Loading…</div>
           ) : labels.length === 0 ? (
@@ -623,7 +615,7 @@ function LabelsAndFilters({
             </div>
           )}
         </div>
-        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
+        {showFilters ? <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
           <h3 style={{ margin: '0 0 8px 0' }}>Filters</h3>
           {!filters ? (
             <div style={{ color: '#6b7280' }}>Loading…</div>
@@ -657,7 +649,7 @@ function LabelsAndFilters({
               })}
             </div>
           )}
-        </div>
+        </div> : null}
       </div>
     </div>
   )

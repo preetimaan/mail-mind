@@ -39,6 +39,40 @@ class YahooFetchError(Exception):
     pass
 
 
+def list_folders(*, email_address: str, app_password: str) -> list[str]:
+    """
+    Returns mailbox folder names visible over IMAP.
+    """
+    try:
+        imap = imaplib.IMAP4_SSL("imap.mail.yahoo.com", 993)
+        imap.login(email_address, app_password)
+        typ, data = imap.list()
+        if typ != "OK" or data is None:
+            raise YahooFetchError("IMAP LIST failed")
+        out: list[str] = []
+        for line in data:
+            if not line:
+                continue
+            s = line.decode(errors="ignore")
+            # Typical format: (...flags...) "/" "INBOX"
+            name = s.rsplit(' "/" ', 1)[-1].strip().strip('"')
+            if name:
+                out.append(name)
+        out = sorted(set(out), key=lambda x: x.lower())
+        return out
+    except imaplib.IMAP4.error as e:
+        raise YahooFetchError(f"IMAP auth/fetch failed: {e}") from e
+    except YahooFetchError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise YahooFetchError(str(e)) from e
+    finally:
+        try:
+            imap.logout()  # type: ignore[misc]
+        except Exception:
+            pass
+
+
 def _imap_date(d: datetime) -> str:
     # IMAP uses day-month-year, e.g. 27-Apr-2026
     return d.strftime("%d-%b-%Y")

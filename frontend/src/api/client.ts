@@ -104,7 +104,7 @@ export type GmailFilterRule = {
   }
 }
 
-export type GmailLabelsFiltersResponse = {
+export type MailLabelsFiltersResponse = {
   labels: GmailLabel[]
   filters: GmailFilterRule[]
   filters_error: string | null
@@ -225,9 +225,9 @@ export const api = {
       body: JSON.stringify({ account_id: accountId, app_password: appPassword }),
     })
   },
-  getGmailLabelsFilters: async (accountId: number) => {
+  getLabelsFilters: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
-    return await request<GmailLabelsFiltersResponse>(`/gmail/labels-filters?${qs.toString()}`)
+    return await request<MailLabelsFiltersResponse>(`/labels-filters?${qs.toString()}`)
   },
 }
 
