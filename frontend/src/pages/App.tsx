@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   api,
+  type AIStatus,
   type AnalysisRun,
   type CategoryInsights,
+  type ClassifiedSender,
   type EmailAccount,
   type GmailFilterRule,
   type GmailLabel,
   type InsightsSummary,
+  type LabelSummary,
   type ProcessedRange,
   type ProcessedRangeGap,
   type SenderInsights,
   type SenderMessageSample,
+  type UnclassifiedSender,
   type YearlyFrequencyInsights,
 } from '../api/client'
 
-type Tab = 'analysis' | 'insights' | 'filters' | 'settings'
+type Tab = 'analysis' | 'insights' | 'labels' | 'filters' | 'settings'
 
 const TAB_LABELS: Record<Tab, string> = {
   analysis: 'Analyze',
   insights: 'Insights',
+  labels: 'Label Suggestions',
   filters: 'Labels & Filters',
   settings: 'Settings',
 }
@@ -87,6 +92,10 @@ export default function App() {
   const [gmailLabels, setGmailLabels] = useState<GmailLabel[] | null>(null)
   const [gmailFilters, setGmailFilters] = useState<GmailFilterRule[] | null>(null)
   const [gmailFiltersError, setGmailFiltersError] = useState<string | null>(null)
+
+  const [labelSummary, setLabelSummary] = useState<LabelSummary | null>(null)
+  const [labelError, setLabelError] = useState<string | null>(null)
+  const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('mailmind_username') ?? ''
@@ -190,6 +199,24 @@ export default function App() {
   }, [loggedIn, selectedAccountId, tab, selectedAccount?.provider])
 
   useEffect(() => {
+    if (!loggedIn || !selectedAccountId || tab !== 'labels') return
+    setLabelError(null)
+    void (async () => {
+      try {
+        const [summary, aiStat] = await Promise.all([
+          api.getLabelSummary(selectedAccountId),
+          api.getAIStatus(),
+        ])
+        setLabelSummary(summary)
+        setAiStatus(aiStat)
+      } catch (e: any) {
+        setLabelError(e?.message ?? 'Failed to load label suggestions')
+        setLabelSummary(null)
+      }
+    })()
+  }, [loggedIn, selectedAccountId, tab])
+
+  useEffect(() => {
     if (!loggedIn || !selectedAccountId) return
     if (tab !== 'analysis') return
 
@@ -257,8 +284,8 @@ export default function App() {
         </div>
       ) : (
         <>
-          <nav style={{ display: 'flex', gap: 8, marginTop: '1.25rem' }}>
-            {(['analysis', 'insights', 'filters', 'settings'] as const).map((t) => (
+          <nav style={{ display: 'flex', gap: 8, marginTop: '1.25rem', flexWrap: 'wrap' }}>
+            {(['analysis', 'insights', 'labels', 'filters', 'settings'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -396,6 +423,23 @@ export default function App() {
                 categories={categoryInsights}
                 yearly={yearlyInsights}
               />
+            ) : tab === 'labels' ? (
+              <LabelSuggestions
+                accountId={selectedAccountId}
+                summary={labelSummary}
+                error={labelError}
+                aiStatus={aiStatus}
+                onRefresh={async () => {
+                  if (!selectedAccountId) return
+                  setLabelError(null)
+                  try {
+                    const s = await api.getLabelSummary(selectedAccountId)
+                    setLabelSummary(s)
+                  } catch (e: any) {
+                    setLabelError(e?.message ?? 'Failed to refresh')
+                  }
+                }}
+              />
             ) : tab === 'filters' ? (
               <LabelsAndFilters
                 account={selectedAccount}
@@ -411,6 +455,413 @@ export default function App() {
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+const CUSTOM_LABELS = ['Career', 'Learning', 'Life Admin', 'Money', 'Health', 'Gov & Tax']
+const LABEL_COLORS: Record<string, string> = {
+  Career: '#dbeafe',
+  Learning: '#ede9fe',
+  'Life Admin': '#d1fae5',
+  Money: '#fef9c3',
+  Health: '#fee2e2',
+  'Gov & Tax': '#e0e7ff',
+}
+
+function LabelBadge({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 600,
+        background: LABEL_COLORS[label] ?? '#f3f4f6',
+        color: '#111827',
+        marginRight: 4,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function LabelSuggestions({
+  accountId,
+  summary,
+  error,
+  aiStatus,
+  onRefresh,
+}: {
+  accountId: number | null
+  summary: LabelSummary | null
+  error: string | null
+  aiStatus: AIStatus | null
+  onRefresh: () => Promise<void>
+}) {
+  const [running, setRunning] = useState(false)
+  const [runResult, setRunResult] = useState<string | null>(null)
+  const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
+  const [labelSenders, setLabelSenders] = useState<ClassifiedSender[]>([])
+  const [loadingLabel, setLoadingLabel] = useState(false)
+  const [unclassified, setUnclassified] = useState<UnclassifiedSender[] | null>(null)
+  const [loadingUnclassified, setLoadingUnclassified] = useState(false)
+  const [assigning, setAssigning] = useState<string | null>(null)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [aiResult, setAiResult] = useState<string | null>(null)
+
+  async function handleRunClassification() {
+    if (!accountId) return
+    setRunning(true)
+    setRunResult(null)
+    try {
+      const res = await api.runLabelClassification(accountId)
+      setRunResult(`Classified ${res.classified} of ${res.total_senders} senders (${res.unclassified} need review).`)
+      await onRefresh()
+    } catch (e: any) {
+      setRunResult(`Error: ${e?.message ?? 'Failed'}`)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  async function handleExpandLabel(label: string) {
+    if (expandedLabel === label) {
+      setExpandedLabel(null)
+      return
+    }
+    if (!accountId) return
+    setExpandedLabel(label)
+    setLoadingLabel(true)
+    try {
+      const res = await api.getSendersForLabel(accountId, label)
+      setLabelSenders(res.senders)
+    } catch {
+      setLabelSenders([])
+    } finally {
+      setLoadingLabel(false)
+    }
+  }
+
+  async function handleLoadUnclassified() {
+    if (!accountId) return
+    setLoadingUnclassified(true)
+    try {
+      const res = await api.getUnclassifiedSenders(accountId)
+      setUnclassified(res.senders)
+    } catch {
+      setUnclassified([])
+    } finally {
+      setLoadingUnclassified(false)
+    }
+  }
+
+  async function handleManualAssign(senderEmail: string, labels: string[]) {
+    if (!accountId) return
+    setAssigning(senderEmail)
+    try {
+      await api.manualClassifySender(accountId, senderEmail, labels)
+      setUnclassified((prev) => (prev ? prev.filter((s) => s.sender_email !== senderEmail) : prev))
+      await onRefresh()
+    } catch (e: any) {
+      alert(`Failed to assign: ${e?.message ?? 'Unknown error'}`)
+    } finally {
+      setAssigning(null)
+    }
+  }
+
+  async function handleAIEnhance() {
+    if (!accountId) return
+    setAiRunning(true)
+    setAiResult(null)
+    try {
+      const res = await api.runAIEnhance(accountId)
+      setAiResult(`AI classified ${res.processed} senders via ${res.provider}${res.errors ? ` (${res.errors} errors)` : ''}.`)
+      await onRefresh()
+      if (unclassified !== null) {
+        const fresh = await api.getUnclassifiedSenders(accountId)
+        setUnclassified(fresh.senders)
+      }
+    } catch (e: any) {
+      setAiResult(`Error: ${e?.message ?? 'Failed'}`)
+    } finally {
+      setAiRunning(false)
+    }
+  }
+
+  if (!accountId) {
+    return <div style={{ marginTop: 12, color: '#6b7280' }}>Select an account to view label suggestions.</div>
+  }
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {/* Run + AI controls */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button onClick={handleRunClassification} disabled={running}>
+          {running ? 'Running…' : 'Run Classification'}
+        </button>
+        {aiStatus?.configured ? (
+          <button onClick={handleAIEnhance} disabled={aiRunning}>
+            {aiRunning ? 'Enhancing…' : `Enhance with AI (${aiStatus.provider})`}
+          </button>
+        ) : (
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>
+            AI not configured — set MAILMIND_AI_PROVIDER + MAILMIND_AI_API_KEY in .env
+          </span>
+        )}
+      </div>
+      {runResult && <div style={{ marginTop: 8, fontSize: 13, color: '#374151' }}>{runResult}</div>}
+      {aiResult && <div style={{ marginTop: 8, fontSize: 13, color: '#374151' }}>{aiResult}</div>}
+      {error && <div style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</div>}
+
+      {/* Coverage summary */}
+      {summary && (
+        <>
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: 10,
+              display: 'flex',
+              gap: 24,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <span style={{ fontWeight: 700, fontSize: 22 }}>{summary.coverage_percent}%</span>
+              <span style={{ fontSize: 13, color: '#6b7280', marginLeft: 6 }}>of inbox covered</span>
+            </div>
+            <div style={{ fontSize: 13, color: '#374151' }}>
+              <strong>{summary.total_emails.toLocaleString()}</strong> total emails
+            </div>
+            <div style={{ fontSize: 13, color: '#374151' }}>
+              <strong>{summary.unclassified.sender_count}</strong> senders unclassified
+            </div>
+          </div>
+
+          {/* Per-label cards */}
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {summary.labels.map((stat) => (
+              <div key={stat.label} style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+                <button
+                  onClick={() => handleExpandLabel(stat.label)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 14px',
+                    background: expandedLabel === stat.label ? '#f3f4f6' : 'white',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <LabelBadge label={stat.label} />
+                  <span style={{ fontSize: 13, color: '#374151' }}>
+                    <strong>{stat.email_count.toLocaleString()}</strong> emails &middot;{' '}
+                    <strong>{stat.sender_count}</strong> senders
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af' }}>
+                    {expandedLabel === stat.label ? '▲' : '▼'}
+                  </span>
+                </button>
+
+                {expandedLabel === stat.label && (
+                  <div style={{ padding: '0 14px 12px', borderTop: '1px solid #f3f4f6' }}>
+                    {loadingLabel ? (
+                      <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 8 }}>Loading…</div>
+                    ) : labelSenders.length === 0 ? (
+                      <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 8 }}>
+                        No senders found. Run classification first.
+                      </div>
+                    ) : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ color: '#6b7280', textAlign: 'left' }}>
+                            <th style={{ paddingBottom: 4, fontWeight: 500 }}>Sender</th>
+                            <th style={{ paddingBottom: 4, fontWeight: 500 }}>Emails</th>
+                            <th style={{ paddingBottom: 4, fontWeight: 500 }}>Labels</th>
+                            <th style={{ paddingBottom: 4, fontWeight: 500 }}>Confidence</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {labelSenders.map((s) => (
+                            <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6' }}>
+                              <td style={{ padding: '6px 0' }}>
+                                <div style={{ fontWeight: 500 }}>{s.sender_name ?? s.sender_email}</div>
+                                <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.sender_domain}</div>
+                              </td>
+                              <td style={{ padding: '6px 8px' }}>{s.email_count}</td>
+                              <td style={{ padding: '6px 0' }}>
+                                {s.custom_labels.map((l) => <LabelBadge key={l} label={l} />)}
+                              </td>
+                              <td style={{ padding: '6px 0', fontSize: 11, color: '#9ca3af' }}>
+                                {s.source === 'manual' ? 'manual' : s.confidence ?? '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Unclassified senders */}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 15 }}>
+                Unclassified senders ({summary.unclassified.sender_count})
+              </h3>
+              <button
+                onClick={handleLoadUnclassified}
+                disabled={loadingUnclassified}
+                style={{ fontSize: 12 }}
+              >
+                {loadingUnclassified ? 'Loading…' : unclassified === null ? 'Load' : 'Refresh'}
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+              Assign a label to cover all emails from that sender. Life Admin senders (utilities, landlord) are common here.
+            </div>
+
+            {unclassified !== null && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {unclassified.length === 0 ? (
+                  <div style={{ fontSize: 13, color: '#6b7280' }}>All senders are classified.</div>
+                ) : (
+                  unclassified.map((s) => (
+                    <UnclassifiedSenderRow
+                      key={s.sender_email}
+                      sender={s}
+                      busy={assigning === s.sender_email}
+                      onAssign={(labels) => handleManualAssign(s.sender_email, labels)}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Export */}
+          <div
+            style={{
+              marginTop: 20,
+              padding: 12,
+              border: '1px solid #e5e7eb',
+              borderRadius: 10,
+              background: '#f9fafb',
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Labels to create in Gmail</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+              Copy these names and create them manually in Gmail Settings → Labels.
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {CUSTOM_LABELS.map((l) => <LabelBadge key={l} label={l} />)}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!summary && !error && (
+        <div style={{ marginTop: 16, fontSize: 13, color: '#9ca3af' }}>
+          Click "Run Classification" to analyze your senders and generate label suggestions.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UnclassifiedSenderRow({
+  sender,
+  busy,
+  onAssign,
+}: {
+  sender: UnclassifiedSender
+  busy: boolean
+  onAssign: (labels: string[]) => void
+}) {
+  const [selected, setSelected] = useState<string[]>([])
+
+  function toggle(label: string) {
+    setSelected((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : prev.length < 3 ? [...prev, label] : prev,
+    )
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid #e5e7eb',
+        borderRadius: 8,
+        padding: '8px 12px',
+        background: 'white',
+        display: 'flex',
+        gap: 12,
+        flexWrap: 'wrap',
+        alignItems: 'flex-start',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 160 }}>
+        <div style={{ fontWeight: 500, fontSize: 13 }}>{sender.sender_name ?? sender.sender_email}</div>
+        <div style={{ fontSize: 11, color: '#9ca3af' }}>{sender.sender_domain}</div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+          {sender.email_count} emails
+        </div>
+        {sender.sample_subjects.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {sender.sample_subjects.slice(0, 2).map((s, i) => (
+              <div key={i} style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>"{s}"</div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {CUSTOM_LABELS.map((label) => (
+            <button
+              key={label}
+              onClick={() => toggle(label)}
+              style={{
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11,
+                fontWeight: 600,
+                border: selected.includes(label) ? '2px solid #111827' : '1px solid #e5e7eb',
+                background: selected.includes(label) ? (LABEL_COLORS[label] ?? '#f3f4f6') : 'white',
+                cursor: 'pointer',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            disabled={busy || selected.length === 0}
+            onClick={() => onAssign(selected)}
+            style={{ fontSize: 12 }}
+          >
+            {busy ? 'Saving…' : 'Assign'}
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => onAssign([])}
+            style={{ fontSize: 12 }}
+          >
+            Skip
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

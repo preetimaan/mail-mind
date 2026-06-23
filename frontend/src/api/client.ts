@@ -110,6 +110,43 @@ export type MailLabelsFiltersResponse = {
   filters_error: string | null
 }
 
+export type LabelStat = {
+  label: string
+  email_count: number
+  sender_count: number
+}
+
+export type LabelSummary = {
+  total_emails: number
+  coverage_percent: number
+  labels: LabelStat[]
+  unclassified: { email_count: number; sender_count: number }
+}
+
+export type ClassifiedSender = {
+  sender_email: string
+  sender_name: string | null
+  sender_domain: string
+  custom_labels: string[]
+  email_count: number
+  confidence: string | null
+  source: string | null
+  sample_subjects: string[]
+}
+
+export type UnclassifiedSender = {
+  sender_email: string
+  sender_name: string | null
+  sender_domain: string
+  email_count: number
+  sample_subjects: string[]
+}
+
+export type AIStatus = {
+  configured: boolean
+  provider: string | null
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -228,6 +265,46 @@ export const api = {
   getLabelsFilters: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<MailLabelsFiltersResponse>(`/labels-filters?${qs.toString()}`)
+  },
+  runLabelClassification: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<{ total_senders: number; classified: number; unclassified: number }>(
+      `/label-suggestions/classify?${qs.toString()}`,
+      { method: 'POST' },
+    )
+  },
+  getLabelSummary: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<LabelSummary>(`/label-suggestions/summary?${qs.toString()}`)
+  },
+  getSendersForLabel: async (accountId: number, label: string) => {
+    const qs = new URLSearchParams({ account_id: String(accountId), label })
+    return await request<{ label: string; senders: ClassifiedSender[]; total: number }>(
+      `/label-suggestions/senders?${qs.toString()}`,
+    )
+  },
+  getUnclassifiedSenders: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<{ senders: UnclassifiedSender[]; total: number }>(
+      `/label-suggestions/unclassified?${qs.toString()}`,
+    )
+  },
+  manualClassifySender: async (accountId: number, senderEmail: string, customLabels: string[]) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<{ sender_email: string; custom_labels: string[]; source: string }>(
+      `/label-suggestions/classify/manual?${qs.toString()}`,
+      { method: 'POST', body: JSON.stringify({ sender_email: senderEmail, custom_labels: customLabels }) },
+    )
+  },
+  getAIStatus: async () => {
+    return await request<AIStatus>(`/label-suggestions/ai-status`)
+  },
+  runAIEnhance: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<{ processed: number; errors: number; provider: string }>(
+      `/label-suggestions/ai-enhance?${qs.toString()}`,
+      { method: 'POST' },
+    )
   },
 }
 
