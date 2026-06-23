@@ -20,6 +20,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
+CUSTOM_LABELS = [
+    "Career",
+    "Learning",
+    "Life Admin",
+    "Money",
+    "Health",
+    "Gov & Tax",
+]
+
+
 class ClassificationSource(str, enum.Enum):
     tier1_domain = "tier1_domain"
     tier2_keyword = "tier2_keyword"

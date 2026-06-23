@@ -8,16 +8,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    CUSTOM_LABELS,  # noqa: F401 — re-exported for router use
     ClassificationConfidence,
     ClassificationSource,
     EmailMessage,
     SenderClassification,
 )
-from app.services.email_normalize import normalize_sender_email
-
-# ---------------------------------------------------------------------------
-# Custom label names (these must match what the user creates in Gmail)
-# ---------------------------------------------------------------------------
 
 LABEL_CAREER = "Career"
 LABEL_LEARNING = "Learning"
@@ -25,15 +21,6 @@ LABEL_LIFE_ADMIN = "Life Admin"
 LABEL_MONEY = "Money"
 LABEL_HEALTH = "Health"
 LABEL_GOV_TAX = "Gov & Tax"
-
-ALL_CUSTOM_LABELS = [
-    LABEL_CAREER,
-    LABEL_LEARNING,
-    LABEL_LIFE_ADMIN,
-    LABEL_MONEY,
-    LABEL_HEALTH,
-    LABEL_GOV_TAX,
-]
 
 # ---------------------------------------------------------------------------
 # Tier 1 — known sender domain lists (high confidence, single signal enough)
@@ -443,7 +430,7 @@ def manual_classify(
     """
     Apply a user-supplied label list to a sender. Always wins over rule/AI.
     """
-    validated = [l for l in custom_labels if l in ALL_CUSTOM_LABELS][:3]
+    validated = [l for l in custom_labels if l in CUSTOM_LABELS][:3]
     now = datetime.utcnow()
 
     existing = db.execute(
