@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,11 +10,15 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     CUSTOM_LABELS,
+    ClassificationConfidence,
+    ClassificationSource,
     EmailMessage,
     SenderClassification,
 )
 from app.db.session import get_db
+from app.services.ai_classifier import AIClassifierError, classify_sender
 from app.services.classification_engine import classify_account, manual_classify
+from app.settings import get_settings
 
 router = APIRouter(tags=["label-suggestions"])
 
@@ -210,6 +215,91 @@ def manual_classify_sender(
         "sender_email": sc.sender_email,
         "custom_labels": json.loads(sc.custom_labels),
         "source": sc.source,
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI enhancement — classify unclassified senders via Gemini or OpenAI
+# ---------------------------------------------------------------------------
+
+@router.post("/label-suggestions/ai-enhance")
+def ai_enhance(account_id: int, db: Session = Depends(get_db)) -> dict:
+    """
+    Runs the configured AI provider over all unclassified senders.
+    Requires MAILMIND_AI_PROVIDER and MAILMIND_AI_API_KEY to be set.
+    Only sends sender name, domain, and subject lines — no email bodies.
+    Results are cached; the same sender is never sent to the AI again.
+    """
+    settings = get_settings()
+    provider = settings.ai_provider
+    api_key = settings.ai_api_key
+
+    if not provider or not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "AI provider not configured. Set MAILMIND_AI_PROVIDER (gemini or openai) "
+                "and MAILMIND_AI_API_KEY in your .env file."
+            ),
+        )
+
+    # Fetch unclassified senders only.
+    rows = db.execute(
+        select(SenderClassification)
+        .where(SenderClassification.account_id == account_id)
+        .order_by(SenderClassification.email_count.desc())
+    ).scalars().all()
+
+    unclassified = [
+        r for r in rows
+        if not json.loads(r.custom_labels or "[]")
+        and r.source != ClassificationSource.ai.value
+    ]
+
+    now = datetime.utcnow()
+    processed = 0
+    errors = 0
+
+    for sc in unclassified:
+        subjects = json.loads(sc.sample_subjects or "[]")
+        try:
+            labels = classify_sender(
+                provider=provider,
+                api_key=api_key,
+                sender_email=sc.sender_email,
+                sender_name=sc.sender_name,
+                sample_subjects=subjects,
+            )
+        except AIClassifierError:
+            errors += 1
+            continue
+
+        sc.custom_labels = json.dumps(labels)
+        sc.confidence = ClassificationConfidence.medium.value
+        sc.source = ClassificationSource.ai.value
+        sc.classified_at = now
+        processed += 1
+
+    db.commit()
+
+    return {
+        "processed": processed,
+        "errors": errors,
+        "provider": provider,
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI config status (lets the UI know whether AI is available)
+# ---------------------------------------------------------------------------
+
+@router.get("/label-suggestions/ai-status")
+def ai_status() -> dict:
+    settings = get_settings()
+    configured = bool(settings.ai_provider and settings.ai_api_key)
+    return {
+        "configured": configured,
+        "provider": settings.ai_provider if configured else None,
     }
 
 

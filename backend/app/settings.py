@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # Used to encrypt provider tokens at rest.
     token_encryption_key: str | None = None
 
+    # Optional AI enhancement for label suggestions (user supplies their own key).
+    ai_provider: str | None = None  # "gemini" or "openai"
+    ai_api_key: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
