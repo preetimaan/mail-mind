@@ -20,6 +20,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
+class ClassificationSource(str, enum.Enum):
+    tier1_domain = "tier1_domain"
+    tier2_keyword = "tier2_keyword"
+    tier2_header = "tier2_header"
+    manual = "manual"
+    ai = "ai"
+
+
+class ClassificationConfidence(str, enum.Enum):
+    high = "high"
+    medium = "medium"
+    low = "low"
+
+
 class Provider(str, enum.Enum):
     gmail = "gmail"
     yahoo = "yahoo"
@@ -156,5 +170,39 @@ class OAuthCredential(Base):
 
     __table_args__ = (
         UniqueConstraint("provider", "account_id", name="uq_oauth_credential_provider_account"),
+    )
+
+
+class SenderClassification(Base):
+    """One row per unique sender per account. Classification engine writes here; UI reads from here."""
+
+    __tablename__ = "sender_classifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id"), index=True)
+
+    sender_email: Mapped[str] = mapped_column(String, index=True)
+    sender_domain: Mapped[str] = mapped_column(String, index=True)
+    sender_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # JSON array of custom label names, e.g. ["Career", "Money"]. Max 3.
+    custom_labels: Mapped[str] = mapped_column(Text, default="[]")
+
+    # JSON array of up to 5 recent subjects, used for display and AI prompts.
+    sample_subjects: Mapped[str] = mapped_column(Text, default="[]")
+
+    email_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    confidence: Mapped[str | None] = mapped_column(
+        Enum(ClassificationConfidence), nullable=True
+    )
+    source: Mapped[str | None] = mapped_column(
+        Enum(ClassificationSource), nullable=True
+    )
+
+    classified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("account_id", "sender_email", name="uq_sender_classification"),
     )
 

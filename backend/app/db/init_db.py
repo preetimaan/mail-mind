@@ -90,3 +90,31 @@ def _ensure_schema() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_credentials_provider ON oauth_credentials (provider)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_oauth_credentials_account_id ON oauth_credentials (account_id)"))
 
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS sender_classifications (
+                    id INTEGER PRIMARY KEY,
+                    account_id INTEGER NOT NULL,
+                    sender_email VARCHAR NOT NULL,
+                    sender_domain VARCHAR NOT NULL,
+                    sender_name VARCHAR,
+                    custom_labels TEXT NOT NULL DEFAULT '[]',
+                    sample_subjects TEXT NOT NULL DEFAULT '[]',
+                    email_count INTEGER NOT NULL DEFAULT 0,
+                    confidence VARCHAR,
+                    source VARCHAR,
+                    classified_at DATETIME
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_sender_classification "
+                "ON sender_classifications (account_id, sender_email)"
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sender_classifications_account_id ON sender_classifications (account_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sender_classifications_sender_domain ON sender_classifications (sender_domain)"))
+
