@@ -16,7 +16,8 @@ from app.db.models import (
 )
 
 LABEL_CAREER = "Career"
-LABEL_LEARNING = "Learning"
+LABEL_STUDY = "Study"
+LABEL_SOFTWARE = "Software"
 LABEL_LIFE_ADMIN = "Life Admin"
 LABEL_MONEY = "Money"
 LABEL_HEALTH = "Health"
@@ -54,7 +55,7 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
         ),
         [LABEL_CAREER],
     ),
-    # Learning — ed-tech and skill platforms
+    # Study — ed-tech and skill platforms
     (
         (
             "udemy.com",
@@ -74,11 +75,60 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
             "educative.io",
             "interviewbit.com",
             "brilliant.org",
-            "o'reilly.com",
             "oreilly.com",
             "manning.com",
         ),
-        [LABEL_LEARNING],
+        [LABEL_STUDY],
+    ),
+    # Software — developer tools, SaaS, and software services
+    (
+        (
+            "github.com",
+            "gitlab.com",
+            "bitbucket.org",
+            "atlassian.com",
+            "notion.so",
+            "slack.com",
+            "linear.app",
+            "clickup.com",
+            "asana.com",
+            "monday.com",
+            "trello.com",
+            "basecamp.com",
+            "figma.com",
+            "canva.com",
+            "vercel.com",
+            "netlify.com",
+            "heroku.com",
+            "digitalocean.com",
+            "render.com",
+            "railway.app",
+            "fly.io",
+            "sentry.io",
+            "datadog.com",
+            "newrelic.com",
+            "pagerduty.com",
+            "cloudflare.com",
+            "jetbrains.com",
+            "1password.com",
+            "lastpass.com",
+            "bitwarden.com",
+            "zapier.com",
+            "airtable.com",
+            "calendly.com",
+            "typeform.com",
+            "hubspot.com",
+            "salesforce.com",
+            "zendesk.com",
+            "intercom.io",
+            "mailchimp.com",
+            "sendgrid.com",
+            "twilio.com",
+            "stripe.com",
+            "npmjs.com",
+            "docker.com",
+        ),
+        [LABEL_SOFTWARE],
     ),
     # Health — insurers, pharmacies, patient portals
     (
@@ -212,7 +262,18 @@ _KEYWORD_PATTERNS: list[tuple[re.Pattern[str], list[str]]] = [
             r"webinar|tutorial)\b",
             re.IGNORECASE,
         ),
-        [LABEL_LEARNING],
+        [LABEL_STUDY],
+    ),
+    (
+        re.compile(
+            r"\b(new release|release notes|changelog|version \d|"
+            r"feature update|product update|deployment|build failed|"
+            r"build passed|pipeline|pull request|repository|workspace|"
+            r"your trial|trial expired|upgrade your plan|"
+            r"new in |what.s new in )\b",
+            re.IGNORECASE,
+        ),
+        [LABEL_SOFTWARE],
     ),
     (
         re.compile(

@@ -22,7 +22,8 @@ from app.db.base import Base
 
 CUSTOM_LABELS = [
     "Career",
-    "Learning",
+    "Study",
+    "Software",
     "Life Admin",
     "Money",
     "Health",
@@ -197,6 +198,9 @@ class SenderClassification(Base):
 
     # JSON array of custom label names, e.g. ["Career", "Money"]. Max 3.
     custom_labels: Mapped[str] = mapped_column(Text, default="[]")
+
+    # JSON array of Gmail label names the user has manually associated with this sender.
+    suggested_gmail_labels: Mapped[str] = mapped_column(Text, default="[]")
 
     # JSON array of up to 5 recent subjects, used for display and AI prompts.
     sample_subjects: Mapped[str] = mapped_column(Text, default="[]")

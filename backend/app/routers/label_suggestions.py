@@ -138,6 +138,7 @@ def senders_for_label(
                 "confidence": row.confidence,
                 "source": row.source,
                 "sample_subjects": json.loads(row.sample_subjects or "[]"),
+                "suggested_gmail_labels": json.loads(getattr(row, "suggested_gmail_labels", None) or "[]"),
             })
             if len(results) >= limit:
                 break
@@ -173,6 +174,7 @@ def unclassified_senders(
             "sender_domain": row.sender_domain,
             "email_count": row.email_count,
             "sample_subjects": json.loads(row.sample_subjects or "[]"),
+            "suggested_gmail_labels": json.loads(getattr(row, "suggested_gmail_labels", None) or "[]"),
         }
         for row in rows
         if not json.loads(row.custom_labels or "[]")
@@ -188,6 +190,11 @@ def unclassified_senders(
 class ManualClassifyRequest(BaseModel):
     sender_email: str
     custom_labels: list[str]
+
+
+class GmailLabelSuggestionRequest(BaseModel):
+    sender_email: str
+    gmail_labels: list[str]
 
 
 @router.post("/label-suggestions/classify/manual")
@@ -225,6 +232,31 @@ def manual_classify_sender(
 # ---------------------------------------------------------------------------
 # AI enhancement — classify unclassified senders via Gemini or OpenAI
 # ---------------------------------------------------------------------------
+
+@router.post("/label-suggestions/classify/gmail-labels")
+def set_gmail_labels(
+    account_id: int,
+    body: GmailLabelSuggestionRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Associate existing Gmail label names with a sender for filter suggestion purposes.
+    Does not create any Gmail labels — purely a local annotation.
+    """
+    sc = db.execute(
+        select(SenderClassification).where(
+            SenderClassification.account_id == account_id,
+            SenderClassification.sender_email == body.sender_email,
+        )
+    ).scalar_one_or_none()
+
+    if not sc:
+        raise HTTPException(status_code=404, detail="Sender not found. Run classification first.")
+
+    sc.suggested_gmail_labels = json.dumps(body.gmail_labels)
+    db.commit()
+    return {"sender_email": sc.sender_email, "suggested_gmail_labels": body.gmail_labels}
+
 
 @router.post("/label-suggestions/ai-enhance")
 def ai_enhance(account_id: int, db: Session = Depends(get_db)) -> dict:
@@ -368,6 +400,20 @@ def filter_queries(account_id: int, db: Session = Depends(get_db)) -> dict:
         else:
             query = "from:(" + " OR ".join(parts) + ")"
 
-        results.append({"label": label, "query": query, "sender_count": len(senders)})
+        # Collect all unique Gmail label suggestions across senders for this custom label.
+        gmail_label_set: list[str] = []
+        seen: set[str] = set()
+        for s in senders:
+            for gl in json.loads(getattr(s, "suggested_gmail_labels", None) or "[]"):
+                if gl not in seen:
+                    gmail_label_set.append(gl)
+                    seen.add(gl)
+
+        results.append({
+            "label": label,
+            "query": query,
+            "sender_count": len(senders),
+            "suggested_gmail_labels": gmail_label_set,
+        })
 
     return {"queries": results}

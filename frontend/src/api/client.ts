@@ -133,6 +133,7 @@ export type ClassifiedSender = {
   confidence: string | null
   source: string | null
   sample_subjects: string[]
+  suggested_gmail_labels: string[]
 }
 
 export type UnclassifiedSender = {
@@ -141,6 +142,7 @@ export type UnclassifiedSender = {
   sender_domain: string
   email_count: number
   sample_subjects: string[]
+  suggested_gmail_labels: string[]
 }
 
 export type AIStatus = {
@@ -152,6 +154,7 @@ export type FilterQuery = {
   label: string
   query: string
   sender_count: number
+  suggested_gmail_labels: string[]
 }
 
 const API_BASE = 'http://localhost:8000/api'
@@ -316,6 +319,13 @@ export const api = {
   getFilterQueries: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
     return await request<{ queries: FilterQuery[] }>(`/label-suggestions/filter-queries?${qs.toString()}`)
+  },
+  setGmailLabelsForSender: async (accountId: number, senderEmail: string, gmailLabels: string[]) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<{ sender_email: string; suggested_gmail_labels: string[] }>(
+      `/label-suggestions/classify/gmail-labels?${qs.toString()}`,
+      { method: 'POST', body: JSON.stringify({ sender_email: senderEmail, gmail_labels: gmailLabels }) },
+    )
   },
 }
 

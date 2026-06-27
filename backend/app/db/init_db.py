@@ -118,3 +118,17 @@ def _ensure_schema() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sender_classifications_account_id ON sender_classifications (account_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sender_classifications_sender_domain ON sender_classifications (sender_domain)"))
 
+        sc_cols = conn.execute(text("PRAGMA table_info('sender_classifications')")).fetchall()
+        sc_col_names = {c[1] for c in sc_cols}
+        if sc_cols and "suggested_gmail_labels" not in sc_col_names:
+            conn.execute(text("ALTER TABLE sender_classifications ADD COLUMN suggested_gmail_labels TEXT NOT NULL DEFAULT '[]'"))
+
+        # Rename "Learning" → "Study" in existing classification rows.
+        conn.execute(
+            text(
+                "UPDATE sender_classifications "
+                "SET custom_labels = REPLACE(custom_labels, '\"Learning\"', '\"Study\"') "
+                "WHERE custom_labels LIKE '%\"Learning\"%'"
+            )
+        )
+
