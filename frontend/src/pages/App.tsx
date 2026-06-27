@@ -143,6 +143,10 @@ export default function App() {
   }, [loggedIn, username])
 
   useEffect(() => {
+    if (tab === 'filters' && selectedAccount?.provider !== 'gmail') setTab('analysis')
+  }, [selectedAccount])
+
+  useEffect(() => {
     if (!loggedIn || !selectedAccountId) return
     void (async () => {
       const data = await api.listRuns(selectedAccountId, 5, 0)
@@ -300,7 +304,7 @@ export default function App() {
       ) : (
         <>
           <nav style={{ display: 'flex', gap: 8, marginTop: '1.25rem', flexWrap: 'wrap' }}>
-            {(['analysis', 'insights', 'labels', 'filters', 'settings'] as const).map((t) => (
+            {(['analysis', 'insights', 'labels', 'filters', 'settings'] as const).filter((t) => t !== 'filters' || selectedAccount?.provider === 'gmail').map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
