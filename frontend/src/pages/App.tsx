@@ -986,7 +986,7 @@ function LabelSuggestions({
 
           {/* Filter suggestions */}
           {filterQueries && filterQueries.some((fq) => fq.query) && (
-            <FilterSuggestionsPanel filterQueries={filterQueries} />
+            <FilterSuggestionsPanel filterQueries={filterQueries} onRefresh={onRefresh} />
           )}
         </>
       )}
@@ -1061,8 +1061,9 @@ function SubjectsModal({
   )
 }
 
-function FilterSuggestionsPanel({ filterQueries }: { filterQueries: FilterQuery[] }) {
+function FilterSuggestionsPanel({ filterQueries, onRefresh }: { filterQueries: FilterQuery[], onRefresh: () => Promise<void> }) {
   const [copied, setCopied] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   async function copyQuery(label: string, query: string) {
     try {
@@ -1074,11 +1075,25 @@ function FilterSuggestionsPanel({ filterQueries }: { filterQueries: FilterQuery[
     }
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    try { await onRefresh() } finally { setRefreshing(false) }
+  }
+
   const active = filterQueries.filter((fq) => fq.query)
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Filter Suggestions for Gmail</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ fontWeight: 600, fontSize: 14 }}>Filter Suggestions for Gmail</div>
+        <button
+          style={{ fontSize: 11, padding: '2px 8px', marginLeft: 'auto', color: '#6b7280' }}
+          onClick={() => void handleRefresh()}
+          disabled={refreshing}
+        >
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
         Paste a query into Gmail's filter creation dialog (Search → Show search options → Create filter).
         Each query covers all senders classified under that label.

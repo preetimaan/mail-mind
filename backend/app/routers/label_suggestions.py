@@ -357,12 +357,24 @@ def available_labels() -> dict:
 # Filter queries — collapsed per-label Gmail search strings
 # ---------------------------------------------------------------------------
 
+# Free/shared email provider domains — never collapse to @domain because the
+# domain doesn't identify an organisation (everyone has a gmail.com address).
+_SHARED_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "yahoo.co.uk", "yahoo.com.au",
+    "hotmail.com", "hotmail.co.uk", "outlook.com", "live.com",
+    "icloud.com", "me.com", "mac.com",
+    "protonmail.com", "pm.me", "proton.me",
+    "aol.com", "msn.com", "ymail.com", "googlemail.com",
+}
+
+
 @router.get("/label-suggestions/filter-queries")
 def filter_queries(account_id: int, db: Session = Depends(get_db)) -> dict:
     """
     Returns a Gmail-compatible `from:` query per custom label.
-    Domains with multiple classified senders are collapsed to @domain.com.
-    Single-sender domains keep the exact sender email address.
+    Domains with multiple classified senders are collapsed to @domain.com,
+    except for shared email providers (gmail.com, yahoo.com, etc.) where
+    exact addresses are always used to avoid over-broad filters.
     """
     rows = db.execute(
         select(SenderClassification)
@@ -388,7 +400,7 @@ def filter_queries(account_id: int, db: Session = Depends(get_db)) -> dict:
         covered: set[str] = set()
 
         for domain, count in domain_counts.items():
-            if count > 1:
+            if count > 1 and domain not in _SHARED_EMAIL_DOMAINS:
                 parts.append(f"@{domain}")
                 for s in senders:
                     if s.sender_domain == domain:
