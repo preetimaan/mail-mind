@@ -539,6 +539,7 @@ function LabelSuggestions({
   const [aiResult, setAiResult] = useState<string | null>(null)
   const [editingSender, setEditingSender] = useState<string | null>(null)
   const [editingLabels, setEditingLabels] = useState<string[]>([])
+  const [subjectsModal, setSubjectsModal] = useState<{ name: string; subjects: string[] } | null>(null)
 
   async function handleRunClassification() {
     if (!accountId) return
@@ -640,6 +641,13 @@ function LabelSuggestions({
 
   return (
     <div style={{ marginTop: 12 }}>
+      {subjectsModal && (
+        <SubjectsModal
+          senderName={subjectsModal.name}
+          subjects={subjectsModal.subjects}
+          onClose={() => setSubjectsModal(null)}
+        />
+      )}
       {/* Run + AI controls */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={handleRunClassification} disabled={running}>
@@ -743,13 +751,14 @@ function LabelSuggestions({
                               <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6', background: '#f9fafb' }}>
                                 <td colSpan={5} style={{ padding: '8px 0' }}>
                                   <div style={{ fontWeight: 500, marginBottom: 2 }}>{s.sender_name ?? s.sender_email}</div>
-                                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{s.sender_domain}</div>
+                                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>{s.sender_domain}</div>
                                   {s.sample_subjects.length > 0 && (
-                                    <div style={{ marginBottom: 8 }}>
-                                      {s.sample_subjects.slice(0, 3).map((subj, i) => (
-                                        <div key={i} style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>"{subj}"</div>
-                                      ))}
-                                    </div>
+                                    <button
+                                      style={{ fontSize: 11, padding: '1px 6px', marginBottom: 8, color: '#6b7280', cursor: 'pointer' }}
+                                      onClick={() => setSubjectsModal({ name: s.sender_name ?? s.sender_email, subjects: s.sample_subjects })}
+                                    >
+                                      {s.sample_subjects.length} subject{s.sample_subjects.length !== 1 ? 's' : ''} — view to decide
+                                    </button>
                                   )}
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                                     {CUSTOM_LABELS.map((label) => (
@@ -787,9 +796,14 @@ function LabelSuggestions({
                                 <td style={{ padding: '6px 0' }}>
                                   <div style={{ fontWeight: 500 }}>{s.sender_name ?? s.sender_email}</div>
                                   <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.sender_domain}</div>
-                                  {s.sample_subjects.slice(0, 2).map((subj, i) => (
-                                    <div key={i} style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginTop: 2 }}>"{subj}"</div>
-                                  ))}
+                                  {s.sample_subjects.length > 0 && (
+                                    <button
+                                      style={{ fontSize: 11, padding: '1px 6px', marginTop: 3, color: '#6b7280', cursor: 'pointer' }}
+                                      onClick={() => setSubjectsModal({ name: s.sender_name ?? s.sender_email, subjects: s.sample_subjects })}
+                                    >
+                                      {s.sample_subjects.length} subject{s.sample_subjects.length !== 1 ? 's' : ''}
+                                    </button>
+                                  )}
                                 </td>
                                 <td style={{ padding: '6px 8px' }}>{s.email_count}</td>
                                 <td style={{ padding: '6px 0' }}>
@@ -869,6 +883,67 @@ function LabelSuggestions({
           Click "Run Classification" to analyze your senders and generate label suggestions.
         </div>
       )}
+    </div>
+  )
+}
+
+function SubjectsModal({
+  senderName,
+  subjects,
+  onClose,
+}: {
+  senderName: string
+  subjects: string[]
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white', borderRadius: 12, padding: '1.25rem',
+          maxWidth: 540, width: '90%', maxHeight: '70vh',
+          display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{senderName}</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{subjects.length} sample subjects</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ fontSize: 16, border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280', padding: '2px 6px' }}
+          >
+            ✕
+          </button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {subjects.map((s, i) => (
+            <div
+              key={i}
+              style={{
+                padding: '7px 10px', borderRadius: 6, background: '#f9fafb',
+                fontSize: 13, color: '#374151', fontStyle: 'italic',
+              }}
+            >
+              "{s}"
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
