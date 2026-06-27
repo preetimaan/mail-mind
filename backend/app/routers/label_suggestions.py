@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -310,3 +311,60 @@ def ai_status() -> dict:
 @router.get("/label-suggestions/labels")
 def available_labels() -> dict:
     return {"labels": CUSTOM_LABELS}
+
+
+# ---------------------------------------------------------------------------
+# Filter queries — collapsed per-label Gmail search strings
+# ---------------------------------------------------------------------------
+
+@router.get("/label-suggestions/filter-queries")
+def filter_queries(account_id: int, db: Session = Depends(get_db)) -> dict:
+    """
+    Returns a Gmail-compatible `from:` query per custom label.
+    Domains with multiple classified senders are collapsed to @domain.com.
+    Single-sender domains keep the exact sender email address.
+    """
+    rows = db.execute(
+        select(SenderClassification)
+        .where(SenderClassification.account_id == account_id)
+    ).scalars().all()
+
+    label_senders: dict[str, list[SenderClassification]] = {label: [] for label in CUSTOM_LABELS}
+    for row in rows:
+        labels: list[str] = json.loads(row.custom_labels or "[]")
+        for label in labels:
+            if label in label_senders:
+                label_senders[label].append(row)
+
+    results = []
+    for label in CUSTOM_LABELS:
+        senders = label_senders[label]
+        if not senders:
+            results.append({"label": label, "query": "", "sender_count": 0})
+            continue
+
+        domain_counts = Counter(s.sender_domain for s in senders if s.sender_domain)
+        parts: list[str] = []
+        covered: set[str] = set()
+
+        for domain, count in domain_counts.items():
+            if count > 1:
+                parts.append(f"@{domain}")
+                for s in senders:
+                    if s.sender_domain == domain:
+                        covered.add(s.sender_email)
+
+        for s in senders:
+            if s.sender_email not in covered:
+                parts.append(s.sender_email)
+
+        if not parts:
+            query = ""
+        elif len(parts) == 1:
+            query = f"from:{parts[0]}"
+        else:
+            query = "from:(" + " OR ".join(parts) + ")"
+
+        results.append({"label": label, "query": query, "sender_count": len(senders)})
+
+    return {"queries": results}

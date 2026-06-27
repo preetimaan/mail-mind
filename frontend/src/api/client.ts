@@ -147,6 +147,12 @@ export type AIStatus = {
   provider: string | null
 }
 
+export type FilterQuery = {
+  label: string
+  query: string
+  sender_count: number
+}
+
 const API_BASE = 'http://localhost:8000/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -305,6 +311,10 @@ export const api = {
       `/label-suggestions/ai-enhance?${qs.toString()}`,
       { method: 'POST' },
     )
+  },
+  getFilterQueries: async (accountId: number) => {
+    const qs = new URLSearchParams({ account_id: String(accountId) })
+    return await request<{ queries: FilterQuery[] }>(`/label-suggestions/filter-queries?${qs.toString()}`)
   },
 }
 

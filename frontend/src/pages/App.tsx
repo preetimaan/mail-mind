@@ -6,7 +6,7 @@ import {
   type CategoryInsights,
   type ClassifiedSender,
   type EmailAccount,
-  type GmailFilterRule,
+  type FilterQuery,
   type GmailLabel,
   type InsightsSummary,
   type LabelSummary,
@@ -24,7 +24,7 @@ const TAB_LABELS: Record<Tab, string> = {
   analysis: 'Analyze',
   insights: 'Insights',
   labels: 'Label Suggestions',
-  filters: 'Labels & Filters',
+  filters: 'Gmail Labels',
   settings: 'Settings',
 }
 
@@ -90,12 +90,12 @@ export default function App() {
   const [yearlyInsights, setYearlyInsights] = useState<YearlyFrequencyInsights | null>(null)
   const [insightsError, setInsightsError] = useState<string | null>(null)
   const [gmailLabels, setGmailLabels] = useState<GmailLabel[] | null>(null)
-  const [gmailFilters, setGmailFilters] = useState<GmailFilterRule[] | null>(null)
   const [gmailFiltersError, setGmailFiltersError] = useState<string | null>(null)
 
   const [labelSummary, setLabelSummary] = useState<LabelSummary | null>(null)
   const [labelError, setLabelError] = useState<string | null>(null)
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
+  const [filterQueries, setFilterQueries] = useState<FilterQuery[] | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('mailmind_username') ?? ''
@@ -186,14 +186,16 @@ export default function App() {
     setGmailFiltersError(null)
     void (async () => {
       try {
-        const data = await api.getLabelsFilters(selectedAccountId)
+        const [data, fq] = await Promise.all([
+          api.getLabelsFilters(selectedAccountId),
+          api.getFilterQueries(selectedAccountId),
+        ])
         setGmailLabels(data.labels)
-        setGmailFilters(data.filters)
         setGmailFiltersError(data.filters_error)
+        setFilterQueries(fq.queries)
       } catch (e: any) {
         setGmailLabels(null)
-        setGmailFilters(null)
-        setGmailFiltersError(e?.message ?? 'Failed to load Gmail labels/filters')
+        setGmailFiltersError(e?.message ?? 'Failed to load Gmail labels')
       }
     })()
   }, [loggedIn, selectedAccountId, tab, selectedAccount?.provider])
@@ -203,12 +205,14 @@ export default function App() {
     setLabelError(null)
     void (async () => {
       try {
-        const [summary, aiStat] = await Promise.all([
+        const [summary, aiStat, fq] = await Promise.all([
           api.getLabelSummary(selectedAccountId),
           api.getAIStatus(),
+          api.getFilterQueries(selectedAccountId),
         ])
         setLabelSummary(summary)
         setAiStatus(aiStat)
+        setFilterQueries(fq.queries)
       } catch (e: any) {
         setLabelError(e?.message ?? 'Failed to load label suggestions')
         setLabelSummary(null)
@@ -429,23 +433,28 @@ export default function App() {
                 summary={labelSummary}
                 error={labelError}
                 aiStatus={aiStatus}
+                filterQueries={filterQueries}
                 onRefresh={async () => {
                   if (!selectedAccountId) return
                   setLabelError(null)
                   try {
-                    const s = await api.getLabelSummary(selectedAccountId)
+                    const [s, fq] = await Promise.all([
+                      api.getLabelSummary(selectedAccountId),
+                      api.getFilterQueries(selectedAccountId),
+                    ])
                     setLabelSummary(s)
+                    setFilterQueries(fq.queries)
                   } catch (e: any) {
                     setLabelError(e?.message ?? 'Failed to refresh')
                   }
                 }}
               />
             ) : tab === 'filters' ? (
-              <LabelsAndFilters
+              <GmailLabels
                 account={selectedAccount}
                 labels={gmailLabels}
-                filters={gmailFilters}
                 filtersError={gmailFiltersError}
+                filterQueries={filterQueries}
               />
             ) : (
               <div style={{ marginTop: 12, color: '#6b7280' }}>
@@ -493,12 +502,14 @@ function LabelSuggestions({
   summary,
   error,
   aiStatus,
+  filterQueries,
   onRefresh,
 }: {
   accountId: number | null
   summary: LabelSummary | null
   error: string | null
   aiStatus: AIStatus | null
+  filterQueries: FilterQuery[] | null
   onRefresh: () => Promise<void>
 }) {
   const [running, setRunning] = useState(false)
@@ -511,6 +522,8 @@ function LabelSuggestions({
   const [assigning, setAssigning] = useState<string | null>(null)
   const [aiRunning, setAiRunning] = useState(false)
   const [aiResult, setAiResult] = useState<string | null>(null)
+  const [editingSender, setEditingSender] = useState<string | null>(null)
+  const [editingLabels, setEditingLabels] = useState<string[]>([])
 
   async function handleRunClassification() {
     if (!accountId) return
@@ -569,6 +582,21 @@ function LabelSuggestions({
       alert(`Failed to assign: ${e?.message ?? 'Unknown error'}`)
     } finally {
       setAssigning(null)
+    }
+  }
+
+  async function handleEditSave(senderEmail: string, labels: string[]) {
+    if (!accountId) return
+    try {
+      await api.manualClassifySender(accountId, senderEmail, labels)
+      setEditingSender(null)
+      if (expandedLabel) {
+        const res = await api.getSendersForLabel(accountId, expandedLabel)
+        setLabelSenders(res.senders)
+      }
+      await onRefresh()
+    } catch (e: any) {
+      alert(`Failed to update: ${e?.message ?? 'Unknown error'}`)
     }
   }
 
@@ -688,24 +716,73 @@ function LabelSuggestions({
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}>Emails</th>
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}>Labels</th>
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}>Confidence</th>
+                            <th style={{ paddingBottom: 4, fontWeight: 500 }}></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {labelSenders.map((s) => (
-                            <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6' }}>
-                              <td style={{ padding: '6px 0' }}>
-                                <div style={{ fontWeight: 500 }}>{s.sender_name ?? s.sender_email}</div>
-                                <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.sender_domain}</div>
-                              </td>
-                              <td style={{ padding: '6px 8px' }}>{s.email_count}</td>
-                              <td style={{ padding: '6px 0' }}>
-                                {s.custom_labels.map((l) => <LabelBadge key={l} label={l} />)}
-                              </td>
-                              <td style={{ padding: '6px 0', fontSize: 11, color: '#9ca3af' }}>
-                                {s.source === 'manual' ? 'manual' : s.confidence ?? '—'}
-                              </td>
-                            </tr>
-                          ))}
+                          {labelSenders.map((s) =>
+                            editingSender === s.sender_email ? (
+                              <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6', background: '#f9fafb' }}>
+                                <td colSpan={5} style={{ padding: '8px 0' }}>
+                                  <div style={{ fontWeight: 500, marginBottom: 6 }}>{s.sender_name ?? s.sender_email}</div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                                    {CUSTOM_LABELS.map((label) => (
+                                      <button
+                                        key={label}
+                                        onClick={() =>
+                                          setEditingLabels((prev) =>
+                                            prev.includes(label)
+                                              ? prev.filter((l) => l !== label)
+                                              : prev.length < 3 ? [...prev, label] : prev
+                                          )
+                                        }
+                                        style={{
+                                          padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                                          border: editingLabels.includes(label) ? '2px solid #111827' : '1px solid #e5e7eb',
+                                          background: editingLabels.includes(label) ? (LABEL_COLORS[label] ?? '#f3f4f6') : 'white',
+                                        }}
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button style={{ fontSize: 12 }} onClick={() => void handleEditSave(s.sender_email, editingLabels)}>
+                                      Save
+                                    </button>
+                                    <button style={{ fontSize: 12 }} onClick={() => setEditingSender(null)}>
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: '6px 0' }}>
+                                  <div style={{ fontWeight: 500 }}>{s.sender_name ?? s.sender_email}</div>
+                                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.sender_domain}</div>
+                                </td>
+                                <td style={{ padding: '6px 8px' }}>{s.email_count}</td>
+                                <td style={{ padding: '6px 0' }}>
+                                  {s.custom_labels.map((l) => <LabelBadge key={l} label={l} />)}
+                                </td>
+                                <td style={{ padding: '6px 0', fontSize: 11, color: '#9ca3af' }}>
+                                  {s.source === 'manual' ? 'manual' : s.confidence ?? '—'}
+                                </td>
+                                <td style={{ padding: '6px 0' }}>
+                                  <button
+                                    style={{ fontSize: 11, padding: '2px 6px' }}
+                                    onClick={() => {
+                                      setEditingSender(s.sender_email)
+                                      setEditingLabels([...s.custom_labels])
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          )}
                         </tbody>
                       </table>
                     )}
@@ -751,24 +828,10 @@ function LabelSuggestions({
             )}
           </div>
 
-          {/* Export */}
-          <div
-            style={{
-              marginTop: 20,
-              padding: 12,
-              border: '1px solid #e5e7eb',
-              borderRadius: 10,
-              background: '#f9fafb',
-            }}
-          >
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Labels to create in Gmail</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-              Copy these names and create them manually in Gmail Settings → Labels.
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {CUSTOM_LABELS.map((l) => <LabelBadge key={l} label={l} />)}
-            </div>
-          </div>
+          {/* Filter suggestions */}
+          {filterQueries && filterQueries.some((fq) => fq.query) && (
+            <FilterSuggestionsPanel filterQueries={filterQueries} />
+          )}
         </>
       )}
 
@@ -777,6 +840,68 @@ function LabelSuggestions({
           Click "Run Classification" to analyze your senders and generate label suggestions.
         </div>
       )}
+    </div>
+  )
+}
+
+function FilterSuggestionsPanel({ filterQueries }: { filterQueries: FilterQuery[] }) {
+  const [copied, setCopied] = useState<string | null>(null)
+
+  async function copyQuery(label: string, query: string) {
+    try {
+      await navigator.clipboard.writeText(query)
+      setCopied(label)
+      window.setTimeout(() => setCopied((cur) => (cur === label ? null : cur)), 1500)
+    } catch {
+      // ignore
+    }
+  }
+
+  const active = filterQueries.filter((fq) => fq.query)
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Filter Suggestions for Gmail</div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+        Paste a query into Gmail's filter creation dialog (Search → Show search options → Create filter).
+        Each query covers all senders classified under that label.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {active.map((fq) => (
+          <div
+            key={fq.label}
+            style={{ padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: 10, background: '#f9fafb' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <LabelBadge label={fq.label} />
+              <span style={{ fontSize: 12, color: '#9ca3af' }}>{fq.sender_count} sender{fq.sender_count !== 1 ? 's' : ''}</span>
+              {copied === fq.label && (
+                <span style={{ fontSize: 12, color: '#059669', marginLeft: 'auto' }}>Copied!</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <code
+                style={{
+                  flex: 1,
+                  fontSize: 11,
+                  padding: '6px 8px',
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 6,
+                  wordBreak: 'break-all',
+                  fontFamily: 'ui-monospace, monospace',
+                  color: '#374151',
+                }}
+              >
+                {fq.query}
+              </code>
+              <button style={{ fontSize: 12, flexShrink: 0 }} onClick={() => void copyQuery(fq.label, fq.query)}>
+                Copy
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -1011,97 +1136,89 @@ function TopSenderRow({
   )
 }
 
-function LabelsAndFilters({
+function GmailLabels({
   account,
   labels,
-  filters,
   filtersError,
+  filterQueries,
 }: {
   account: EmailAccount | null
   labels: GmailLabel[] | null
-  filters: GmailFilterRule[] | null
   filtersError: string | null
+  filterQueries: FilterQuery[] | null
 }) {
   const [copied, setCopied] = useState<string | null>(null)
 
-  async function copyText(text: string) {
+  async function copyQuery(key: string, text: string) {
     try {
       await navigator.clipboard.writeText(text)
-      setCopied(text)
-      window.setTimeout(() => setCopied((cur) => (cur === text ? null : cur)), 1200)
+      setCopied(key)
+      window.setTimeout(() => setCopied((cur) => (cur === key ? null : cur)), 1500)
     } catch {
-      // ignore clipboard failures in read-only contexts
+      // ignore
     }
   }
 
   if (!account) return <div style={{ marginTop: 12, color: '#6b7280' }}>Select an account.</div>
 
-  const labelById = new Map((labels ?? []).map((l) => [l.id, l.name]))
-  const showFilters = account.provider === 'gmail'
+  const queryByLabel = new Map((filterQueries ?? []).map((fq) => [fq.label.toLowerCase(), fq]))
 
   return (
     <div style={{ marginTop: 12 }}>
-      {filtersError ? <div style={{ color: '#b91c1c', marginBottom: 8 }}>{filtersError}</div> : null}
-      {copied ? <div style={{ color: '#059669', marginBottom: 8, fontSize: 12 }}>Copied filter query.</div> : null}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
-        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
-          <h3 style={{ margin: '0 0 8px 0' }}>{account.provider === 'gmail' ? 'Labels' : 'Folders'}</h3>
-          {!labels ? (
-            <div style={{ color: '#6b7280' }}>Loading…</div>
-          ) : labels.length === 0 ? (
-            <div style={{ color: '#6b7280' }}>No labels found.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {labels.map((l) => (
-                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+      {filtersError ? <div style={{ color: '#b91c1c', marginBottom: 8, fontSize: 13 }}>{filtersError}</div> : null}
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+        Labels currently in your {account.provider === 'gmail' ? 'Gmail' : 'Yahoo'} account.
+        Where a label name matches one of your custom labels, the suggested filter query is shown — paste it into Gmail's filter creation dialog to apply the label automatically.
+      </div>
+      {!labels ? (
+        <div style={{ color: '#6b7280' }}>Loading…</div>
+      ) : labels.length === 0 ? (
+        <div style={{ color: '#6b7280' }}>No labels found.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {labels.map((l) => {
+            const match = queryByLabel.get((l.name ?? '').toLowerCase())
+            return (
+              <div
+                key={l.id}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  background: match?.query ? '#f9fafb' : 'white',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 13, color: '#374151' }}>
-                    {l.name} <span style={{ color: '#9ca3af' }}>({l.type})</span>
+                    {match ? <LabelBadge label={l.name ?? ''} /> : <span style={{ fontWeight: 500 }}>{l.name}</span>}
+                    <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>({l.type})</span>
                   </div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>
-                    {l.messages_total == null ? '—' : l.messages_total}
-                    {l.messages_unread == null ? '' : ` (${l.messages_unread} unread)`}
+                    {l.messages_total == null ? '—' : l.messages_total.toLocaleString()}
+                    {l.messages_unread ? ` (${l.messages_unread} unread)` : ''}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {showFilters ? <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 10 }}>
-          <h3 style={{ margin: '0 0 8px 0' }}>Filters</h3>
-          {!filters ? (
-            <div style={{ color: '#6b7280' }}>Loading…</div>
-          ) : filters.length === 0 ? (
-            <div style={{ color: '#6b7280' }}>No Gmail filters found.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 520, overflowY: 'auto', paddingRight: 4 }}>
-              {filters.map((f) => {
-                const parts: string[] = []
-                if (f.criteria.from) parts.push(`from:${f.criteria.from}`)
-                if (f.criteria.to) parts.push(`to:${f.criteria.to}`)
-                if (f.criteria.subject) parts.push(`subject:(${f.criteria.subject})`)
-                if (f.criteria.query) parts.push(f.criteria.query)
-                if (f.criteria.negated_query) parts.push(`-(${f.criteria.negated_query})`)
-                const query = parts.join(' ').trim() || '(no criteria)'
-                const addLabels = (f.action.add_label_ids || []).map((id) => labelById.get(id) || id)
-                const removeLabels = (f.action.remove_label_ids || []).map((id) => labelById.get(id) || id)
-                return (
-                  <div key={f.id} style={{ border: '1px solid #f3f4f6', borderRadius: 8, padding: 8 }}>
-                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 6, wordBreak: 'break-word' }}>{query}</div>
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>
-                      +[{addLabels.join(', ') || 'none'}] / -[{removeLabels.join(', ') || 'none'}]
-                    </div>
-                    <div style={{ marginTop: 6 }}>
-                      <button type="button" style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }} onClick={() => void copyText(query)}>
-                        Copy query
-                      </button>
-                    </div>
+                {match?.query ? (
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <code
+                      style={{
+                        flex: 1, fontSize: 11, padding: '4px 8px', background: 'white',
+                        border: '1px solid #e5e7eb', borderRadius: 6, wordBreak: 'break-all',
+                        fontFamily: 'ui-monospace, monospace', color: '#374151',
+                      }}
+                    >
+                      {match.query}
+                    </code>
+                    <button style={{ fontSize: 11, flexShrink: 0 }} onClick={() => void copyQuery(l.id, match.query)}>
+                      {copied === l.id ? 'Copied!' : 'Copy'}
+                    </button>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div> : null}
-      </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
