@@ -123,11 +123,22 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (selectedAccountId !== null) {
+      localStorage.setItem('mailmind_account_id', String(selectedAccountId))
+    }
+  }, [selectedAccountId])
+
+  useEffect(() => {
     if (!loggedIn) return
     void (async () => {
       const data = await api.listAccounts(username)
       setAccounts(data)
-      if (data.length > 0 && selectedAccountId === null) setSelectedAccountId(data[0].id)
+      if (data.length > 0 && selectedAccountId === null) {
+        const saved = localStorage.getItem('mailmind_account_id')
+        const savedId = saved ? Number(saved) : null
+        const preferred = savedId && data.some((a) => a.id === savedId) ? savedId : data[0].id
+        setSelectedAccountId(preferred)
+      }
     })()
   }, [loggedIn, username])
 
