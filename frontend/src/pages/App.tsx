@@ -742,7 +742,15 @@ function LabelSuggestions({
                             editingSender === s.sender_email ? (
                               <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6', background: '#f9fafb' }}>
                                 <td colSpan={5} style={{ padding: '8px 0' }}>
-                                  <div style={{ fontWeight: 500, marginBottom: 6 }}>{s.sender_name ?? s.sender_email}</div>
+                                  <div style={{ fontWeight: 500, marginBottom: 2 }}>{s.sender_name ?? s.sender_email}</div>
+                                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{s.sender_domain}</div>
+                                  {s.sample_subjects.length > 0 && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      {s.sample_subjects.slice(0, 3).map((subj, i) => (
+                                        <div key={i} style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>"{subj}"</div>
+                                      ))}
+                                    </div>
+                                  )}
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                                     {CUSTOM_LABELS.map((label) => (
                                       <button
@@ -779,6 +787,9 @@ function LabelSuggestions({
                                 <td style={{ padding: '6px 0' }}>
                                   <div style={{ fontWeight: 500 }}>{s.sender_name ?? s.sender_email}</div>
                                   <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.sender_domain}</div>
+                                  {s.sample_subjects.slice(0, 2).map((subj, i) => (
+                                    <div key={i} style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginTop: 2 }}>"{subj}"</div>
+                                  ))}
                                 </td>
                                 <td style={{ padding: '6px 8px' }}>{s.email_count}</td>
                                 <td style={{ padding: '6px 0' }}>
