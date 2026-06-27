@@ -4,6 +4,7 @@ Local-first email insights dashboard.
 
 ## Docs
 
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - User guide: `USER_GUIDE.md`
 - Developer setup: `DEVELOPER_SETUP.md`
 - Roadmap: `ROADMAP.md`
@@ -14,7 +15,7 @@ Local-first email insights dashboard.
 
 ```bash
 cd backend
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000

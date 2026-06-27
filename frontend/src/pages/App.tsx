@@ -494,15 +494,19 @@ export default function App() {
   )
 }
 
-const CUSTOM_LABELS = ['Career', 'Study', 'Software', 'Life Admin', 'Money', 'Health', 'Gov & Tax']
+const CUSTOM_LABELS = ['Career', 'Job Search', 'Study', 'Software Learning', 'Life Admin', 'Shopping', 'Services', 'Money', 'Health', 'Gov & Tax', 'Personal']
 const LABEL_COLORS: Record<string, string> = {
   Career: '#dbeafe',
+  'Job Search': '#bfdbfe',
   Study: '#ede9fe',
-  Software: '#ccfbf1',
+  'Software Learning': '#ccfbf1',
   'Life Admin': '#d1fae5',
+  Shopping: '#fde68a',
+  Services: '#fed7aa',
   Money: '#fef9c3',
   Health: '#fee2e2',
   'Gov & Tax': '#e0e7ff',
+  Personal: '#fce7f3',
 }
 
 function LabelBadge({ label }: { label: string }) {
@@ -520,6 +524,56 @@ function LabelBadge({ label }: { label: string }) {
       }}
     >
       {label}
+    </span>
+  )
+}
+
+function LabelBadgeWithSource({ label, source }: { label: string; source?: string }) {
+  const isManual = source === 'manual'
+  return (
+    <span
+      title={source ?? undefined}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        padding: '2px 8px',
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 600,
+        background: LABEL_COLORS[label] ?? '#f3f4f6',
+        color: '#111827',
+        marginRight: 4,
+      }}
+    >
+      {isManual && <span style={{ fontSize: 10, opacity: 0.7 }}>✎</span>}
+      {label}
+    </span>
+  )
+}
+
+const SOURCE_META: Record<string, { label: string; bg: string; color: string }> = {
+  manual:        { label: '✎ manual',  bg: '#dcfce7', color: '#166534' },
+  tier1_domain:  { label: 'domain',   bg: '#dbeafe', color: '#1d4ed8' },
+  tier2_keyword: { label: 'keyword',  bg: '#cffafe', color: '#0e7490' },
+  ai:            { label: 'AI',       bg: '#ede9fe', color: '#6d28d9' },
+}
+
+function SourceBadge({ source }: { source: string | null }) {
+  if (!source) return <span style={{ fontSize: 11, color: '#9ca3af' }}>—</span>
+  const meta = SOURCE_META[source]
+  if (!meta) return <span style={{ fontSize: 11, color: '#9ca3af' }}>{source}</span>
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '1px 7px',
+      borderRadius: 10,
+      fontSize: 11,
+      fontWeight: source === 'manual' ? 700 : 500,
+      background: meta.bg,
+      color: meta.color,
+    }}>
+      {meta.label}
     </span>
   )
 }
@@ -774,7 +828,6 @@ function LabelSuggestions({
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}>Sender</th>
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}>Emails</th>
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}>Labels</th>
-                            <th style={{ paddingBottom: 4, fontWeight: 500 }}>Confidence</th>
                             <th style={{ paddingBottom: 4, fontWeight: 500 }}></th>
                           </tr>
                         </thead>
@@ -782,7 +835,7 @@ function LabelSuggestions({
                           {labelSenders.map((s) =>
                             editingSender === s.sender_email ? (
                               <tr key={s.sender_email} style={{ borderTop: '1px solid #f3f4f6', background: '#f9fafb' }}>
-                                <td colSpan={5} style={{ padding: '8px 0' }}>
+                                <td colSpan={4} style={{ padding: '8px 0' }}>
                                   <div style={{ fontWeight: 500, marginBottom: 2 }}>{s.sender_name ?? s.sender_email}</div>
                                   <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>{s.sender_domain}</div>
                                   {s.sample_subjects.length > 0 && (
@@ -840,10 +893,9 @@ function LabelSuggestions({
                                 </td>
                                 <td style={{ padding: '6px 8px' }}>{s.email_count}</td>
                                 <td style={{ padding: '6px 0' }}>
-                                  {s.custom_labels.map((l) => <LabelBadge key={l} label={l} />)}
-                                </td>
-                                <td style={{ padding: '6px 0', fontSize: 11, color: '#9ca3af' }}>
-                                  {s.source === 'manual' ? 'manual' : s.confidence ?? '—'}
+                                  {s.custom_labels.map((l) => (
+                                    <LabelBadgeWithSource key={l} label={l} source={s.label_sources[l]} />
+                                  ))}
                                 </td>
                                 <td style={{ padding: '6px 0', minWidth: 120 }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>

@@ -129,6 +129,7 @@ export type ClassifiedSender = {
   sender_name: string | null
   sender_domain: string
   custom_labels: string[]
+  label_sources: Record<string, string>
   email_count: number
   confidence: string | null
   source: string | null

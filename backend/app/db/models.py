@@ -22,12 +22,16 @@ from app.db.base import Base
 
 CUSTOM_LABELS = [
     "Career",
+    "Job Search",
     "Study",
-    "Software",
+    "Software Learning",
     "Life Admin",
+    "Shopping",
+    "Services",
     "Money",
     "Health",
     "Gov & Tax",
+    "Personal",
 ]
 
 
@@ -198,6 +202,9 @@ class SenderClassification(Base):
 
     # JSON array of custom label names, e.g. ["Career", "Money"]. Max 3.
     custom_labels: Mapped[str] = mapped_column(Text, default="[]")
+
+    # JSON object mapping label name → source, e.g. {"Career": "tier1_domain", "Money": "manual"}.
+    label_sources: Mapped[str] = mapped_column(Text, default="{}")
 
     # JSON array of Gmail label names the user has manually associated with this sender.
     suggested_gmail_labels: Mapped[str] = mapped_column(Text, default="[]")

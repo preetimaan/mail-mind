@@ -134,6 +134,7 @@ def senders_for_label(
                 "sender_name": row.sender_name,
                 "sender_domain": row.sender_domain,
                 "custom_labels": labels,
+                "label_sources": json.loads(getattr(row, "label_sources", None) or "{}"),
                 "email_count": row.email_count,
                 "confidence": row.confidence,
                 "source": row.source,
@@ -153,7 +154,7 @@ def senders_for_label(
 @router.get("/label-suggestions/unclassified")
 def unclassified_senders(
     account_id: int,
-    limit: int = 100,
+    limit: int = 500,
     db: Session = Depends(get_db),
 ) -> dict:
     """
@@ -163,6 +164,11 @@ def unclassified_senders(
     rows = db.execute(
         select(SenderClassification)
         .where(SenderClassification.account_id == account_id)
+        .where(
+            (SenderClassification.custom_labels == "[]")
+            | (SenderClassification.custom_labels == "")
+            | SenderClassification.custom_labels.is_(None)
+        )
         .order_by(SenderClassification.email_count.desc())
         .limit(limit)
     ).scalars().all()
@@ -177,7 +183,6 @@ def unclassified_senders(
             "suggested_gmail_labels": json.loads(getattr(row, "suggested_gmail_labels", None) or "[]"),
         }
         for row in rows
-        if not json.loads(row.custom_labels or "[]")
     ]
 
     return {"senders": results, "total": len(results)}

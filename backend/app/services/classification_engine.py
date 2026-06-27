@@ -16,9 +16,12 @@ from app.db.models import (
 )
 
 LABEL_CAREER = "Career"
+LABEL_JOB_SEARCH = "Job Search"
 LABEL_STUDY = "Study"
-LABEL_SOFTWARE = "Software"
+LABEL_SOFTWARE = "Software Learning"
 LABEL_LIFE_ADMIN = "Life Admin"
+LABEL_SHOPPING = "Shopping"
+LABEL_SERVICES = "Services"
 LABEL_MONEY = "Money"
 LABEL_HEALTH = "Health"
 LABEL_GOV_TAX = "Gov & Tax"
@@ -31,7 +34,19 @@ LABEL_GOV_TAX = "Gov & Tax"
 # Checked via endswith() so subdomains are covered (e.g. mail.linkedin.com).
 
 _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
-    # Career — job platforms and recruiters
+    # Career — employment-related (payroll, HR portals for existing employees)
+    (
+        (
+            "adp.com",
+            "paychex.com",
+            "paylocity.com",
+            "gusto.com",
+            "bamboohr.com",
+            "workday.com",
+        ),
+        [LABEL_CAREER],
+    ),
+    # Job Search — recruitment platforms and hiring tools
     (
         (
             "linkedin.com",
@@ -39,7 +54,6 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
             "glassdoor.com",
             "greenhouse.io",
             "lever.co",
-            "workday.com",
             "smartrecruiters.com",
             "jobvite.com",
             "ziprecruiter.com",
@@ -53,7 +67,7 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
             "brassring.com",
             "successfactors.com",
         ),
-        [LABEL_CAREER],
+        [LABEL_JOB_SEARCH],
     ),
     # Study — ed-tech and skill platforms
     (
@@ -129,6 +143,74 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
             "docker.com",
         ),
         [LABEL_SOFTWARE],
+    ),
+    # Services — consumer platforms, streaming, social, travel, and subscriptions.
+    # Intentionally excludes big-tech companies (Google, Apple, Microsoft, Meta, Amazon)
+    # that also recruit heavily from the same domain — those are left to tier-2 keywords.
+    (
+        (
+            # Streaming & entertainment
+            "netflix.com",
+            "spotify.com",
+            "hulu.com",
+            "disneyplus.com",
+            "max.com",
+            "hbomax.com",
+            "peacocktv.com",
+            "paramountplus.com",
+            "primevideo.com",
+            "pandora.com",
+            "soundcloud.com",
+            "tidal.com",
+            "crunchyroll.com",
+            "twitch.tv",
+            # Social media (no Meta/Facebook/Instagram — Meta recruits from these)
+            "twitter.com",
+            "x.com",
+            "reddit.com",
+            "tiktok.com",
+            "snapchat.com",
+            "pinterest.com",
+            "discord.com",
+            "tumblr.com",
+            # Real estate & housing browsing
+            "zillow.com",
+            "redfin.com",
+            "trulia.com",
+            "realtor.com",
+            "apartments.com",
+            "zumper.com",
+            # Travel & mobility
+            "airbnb.com",
+            "uber.com",
+            "lyft.com",
+            "expedia.com",
+            "booking.com",
+            "hotels.com",
+            "kayak.com",
+            "vrbo.com",
+            "doordash.com",
+            "ubereats.com",
+            "grubhub.com",
+            "instacart.com",
+            # Cloud storage
+            "dropbox.com",
+            "box.com",
+            # Gaming
+            "steampowered.com",
+            "epicgames.com",
+            "ea.com",
+            "nintendo.com",
+            "playstation.com",
+            "roblox.com",
+            # Publishing & creator platforms
+            "medium.com",
+            "substack.com",
+            "patreon.com",
+            # Creative suites
+            "adobe.com",
+        ),
+        [LABEL_SERVICES],
     ),
     # Health — insurers, pharmacies, patient portals
     (
@@ -211,7 +293,24 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
         ),
         [LABEL_MONEY],
     ),
-    # Life Admin — delivery carriers and property management globals
+    # Life Admin — utilities and property management
+    (
+        (
+            "xfinity.com",
+            "att.com",
+            "verizon.com",
+            "tmobile.com",
+            "spectrum.com",
+            "cox.com",
+            "sce.com",
+            "pge.com",
+            "coned.com",
+            "duke-energy.com",
+            "nationalgrid.com",
+        ),
+        [LABEL_LIFE_ADMIN],
+    ),
+    # Shopping — carriers and major retailers
     (
         (
             "usps.com",
@@ -219,8 +318,34 @@ _TIER1_DOMAINS: list[tuple[tuple[str, ...], list[str]]] = [
             "fedex.com",
             "dhl.com",
             "uspsdelivers.com",
+            "amazon.com",
+            "amazon.ca",
+            "ebay.com",
+            "etsy.com",
+            "walmart.com",
+            "target.com",
+            "bestbuy.com",
+            "wayfair.com",
+            "overstock.com",
+            "newegg.com",
+            "costco.com",
+            "chewy.com",
+            "homedepot.com",
+            "lowes.com",
+            "nordstrom.com",
+            "macys.com",
+            "kohls.com",
+            "gap.com",
+            "oldnavy.com",
+            "zara.com",
+            "hm.com",
+            "asos.com",
+            "shein.com",
+            "shopify.com",
+            "wish.com",
+            "aliexpress.com",
         ),
-        [LABEL_LIFE_ADMIN],
+        [LABEL_SHOPPING],
     ),
 ]
 
@@ -245,14 +370,23 @@ def _tier1_labels(domain: str) -> list[str] | None:
 _KEYWORD_PATTERNS: list[tuple[re.Pattern[str], list[str]]] = [
     (
         re.compile(
-            r"\b(interview|offer letter|offer accepted|background check|"
-            r"payslip|pay stub|paystub|salary slip|earnings statement|"
-            r"employment verification|job offer|application received|"
-            r"application status|we received your application|"
-            r"your application|recruiter|new job|job alert)\b",
+            r"\b(payslip|pay stub|paystub|salary slip|earnings statement|"
+            r"employment verification|offer accepted|your paycheck|"
+            r"annual review|performance review|onboarding)\b",
             re.IGNORECASE,
         ),
         [LABEL_CAREER],
+    ),
+    (
+        re.compile(
+            r"\b(interview|offer letter|background check|"
+            r"job offer|application received|application status|"
+            r"we received your application|your application|"
+            r"recruiter|new job|job alert|job opportunity|"
+            r"hiring|open position|apply now)\b",
+            re.IGNORECASE,
+        ),
+        [LABEL_JOB_SEARCH],
     ),
     (
         re.compile(
@@ -300,8 +434,7 @@ _KEYWORD_PATTERNS: list[tuple[re.Pattern[str], list[str]]] = [
         re.compile(
             r"\b(invoice|receipt|payment received|payment confirmed|"
             r"subscription renewed|renewal|billing statement|"
-            r"transaction|your order|order confirmation|order shipped|"
-            r"statement ready|account statement|direct deposit|"
+            r"transaction|statement ready|account statement|"
             r"wire transfer|refund processed|charge|auto-pay)\b",
             re.IGNORECASE,
         ),
@@ -317,6 +450,17 @@ _KEYWORD_PATTERNS: list[tuple[re.Pattern[str], list[str]]] = [
             re.IGNORECASE,
         ),
         [LABEL_LIFE_ADMIN],
+    ),
+    (
+        re.compile(
+            r"\b(your order|order confirmation|order shipped|"
+            r"order delivered|order has been|out for delivery|"
+            r"tracking number|your shipment|your package|"
+            r"package arrived|package delivered|delivery notification|"
+            r"item sold|return label|shopping cart|wishlist)\b",
+            re.IGNORECASE,
+        ),
+        [LABEL_SHOPPING],
     ),
 ]
 
@@ -410,31 +554,24 @@ def classify_account(account_id: int, db: Session) -> dict:
         ).scalars().all()
         sample_subjects = [s for s in subject_rows if s]
 
-        custom_labels: list[str] = []
-        confidence: ClassificationConfidence | None = None
-        source: ClassificationSource | None = None
+        # --- Determine auto-classification result for this sender ---
+        auto_labels: list[str] = []
+        auto_confidence: ClassificationConfidence | None = None
+        auto_source: ClassificationSource | None = None
 
-        # --- Tier 1: domain lookup ---
         tier1 = _tier1_labels(domain)
         if tier1:
-            custom_labels = tier1[:3]
-            confidence = ClassificationConfidence.high
-            source = ClassificationSource.tier1_domain
-
-        # --- Tier 2: subject keywords (only if Tier 1 missed) ---
-        if not custom_labels and sample_subjects:
+            auto_labels = tier1[:3]
+            auto_confidence = ClassificationConfidence.high
+            auto_source = ClassificationSource.tier1_domain
+        elif sample_subjects:
             tier2 = _tier2_labels_from_subjects(sample_subjects)
             if tier2:
-                custom_labels = tier2[:3]
-                confidence = ClassificationConfidence.medium
-                source = ClassificationSource.tier2_keyword
+                auto_labels = tier2[:3]
+                auto_confidence = ClassificationConfidence.medium
+                auto_source = ClassificationSource.tier2_keyword
 
-        if custom_labels:
-            classified += 1
-        else:
-            unclassified += 1
-
-        # Upsert into sender_classifications.
+        # --- Upsert with per-label source tracking ---
         existing = db.execute(
             select(SenderClassification).where(
                 SenderClassification.account_id == account_id,
@@ -443,35 +580,85 @@ def classify_account(account_id: int, db: Session) -> dict:
         ).scalar_one_or_none()
 
         if existing:
-            # Only overwrite manual/ai classifications if source is higher confidence.
-            if existing.source not in (
-                ClassificationSource.manual,
-                ClassificationSource.ai,
-            ):
-                existing.custom_labels = json.dumps(custom_labels)
-                existing.confidence = confidence.value if confidence else None
-                existing.source = source.value if source else None
-            # Always refresh metadata.
+            existing_label_sources: dict[str, str] = json.loads(
+                getattr(existing, "label_sources", None) or "{}"
+            )
+            existing_labels: list[str] = json.loads(existing.custom_labels or "[]")
+
+            # One-time migration: if label_sources is empty but labels exist,
+            # treat all existing labels as manually assigned.
+            if not existing_label_sources and existing_labels:
+                existing_label_sources = {
+                    label: ClassificationSource.manual.value for label in existing_labels
+                }
+
+            # Build new per-label sources:
+            # 1. Preserve all manually-assigned labels.
+            new_label_sources: dict[str, str] = {
+                label: src
+                for label, src in existing_label_sources.items()
+                if src == ClassificationSource.manual.value
+            }
+            # 2. Apply auto results — promotes manual→auto when engine agrees,
+            #    and adds newly detected labels as auto.
+            if auto_labels and auto_source:
+                for label in auto_labels:
+                    new_label_sources[label] = auto_source.value
+
+            # 3. Cap at 3 labels; manual labels take priority over auto.
+            if len(new_label_sources) > 3:
+                manual_items = [(k, v) for k, v in new_label_sources.items() if v == ClassificationSource.manual.value]
+                auto_items = [(k, v) for k, v in new_label_sources.items() if v != ClassificationSource.manual.value]
+                new_label_sources = dict((manual_items + auto_items)[:3])
+
+            final_labels = list(new_label_sources.keys())
+
+            # Row-level source/confidence (summary; per-label detail is in label_sources).
+            sources_set = set(new_label_sources.values())
+            if auto_source and auto_source.value in sources_set:
+                row_source: ClassificationSource | None = auto_source
+                row_confidence: ClassificationConfidence | None = auto_confidence
+            elif sources_set:
+                row_source = ClassificationSource.manual
+                row_confidence = ClassificationConfidence.high
+            else:
+                row_source = None
+                row_confidence = None
+
+            existing.custom_labels = json.dumps(final_labels)
+            existing.label_sources = json.dumps(new_label_sources)
+            existing.confidence = row_confidence.value if row_confidence else None
+            existing.source = row_source.value if row_source else None
             existing.sender_name = sender_name
             existing.sender_domain = domain
             existing.email_count = email_count
             existing.sample_subjects = json.dumps(sample_subjects)
             existing.classified_at = now
         else:
+            new_label_sources = (
+                {label: auto_source.value for label in auto_labels} if auto_source else {}
+            )
+            final_labels = list(new_label_sources.keys())
             db.add(
                 SenderClassification(
                     account_id=account_id,
                     sender_email=sender_email,
                     sender_domain=domain,
                     sender_name=sender_name,
-                    custom_labels=json.dumps(custom_labels),
+                    custom_labels=json.dumps(final_labels),
+                    label_sources=json.dumps(new_label_sources),
                     sample_subjects=json.dumps(sample_subjects),
                     email_count=email_count,
-                    confidence=confidence.value if confidence else None,
-                    source=source.value if source else None,
+                    confidence=auto_confidence.value if auto_confidence else None,
+                    source=auto_source.value if auto_source else None,
                     classified_at=now,
                 )
             )
+
+        if final_labels:
+            classified += 1
+        else:
+            unclassified += 1
 
     db.commit()
 
@@ -501,8 +688,11 @@ def manual_classify(
         )
     ).scalar_one_or_none()
 
+    new_label_sources = {label: ClassificationSource.manual.value for label in validated}
+
     if existing:
         existing.custom_labels = json.dumps(validated)
+        existing.label_sources = json.dumps(new_label_sources)
         existing.confidence = ClassificationConfidence.high.value
         existing.source = ClassificationSource.manual.value
         existing.classified_at = now
@@ -515,6 +705,7 @@ def manual_classify(
         sender_email=sender_email,
         sender_domain=domain,
         custom_labels=json.dumps(validated),
+        label_sources=json.dumps(new_label_sources),
         sample_subjects="[]",
         email_count=0,
         confidence=ClassificationConfidence.high.value,

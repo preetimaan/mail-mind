@@ -122,6 +122,8 @@ def _ensure_schema() -> None:
         sc_col_names = {c[1] for c in sc_cols}
         if sc_cols and "suggested_gmail_labels" not in sc_col_names:
             conn.execute(text("ALTER TABLE sender_classifications ADD COLUMN suggested_gmail_labels TEXT NOT NULL DEFAULT '[]'"))
+        if sc_cols and "label_sources" not in sc_col_names:
+            conn.execute(text("ALTER TABLE sender_classifications ADD COLUMN label_sources TEXT NOT NULL DEFAULT '{}' "))
 
         # Rename "Learning" → "Study" in existing classification rows.
         conn.execute(
@@ -129,6 +131,15 @@ def _ensure_schema() -> None:
                 "UPDATE sender_classifications "
                 "SET custom_labels = REPLACE(custom_labels, '\"Learning\"', '\"Study\"') "
                 "WHERE custom_labels LIKE '%\"Learning\"%'"
+            )
+        )
+
+        # Rename "Software" → "Software Learning" in existing classification rows.
+        conn.execute(
+            text(
+                "UPDATE sender_classifications "
+                "SET custom_labels = REPLACE(custom_labels, '\"Software\"', '\"Software Learning\"') "
+                "WHERE custom_labels LIKE '%\"Software\"%'"
             )
         )
 
