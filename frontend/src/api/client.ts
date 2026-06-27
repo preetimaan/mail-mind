@@ -120,6 +120,7 @@ export type LabelSummary = {
   total_emails: number
   coverage_percent: number
   labels: LabelStat[]
+  classified_senders: number
   unclassified: { email_count: number; sender_count: number }
 }
 

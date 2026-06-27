@@ -66,6 +66,7 @@ def label_summary(account_id: int, db: Session = Depends(get_db)) -> dict:
         label: {"label": label, "email_count": 0, "sender_count": 0}
         for label in CUSTOM_LABELS
     }
+    classified_senders = 0
     unclassified_emails = 0
     unclassified_senders = 0
 
@@ -73,6 +74,7 @@ def label_summary(account_id: int, db: Session = Depends(get_db)) -> dict:
         labels: list[str] = json.loads(row.custom_labels or "[]")
         count = int(row.email_count)
         if labels:
+            classified_senders += 1
             for label in labels:
                 if label in label_stats:
                     label_stats[label]["email_count"] += count
@@ -91,6 +93,7 @@ def label_summary(account_id: int, db: Session = Depends(get_db)) -> dict:
         "total_emails": total_emails,
         "coverage_percent": coverage_pct,
         "labels": list(label_stats.values()),
+        "classified_senders": classified_senders,
         "unclassified": {
             "email_count": unclassified_emails,
             "sender_count": unclassified_senders,

@@ -673,13 +673,16 @@ function LabelSuggestions({
           >
             <div>
               <span style={{ fontWeight: 700, fontSize: 22 }}>{summary.coverage_percent}%</span>
-              <span style={{ fontSize: 13, color: '#6b7280', marginLeft: 6 }}>of inbox covered</span>
+              <span style={{ fontSize: 13, color: '#6b7280', marginLeft: 6 }}>of emails from labelled senders</span>
             </div>
             <div style={{ fontSize: 13, color: '#374151' }}>
               <strong>{summary.total_emails.toLocaleString()}</strong> total emails
             </div>
             <div style={{ fontSize: 13, color: '#374151' }}>
-              <strong>{summary.unclassified.sender_count}</strong> senders unclassified
+              <strong>{summary.classified_senders.toLocaleString()}</strong> senders classified
+            </div>
+            <div style={{ fontSize: 13, color: '#374151' }}>
+              <strong>{summary.unclassified.sender_count.toLocaleString()}</strong> senders unclassified
             </div>
           </div>
 
