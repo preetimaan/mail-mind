@@ -95,6 +95,7 @@ export default function App() {
   const [gmailFiltersError, setGmailFiltersError] = useState<string | null>(null)
 
   const [labelSummary, setLabelSummary] = useState<LabelSummary | null>(null)
+  const [labelLoading, setLabelLoading] = useState(false)
   const [labelError, setLabelError] = useState<string | null>(null)
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
   const [filterQueries, setFilterQueries] = useState<FilterQuery[] | null>(null)
@@ -222,6 +223,7 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn || !selectedAccountId || tab !== 'labels') return
     setLabelError(null)
+    setLabelLoading(true)
     void (async () => {
       try {
         const calls: Promise<any>[] = [
@@ -240,6 +242,8 @@ export default function App() {
       } catch (e: any) {
         setLabelError(e?.message ?? 'Failed to load label suggestions')
         setLabelSummary(null)
+      } finally {
+        setLabelLoading(false)
       }
     })()
   }, [loggedIn, selectedAccountId, tab])
@@ -455,6 +459,7 @@ export default function App() {
               <LabelSuggestions
                 accountId={selectedAccountId}
                 summary={labelSummary}
+                loading={labelLoading}
                 error={labelError}
                 aiStatus={aiStatus}
                 filterQueries={filterQueries}
@@ -581,6 +586,7 @@ function SourceBadge({ source }: { source: string | null }) {
 function LabelSuggestions({
   accountId,
   summary,
+  loading,
   error,
   aiStatus,
   filterQueries,
@@ -589,6 +595,7 @@ function LabelSuggestions({
 }: {
   accountId: number | null
   summary: LabelSummary | null
+  loading: boolean
   error: string | null
   aiStatus: AIStatus | null
   filterQueries: FilterQuery[] | null
@@ -709,7 +716,9 @@ function LabelSuggestions({
     setAiResult(null)
     try {
       const res = await api.runAIEnhance(accountId)
-      setAiResult(`AI classified ${res.processed} senders via ${res.provider}${res.errors ? ` (${res.errors} errors)` : ''}.`)
+      const errDetail = res.first_error ? ` — ${res.first_error}` : ''
+      const remainingNote = res.remaining > 0 ? ` ${res.remaining} still unclassified — run again for more.` : ' All done!'
+      setAiResult(`AI classified ${res.processed} senders via ${res.provider}${res.errors ? ` (${res.errors} errors${errDetail})` : ''}.${remainingNote}`)
       await onRefresh()
       if (unclassified !== null) {
         const fresh = await api.getUnclassifiedSenders(accountId)
@@ -740,7 +749,7 @@ function LabelSuggestions({
         <button onClick={handleRunClassification} disabled={running}>
           {running ? 'Running…' : 'Run Classification'}
         </button>
-        {aiStatus?.configured ? (
+        {aiStatus === null ? null : aiStatus.configured ? (
           <button onClick={handleAIEnhance} disabled={aiRunning}>
             {aiRunning ? 'Enhancing…' : `Enhance with AI (${aiStatus.provider})`}
           </button>
@@ -991,7 +1000,12 @@ function LabelSuggestions({
         </>
       )}
 
-      {!summary && !error && (
+      {loading && !summary && (
+        <div style={{ marginTop: 16, fontSize: 13, color: '#9ca3af' }}>
+          Loading…
+        </div>
+      )}
+      {!loading && !summary && !error && (
         <div style={{ marginTop: 16, fontSize: 13, color: '#9ca3af' }}>
           Click "Run Classification" to analyze your senders and generate label suggestions.
         </div>

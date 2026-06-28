@@ -1,0 +1,10 @@
+---
+description: Guidance on batching AI/LLM API calls
+alwaysApply: true
+---
+
+# AI/LLM API call batching
+
+- **Look for opportunities to batch calls.** When sending multiple items to an AI API, consider grouping them into a single prompt and requesting a structured response (e.g. a JSON object keyed by ID).
+- **Batching benefits:** reduces rate limit exposure, cuts latency, and makes better use of the context window.
+- **Batching is not always the right choice.** Avoid it when items are interdependent (the response for one informs the next), when the batch would exceed context limits, or when partial failure handling becomes overly complex.

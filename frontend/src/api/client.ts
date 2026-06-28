@@ -312,7 +312,7 @@ export const api = {
   },
   runAIEnhance: async (accountId: number) => {
     const qs = new URLSearchParams({ account_id: String(accountId) })
-    return await request<{ processed: number; errors: number; provider: string }>(
+    return await request<{ processed: number; errors: number; provider: string; remaining: number; first_error?: string }>(
       `/label-suggestions/ai-enhance?${qs.toString()}`,
       { method: 'POST' },
     )

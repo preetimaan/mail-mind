@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections import Counter
 from datetime import datetime
 
@@ -17,7 +18,7 @@ from app.db.models import (
     SenderClassification,
 )
 from app.db.session import get_db
-from app.services.ai_classifier import AIClassifierError, classify_sender
+from app.services.ai_classifier import AIClassifierError, classify_senders_batch
 from app.services.classification_engine import classify_account, manual_classify
 from app.settings import get_settings
 
@@ -297,36 +298,67 @@ def ai_enhance(account_id: int, db: Session = Depends(get_db)) -> dict:
         and r.source != ClassificationSource.ai.value
     ]
 
+    # Send 50 senders per Gemini call; sleep 4s between chunks to respect RPM limits.
+    _BATCH_SIZE = 50
+    _CHUNK_DELAY = 4.0
+    _PER_RUN_LIMIT = 50
+
+    batch = unclassified[:_PER_RUN_LIMIT]
+    chunks = [batch[i:i + _BATCH_SIZE] for i in range(0, len(batch), _BATCH_SIZE)]
+
     now = datetime.utcnow()
     processed = 0
     errors = 0
+    first_error: str | None = None
 
-    for sc in unclassified:
-        subjects = json.loads(sc.sample_subjects or "[]")
+    sc_by_email = {sc.sender_email: sc for sc in batch}
+
+    for i, chunk in enumerate(chunks):
+        if i > 0:
+            time.sleep(_CHUNK_DELAY)
+        senders_input = [
+            {
+                "email": sc.sender_email,
+                "name": sc.sender_name,
+                "subjects": json.loads(sc.sample_subjects or "[]"),
+            }
+            for sc in chunk
+        ]
         try:
-            labels = classify_sender(
+            results = classify_senders_batch(
                 provider=provider,
                 api_key=api_key,
-                sender_email=sc.sender_email,
-                sender_name=sc.sender_name,
-                sample_subjects=subjects,
+                model=settings.ai_model or None,
+                senders=senders_input,
             )
-        except AIClassifierError:
-            errors += 1
+        except AIClassifierError as e:
+            errors += len(chunk)
+            if first_error is None:
+                first_error = str(e)
             continue
 
-        sc.custom_labels = json.dumps(labels)
-        sc.confidence = ClassificationConfidence.medium.value
-        sc.source = ClassificationSource.ai.value
-        sc.classified_at = now
-        processed += 1
+        for email, labels in results.items():
+            sc = sc_by_email.get(email)
+            if sc is None:
+                continue
+            if labels:
+                sc.custom_labels = json.dumps(labels)
+                sc.confidence = ClassificationConfidence.medium.value
+                sc.source = ClassificationSource.ai.value
+                sc.classified_at = now
+                processed += 1
 
     db.commit()
+
+    # Remaining = total unclassified minus those just successfully classified.
+    remaining = len(unclassified) - len(batch) + (len(batch) - processed)
 
     return {
         "processed": processed,
         "errors": errors,
         "provider": provider,
+        "remaining": remaining,
+        **({"first_error": first_error} if first_error else {}),
     }
 
 

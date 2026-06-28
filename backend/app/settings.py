@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # Optional AI enhancement for label suggestions (user supplies their own key).
     ai_provider: str | None = None  # "gemini" or "openai"
     ai_api_key: str | None = None
+    ai_model: str | None = None  # overrides provider default (e.g. "gemini-2.5-flash")
 
 
 @lru_cache
