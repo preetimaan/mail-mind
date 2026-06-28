@@ -593,25 +593,29 @@ def classify_account(account_id: int, db: Session) -> dict:
                 }
 
             # Build new per-label sources:
-            # 1. Preserve all manually-assigned labels.
+            # 1. Preserve manual labels and manual_excluded blocks.
             new_label_sources: dict[str, str] = {
                 label: src
                 for label, src in existing_label_sources.items()
-                if src == ClassificationSource.manual.value
+                if src in (ClassificationSource.manual.value, "manual_excluded")
             }
-            # 2. Apply auto results — promotes manual→auto when engine agrees,
-            #    and adds newly detected labels as auto.
+            # 2. Apply auto results — but never re-add a label the user explicitly removed.
             if auto_labels and auto_source:
                 for label in auto_labels:
-                    new_label_sources[label] = auto_source.value
+                    if existing_label_sources.get(label) != "manual_excluded":
+                        new_label_sources[label] = auto_source.value
 
-            # 3. Cap at 3 labels; manual labels take priority over auto.
-            if len(new_label_sources) > 3:
-                manual_items = [(k, v) for k, v in new_label_sources.items() if v == ClassificationSource.manual.value]
-                auto_items = [(k, v) for k, v in new_label_sources.items() if v != ClassificationSource.manual.value]
-                new_label_sources = dict((manual_items + auto_items)[:3])
+            # 3. Cap at 3 active labels; manual labels take priority over auto.
+            active = [(k, v) for k, v in new_label_sources.items() if v != "manual_excluded"]
+            if len(active) > 3:
+                manual_items = [(k, v) for k, v in active if v == ClassificationSource.manual.value]
+                auto_items = [(k, v) for k, v in active if v != ClassificationSource.manual.value]
+                active = (manual_items + auto_items)[:3]
+                # Re-merge with exclusions preserved
+                excluded_items = [(k, v) for k, v in new_label_sources.items() if v == "manual_excluded"]
+                new_label_sources = dict(active + excluded_items)
 
-            final_labels = list(new_label_sources.keys())
+            final_labels = [l for l, src in new_label_sources.items() if src != "manual_excluded"]
 
             # Row-level source/confidence (summary; per-label detail is in label_sources).
             sources_set = set(new_label_sources.values())
@@ -688,9 +692,15 @@ def manual_classify(
         )
     ).scalar_one_or_none()
 
-    new_label_sources = {label: ClassificationSource.manual.value for label in validated}
+    new_label_sources: dict[str, str] = {label: ClassificationSource.manual.value for label in validated}
 
     if existing:
+        prev_sources: dict[str, str] = json.loads(getattr(existing, "label_sources", None) or "{}")
+        # Any auto label the user is removing gets blocked from future auto-classification.
+        for label, src in prev_sources.items():
+            if src not in (ClassificationSource.manual.value, "manual_excluded") and label not in validated:
+                new_label_sources[label] = "manual_excluded"
+
         existing.custom_labels = json.dumps(validated)
         existing.label_sources = json.dumps(new_label_sources)
         existing.confidence = ClassificationConfidence.high.value
