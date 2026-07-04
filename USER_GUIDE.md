@@ -46,16 +46,42 @@ Shows summaries computed from stored email metadata:
 
 If Insights are empty, run an analysis first.
 
-### Labels & Filters
+### Sender Classification
 
-Use this tab to review provider label/folder structure and filter logic:
+This is the main tab for organizing your senders into categories and deciding what to do with them. Mail Mind never modifies your emails — everything here is read-only analysis and suggestions that you act on yourself in Gmail.
 
-- **Gmail accounts**
-  - **Labels**: both system and user-created labels
-  - **Filters**: current Gmail filter rules with copyable query text
-- **Yahoo accounts**
-  - **Folders**: available Yahoo IMAP folders
-  - Filter rules are not shown for Yahoo in this tab
+**Step 1 — Run Classification**
+
+Click **Run Classification** to assign labels to your senders using built-in rules (known domains and keyword patterns). This is instant and safe to re-run.
+
+After running you'll see:
+- Coverage percentage (how many emails belong to a classified sender)
+- Per-label counts (how many senders and emails in each category)
+- Unclassified count (senders with no label yet)
+
+**Step 2 — Review labels (optional)**
+
+Click any label (e.g. Shopping) to see the senders under it. You can change a sender's labels by clicking **Edit** next to a row. Changes you make manually are never overwritten by future classification runs.
+
+If you remove a label that was auto-assigned, it won't come back — the system remembers your removal.
+
+**Step 3 — AI Enhancement (optional)**
+
+If AI is configured, click **Enhance with AI** to classify remaining unclassified senders using Gemini. Each run processes 50 senders. Run it multiple times until the remaining count reaches zero. AI-assigned labels can be overridden the same way as rule-assigned ones.
+
+**Step 4 — Copy filter queries**
+
+Each label has a **Copy filter** button that copies a Gmail-compatible `from:` search query to your clipboard (e.g. `from:(@amazon.com OR @ebay.com)`). Paste this into Gmail's filter builder to create a filter for that label.
+
+**Dispositions (coming soon)**
+
+Once senders are classified, you'll be able to assign a disposition to each:
+- **Archive** — keep for records or future reference
+- **Delete** — safe to delete after reading (e.g. OTPs, delivery notifications)
+- **Unsubscribe** — recurring emails you want to stop receiving
+- **Undecided** — not sure yet
+
+Dispositions are suggestions only. You act on them in Gmail yourself.
 
 ### Settings
 

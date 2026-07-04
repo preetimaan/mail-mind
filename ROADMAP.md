@@ -80,6 +80,20 @@ This branch implements Mail Mind with a clean, local-first architecture.
 - [x] Labels & Filters tab (Gmail labels+filters, Yahoo folders-only)
 - [ ] (Later) charts upgrade for Insights
 
+### Sender Classification
+- [x] `SenderClassification` model + `init_db` migration
+- [x] Tier 1 domain rule engine (known domains → label)
+- [x] Tier 2 keyword rule engine (sender name / domain patterns)
+- [x] `label_sources` per-label source tracking (tier1, tier2, ai, manual, manual_excluded)
+- [x] Manual label assignment (user override, never overwritten by rules)
+- [x] `manual_excluded` — prevents re-adding labels the user explicitly removed
+- [x] Optional AI classification via Gemini (batch 50 senders per call)
+- [x] Optional AI classification via OpenAI (per-sender fallback)
+- [x] AI status endpoint + UI guard (hide button when not configured)
+- [x] Filter query generation per label (collapsed `@domain` where safe)
+- [x] Gmail filter copy-to-clipboard per label
+- [x] Sender Classification tab in UI (coverage stats, per-label sender lists, manual edit)
+
 ### Documentation
 - [x] `DEVELOPER_SETUP.md`
 - [x] `USER_GUIDE.md`
@@ -87,6 +101,17 @@ This branch implements Mail Mind with a clean, local-first architecture.
 ---
 
 ## Next up (recommended order)
+
+### Sender dispositions
+
+The goal is to reduce review burden — instead of auditing every classified sender, the user reviews a short "uncertain" list and acts on grouped filter queries.
+
+- [ ] Add `disposition` field to `SenderClassification`: `archive | delete | unsubscribe | undecided`
+- [ ] Rule engine assigns disposition on classification run (label + subject keyword signals)
+- [ ] Disposition tab in UI: four panels (Archive / Delete / Unsubscribe / Undecided)
+- [ ] Per-sender disposition dropdown (manual override)
+- [ ] Copy-to-clipboard `from:` filter per disposition group
+- [ ] Surface "uncertain" list: only medium/low-confidence or undecided senders needing review
 
 ### Request robustness / UX
 
